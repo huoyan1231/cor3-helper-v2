@@ -547,8 +547,10 @@ export function AutoExpeditionCard({
 
                     <div class="v2-expedition-setting-row">
                         <div>
-                            <strong>{tr('Get rid of veterans')}</strong>
-                            <p class="v2-muted">{tr('When enabled, VETERAN mercenaries get high-risk event choices to consume them.')}</p>
+                            <strong>
+                                {tr('Get rid of veterans')}
+                                <InfoTip text={tr('When enabled, VETERAN mercenaries get high-risk event choices to consume them.')} />
+                            </strong>
                         </div>
                         <Switch
                             checked={settings?.mercGetRidOfVeterans ?? false}
