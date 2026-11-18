@@ -49,11 +49,11 @@ describe('portal response schemas', () => {
         const result = expeditionOverviewSchema.safeParse({
             active: [{
                 id: 'exp-1', status: 'IN_PROGRESS', locationName: 'Skylift Remains',
-                mercenaryName: 'Nova', totalCost: 100, riskScore: 20, hasInsurance: false, endsAt: null,
+                mercenaryName: 'Nova', mercenaryRank: 'VETERAN', totalCost: 100, riskScore: 20, hasInsurance: false, endsAt: null,
             }],
             archived: [],
             mercenaries: [{
-                id: 'merc-1', name: 'Nova', level: 1, rarity: 'RARE', price: 100,
+                id: 'merc-1', name: 'Nova', level: 1, rank: 'VETERAN', rarity: 'RARE', price: 100,
                 totalCost: null, riskScore: null, status: 'AVAILABLE', faction: 'CORE', elite: false,
             }],
             locations: [],

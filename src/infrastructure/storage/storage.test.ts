@@ -50,6 +50,7 @@ describe('SettingsRepository', () => {
         expect(defaults.autoDismissFailedJobsEnabled).toBe(false);
         expect(defaults.mercMinCreditsEnabled).toBe(false);
         expect(defaults.mercMinCredits).toBe(50000);
+        expect(defaults.mercGetRidOfVeterans).toBe(false);
 
         const updated = await repo.update({ uiLanguage: 'zh', autoDismissFailedJobsEnabled: true });
         expect(updated.uiLanguage).toBe('zh');
@@ -89,6 +90,20 @@ describe('SettingsRepository', () => {
         await area.set({ 'v2.settings': { schemaVersion: 1, writtenAt: 1, data } });
         const repo = new SettingsRepository(area, { now: () => 1 });
         expect((await repo.get()).droneDecisionPolicy).toBe('loot');
+    });
+
+    it('migrates the old mercenary veterans policy to the dedicated switch', async () => {
+        const area = new MemoryStorageArea();
+        const data = {
+            ...settingsV1Schema.parse({}),
+            mercDecisionPolicy: 'veterans',
+        };
+        await area.set({ 'v2.settings': { schemaVersion: 1, writtenAt: 1, data } });
+        const repo = new SettingsRepository(area, { now: () => 1 });
+        const migrated = await repo.get();
+        expect(migrated.mercGetRidOfVeterans).toBe(true);
+        expect(migrated.mercDecisionPolicy).toBe('loot');
+        expect((await repo.get()).mercGetRidOfVeterans).toBe(true);
     });
 });
 

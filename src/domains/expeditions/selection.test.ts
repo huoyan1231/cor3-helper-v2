@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ExpeditionDecisionOption, ExpeditionMercenary } from './model.js';
-import { chooseDecisionOption } from './model.js';
+import { chooseDecisionOption, isVeteranRank, resolveEffectiveDecisionPolicy } from './model.js';
 import { selectMercenary, shouldInsureMerc, type MercenaryCandidate } from './selection.js';
 
 function merc(id: string, overrides: Partial<ExpeditionMercenary> = {}): ExpeditionMercenary {
@@ -56,6 +56,25 @@ describe('chooseDecisionOption', () => {
 
     it('prefers the lowest risk then the highest loot', () => {
         expect(chooseDecisionOption(options, 'risk')?.id).toBe('safe');
+    });
+});
+
+describe('veteran decision policy', () => {
+    it('recognises VETERAN rank case-insensitively', () => {
+        expect(isVeteranRank('veteran')).toBe(true);
+        expect(isVeteranRank(' VETERAN ')).toBe(true);
+        expect(isVeteranRank('ELITE')).toBe(false);
+        expect(isVeteranRank(null)).toBe(false);
+    });
+
+    it('uses the high-risk comparator only for veterans with the switch on', () => {
+        expect(resolveEffectiveDecisionPolicy({ policy: 'loot', getRidOfVeterans: true, isVeteran: true })).toBe('veterans');
+        expect(resolveEffectiveDecisionPolicy({ policy: 'loot', getRidOfVeterans: true, isVeteran: false })).toBe('loot');
+        expect(resolveEffectiveDecisionPolicy({ policy: 'loot', getRidOfVeterans: false, isVeteran: true })).toBe('loot');
+    });
+
+    it('never overrides a disabled decision policy', () => {
+        expect(resolveEffectiveDecisionPolicy({ policy: 'off', getRidOfVeterans: true, isVeteran: true })).toBe('off');
     });
 });
 

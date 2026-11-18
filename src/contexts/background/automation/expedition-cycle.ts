@@ -80,7 +80,10 @@ export class ExpeditionCycle {
 
             let decisions = 0;
             if (current.mercDecisionPolicy !== 'off') {
-                const responded = await this.deps.service.autoRespond(home.marketId, current.mercDecisionPolicy);
+                const responded = await this.deps.service.autoRespond(home.marketId, {
+                    policy: current.mercDecisionPolicy,
+                    getRidOfVeterans: current.mercGetRidOfVeterans,
+                });
                 if (!responded.ok) {
                     this.state.last = { at: this.deps.clock.now(), decisions: 0, launched: false, error: responded.error.message };
                     if (/maintenance|unreachable|no route|ROUTE_FAILED/i.test(responded.error.message)) {

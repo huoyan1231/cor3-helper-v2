@@ -44,6 +44,7 @@ const expeditionLocationSchema = z.object({ id: z.string(), name: z.string(), zo
 const expeditionMercenarySchema = z.object({
     id: z.string(), name: z.string(), level: z.number(), rarity: z.string(), price: z.number(),
     totalCost: z.number().nullable(), riskScore: z.number().nullable(), status: z.string(), faction: z.string(), elite: z.boolean(),
+    rank: z.string().nullable().optional(),
 }).strict();
 const expeditionDecisionSchema = z.object({
     id: z.string(),
@@ -61,7 +62,7 @@ const expeditionDecisionSchema = z.object({
 }).strict();
 const activeExpeditionSchema = z.object({
     id: z.string(), status: z.string(), locationName: z.string(),
-    mercenaryName: z.string().nullable(), totalCost: z.number().nullable(), riskScore: z.number().nullable(),
+    mercenaryName: z.string().nullable(), mercenaryRank: z.string().nullable().optional(), totalCost: z.number().nullable(), riskScore: z.number().nullable(),
     hasInsurance: z.boolean().nullable(), endsAt: z.string().nullable(),
 }).strict();
 export const expeditionOverviewSchema = z.object({

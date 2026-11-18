@@ -22,6 +22,11 @@ const SETTINGS_MIGRATIONS: readonly ((settings: SettingsV1) => SettingsV1)[] = [
     (settings) => settings.droneDecisionPolicy === 'veterans'
         ? { ...settings, droneDecisionPolicy: 'loot' }
         : settings,
+    // The old mercenary "veterans" policy applied high-risk choices to every
+    // expedition. Fold it into the dedicated switch and keep a visible policy.
+    (settings) => settings.mercDecisionPolicy === 'veterans'
+        ? { ...settings, mercGetRidOfVeterans: true, mercDecisionPolicy: 'loot' }
+        : settings,
 ];
 
 function migrateSettings(settings: SettingsV1): SettingsV1 {

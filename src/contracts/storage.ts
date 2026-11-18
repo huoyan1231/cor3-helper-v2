@@ -82,6 +82,7 @@ export const settingsV1Schema = z.object({
     mercInsuranceMinPriceEnabled: z.boolean().default(false),
     mercInsuranceMinPrice: z.number().int().nonnegative().default(10000),
     mercDecisionPolicy: z.enum(DECISION_POLICIES).default('off'),
+    mercGetRidOfVeterans: z.boolean().default(false),
     mercAutoPayEnabled: z.boolean().default(true),
     mercLocationId: z.string().nullable().default(null),
     mercGoalId: z.string().nullable().default(null),

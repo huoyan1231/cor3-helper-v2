@@ -43,7 +43,6 @@ const MERC_MARKET_LABEL: Record<string, string> = {
 
 const MERC_DECISION_OPTIONS = [
     { value: 'off', label: 'Off (let the system decide)' },
-    { value: 'veterans', label: 'Veterans first (highest risk)' },
     { value: 'loot', label: 'Highest loot first' },
     { value: 'risk', label: 'Lowest risk first' },
 ] as const;
@@ -544,6 +543,19 @@ export function AutoExpeditionCard({
                                 {MERC_DECISION_OPTIONS.map((option) => <option key={option.value} value={option.value}>{tr(option.label)}</option>)}
                             </select>
                         </label>
+                    </div>
+
+                    <div class="v2-expedition-setting-row">
+                        <div>
+                            <strong>{tr('Get rid of veterans')}</strong>
+                            <p class="v2-muted">{tr('When enabled, VETERAN mercenaries get high-risk event choices to consume them.')}</p>
+                        </div>
+                        <Switch
+                            checked={settings?.mercGetRidOfVeterans ?? false}
+                            disabled={settings?.mercDecisionPolicy === 'off'}
+                            label={tr('Get rid of veterans')}
+                            onClick={() => void updateSettings({ mercGetRidOfVeterans: !settings?.mercGetRidOfVeterans })}
+                        />
                     </div>
 
                     <div class="v2-expedition-setting-row">

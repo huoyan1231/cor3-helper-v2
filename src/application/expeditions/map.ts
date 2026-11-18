@@ -15,6 +15,12 @@ import {
 
 type RawDecision = import('zod').infer<typeof rawDecisionSchema>;
 
+function readMercenaryRank(value: unknown): string | null {
+    if (!value || typeof value !== 'object') return null;
+    const rank = (value as Record<string, unknown>).rank;
+    return typeof rank === 'string' ? rank : null;
+}
+
 function mapDecision(raw: RawDecision): ExpeditionDecision | null {
     if (raw.isResolved === true) return null;
     return {
@@ -49,6 +55,7 @@ function mapExpedition(raw: unknown): ActiveExpedition | null {
         status: typeof entry.status === 'string' ? entry.status : 'UNKNOWN',
         locationName: typeof entry.locationName === 'string' ? entry.locationName : 'Unknown location',
         mercenaryName,
+        mercenaryRank: readMercenaryRank(mercenary),
         totalCost: typeof entry.totalCost === 'number' ? entry.totalCost : null,
         riskScore: typeof entry.riskScore === 'number' ? entry.riskScore : null,
         hasInsurance: typeof entry.hasInsurance === 'boolean' ? entry.hasInsurance : null,
@@ -89,6 +96,7 @@ export function mapMercenaries(raw: unknown): ExpeditionMercenary[] {
             id: merc.id,
             name: merc.callsign ?? merc.name ?? merc.id,
             level: merc.level ?? 0,
+            rank: merc.rank ?? null,
             rarity: merc.rarity ?? 'UNKNOWN',
             price: merc.price ?? 0,
             totalCost: merc.totalCost ?? null,
@@ -209,6 +217,7 @@ export function mapExpeditionOverview(
             status: 'DECISION_PENDING',
             locationName: 'Unknown location',
             mercenaryName: null,
+            mercenaryRank: null,
             totalCost: null,
             riskScore: null,
             hasInsurance: null,

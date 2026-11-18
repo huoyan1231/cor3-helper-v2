@@ -38,6 +38,68 @@ describe('totalCostInfo', () => {
     });
 });
 
+function autoRespondPort(rank: string | null, respond: ReturnType<typeof vi.fn>): ExpeditionPort {
+    return {
+        ...port(vi.fn()),
+        getActive: async () => ({
+            ok: true,
+            value: {
+                expeditions: [{
+                    id: 'exp-1',
+                    status: 'IN_PROGRESS',
+                    mercenary: { callsign: 'Nova', rank },
+                    messages: null,
+                }],
+                decisions: [{
+                    id: 'msg-1',
+                    expeditionId: 'exp-1',
+                    message: 'Pick one',
+                    isResolved: false,
+                    options: [
+                        { id: 'risky', label: 'Risky', riskModifier: 5, lootModifier: 1, successChance: 0.5, requiredModuleId: null },
+                        { id: 'loot', label: 'Loot', riskModifier: 1, lootModifier: 5, successChance: 0.5, requiredModuleId: null },
+                    ],
+                }],
+            },
+        }),
+        respond,
+    };
+}
+
+describe('ExpeditionService autoRespond', () => {
+    it('uses high-risk choices for veteran expeditions when the switch is on', async () => {
+        const respond = vi.fn().mockResolvedValue({ ok: true, value: undefined });
+        const service = new ExpeditionService(autoRespondPort('VETERAN', respond));
+        const result = await service.autoRespond('home', { policy: 'loot', getRidOfVeterans: true });
+        expect(result.ok && result.value).toBe(1);
+        expect(respond).toHaveBeenCalledWith('exp-1', 'msg-1', 'risky');
+    });
+
+    it('keeps the configured policy for veteran expeditions when the switch is off', async () => {
+        const respond = vi.fn().mockResolvedValue({ ok: true, value: undefined });
+        const service = new ExpeditionService(autoRespondPort('VETERAN', respond));
+        const result = await service.autoRespond('home', { policy: 'loot', getRidOfVeterans: false });
+        expect(result.ok && result.value).toBe(1);
+        expect(respond).toHaveBeenCalledWith('exp-1', 'msg-1', 'loot');
+    });
+
+    it('does not change non-veteran expeditions when the switch is on', async () => {
+        const respond = vi.fn().mockResolvedValue({ ok: true, value: undefined });
+        const service = new ExpeditionService(autoRespondPort('ELITE', respond));
+        const result = await service.autoRespond('home', { policy: 'loot', getRidOfVeterans: true });
+        expect(result.ok && result.value).toBe(1);
+        expect(respond).toHaveBeenCalledWith('exp-1', 'msg-1', 'loot');
+    });
+
+    it('never responds when the decision policy is off', async () => {
+        const respond = vi.fn().mockResolvedValue({ ok: true, value: undefined });
+        const service = new ExpeditionService(autoRespondPort('VETERAN', respond));
+        const result = await service.autoRespond('home', { policy: 'off', getRidOfVeterans: true });
+        expect(result.ok && result.value).toBe(0);
+        expect(respond).not.toHaveBeenCalled();
+    });
+});
+
 describe('ExpeditionService candidates', () => {
     it('configures candidates with the requested location and goal', async () => {
         const configure = vi.fn().mockResolvedValue({ ok: true, value: { totalCost: 250, riskScore: 40 } });

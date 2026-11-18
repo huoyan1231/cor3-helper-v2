@@ -916,7 +916,7 @@ Market refresh used `RouteExecutor` directly. The executor always walked interme
 - The loadout is still applied before routing to the target server. If it fails, the job remains in the taken/retryable state and can be retried instead of disappearing from the run.
 - The integration test now asserts take-before-loadout, and the execution test asserts that a loadout failure keeps the taken job.
 - The drone in-mission decision dropdown no longer offers `Veterans first (highest risk)`: drone events do not expose veteran/mercenary data, so the option only duplicated a risk sort. Existing stored `veterans` values migrate to `loot`.
-- Expedition/mercenary decisions keep all four policies; only the drone dropdown changed.
+- Expedition/mercenary decisions keep `off`, `loot` and `risk` in the dropdown; the old `veterans` choice became a dedicated switch in a later change.
 
 
 ---
@@ -1062,3 +1062,14 @@ Market refresh used `RouteExecutor` directly. The executor always walked interme
 
 - Release `2.0.5-salta` consolidates the post-2.0.4 loadout and completion fixes: 35 s loadout request window, 60 s optimized-plan cache, take-first decrypt jobs during minigame locks, zero-power decrypt attempts, claim-only completion bypassing stale locks/retry budgets, and expedition/download/bridge hardening.
 - Release identity: `package.json.version = 2.0.5`, `cor3Fork.releaseLabel = salta`, tag `v2.0.5-salta`; the local build counter remains separate.
+
+
+---
+
+# Part 38 — Dedicated Get Rid of Veterans Switch
+
+- Expedition and mercenary raw schemas now retain `mercenary.rank`; mapped domain objects expose `rank` / `mercenaryRank` so the active expedition's mercenary level can be identified.
+- `mercGetRidOfVeterans` is a separate setting (default off). When it is on and the current expedition mercenary rank is `VETERAN`, automatic event responses use the high-risk comparator (`riskModifier` desc, then loot and success chance). Non-veteran expeditions and the drone flow are unchanged.
+- The old `mercDecisionPolicy='veterans'` value is migrated on read to `mercGetRidOfVeterans=true` plus `mercDecisionPolicy='loot'`; the value remains schema-valid internally but is no longer offered in the UI.
+- Decision policy `off` still wins: no automatic response is sent even if the new switch is enabled.
+- Auto Expedition and manual `expeditions.autoRespond` / `expeditions.autoSend` commands pass the switch into `ExpeditionService.autoRespond`; trace logs include `effectivePolicy` and `isVeteran`.

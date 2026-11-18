@@ -66,7 +66,8 @@ export function registerExpeditionHandlers(server: CoreRuntime['server'], deps: 
     server.register('expeditions.autoRespond', z.object({ marketId: z.string().min(1).optional() }).strict(), async ({ marketId }) => {
         const resolved = homeMarketId(marketId);
         if (!resolved) return { ok: false, error: { code: 'MARKET_MISSING', message: 'Home market is not configured' } };
-        const result = await game.expeditionService.autoRespond(resolved);
+        const settings = await core.settings.get();
+        const result = await game.expeditionService.autoRespond(resolved, { getRidOfVeterans: settings.mercGetRidOfVeterans });
         return result.ok ? ok({ responded: result.value }) : { ok: false, error: { code: result.error.code, message: result.error.message } };
     });
     server.register('expeditions.claimRewards', z.object({ marketId: z.string().min(1).optional() }).strict(), async ({ marketId }) => {
@@ -92,7 +93,8 @@ export function registerExpeditionHandlers(server: CoreRuntime['server'], deps: 
     server.register('expeditions.autoSend', z.object({ marketId: z.string().min(1).optional() }).strict(), async ({ marketId }) => {
         const resolved = homeMarketId(marketId);
         if (!resolved) return { ok: false, error: { code: 'MARKET_MISSING', message: 'Home market is not configured' } };
-        const decisions = await game.expeditionService.autoRespond(resolved);
+        const settings = await core.settings.get();
+        const decisions = await game.expeditionService.autoRespond(resolved, { getRidOfVeterans: settings.mercGetRidOfVeterans });
         if (!decisions.ok) return { ok: false, error: { code: decisions.error.code, message: decisions.error.message } };
         const launch = await game.expeditionService.autoLaunch(resolved);
         if (!launch.ok) return { ok: false, error: { code: launch.error.code, message: launch.error.message } };

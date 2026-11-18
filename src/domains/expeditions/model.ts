@@ -21,6 +21,7 @@ export interface ExpeditionMercenary {
     readonly id: string;
     readonly name: string;
     readonly level: number;
+    readonly rank?: string | null;
     readonly rarity: string;
     readonly price: number;
     readonly totalCost: number | null;
@@ -52,6 +53,7 @@ export interface ActiveExpedition {
     readonly status: string;
     readonly locationName: string;
     readonly mercenaryName: string | null;
+    readonly mercenaryRank?: string | null;
     readonly totalCost: number | null;
     readonly riskScore: number | null;
     readonly hasInsurance: boolean | null;
@@ -90,6 +92,21 @@ export function chooseDecisionOption(
             || (right.successChance ?? 0) - (left.successChance ?? 0);
     });
     return pool[0] ?? null;
+}
+
+export function isVeteranRank(rank: string | null | undefined): boolean {
+    return typeof rank === 'string' && rank.trim().toUpperCase() === 'VETERAN';
+}
+
+export interface EffectiveDecisionPolicyInput {
+    readonly policy: DecisionPolicy;
+    readonly getRidOfVeterans: boolean;
+    readonly isVeteran: boolean;
+}
+
+export function resolveEffectiveDecisionPolicy(input: EffectiveDecisionPolicyInput): DecisionPolicy {
+    if (input.policy === 'off' || !input.getRidOfVeterans || !input.isVeteran) return input.policy;
+    return 'veterans';
 }
 
 

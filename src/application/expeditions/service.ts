@@ -8,6 +8,8 @@ import {
     chooseDecisionOption,
     chooseExpeditionMercenary,
     isExpeditionReady,
+    isVeteranRank,
+    resolveEffectiveDecisionPolicy,
     type ActiveExpedition,
     type DecisionPolicy,
 } from '../../domains/expeditions/model.js';
@@ -31,6 +33,11 @@ export interface ExpeditionLaunchConfig {
     readonly zoneConfigId: string;
     readonly goalId: string;
     readonly hasInsurance: boolean;
+}
+
+export interface AutoRespondOptions {
+    readonly policy?: DecisionPolicy;
+    readonly getRidOfVeterans?: boolean;
 }
 
 function numberFrom(value: unknown, keys: readonly string[]): number | null {
@@ -97,25 +104,36 @@ export class ExpeditionService {
         return this.expeditions.respond(expeditionId, messageId, optionId);
     }
 
-    async autoRespond(marketId: string, policy: DecisionPolicy = 'loot'): Promise<Result<number, { readonly code: string; readonly message: string }>> {
+    async autoRespond(marketId: string, options: AutoRespondOptions = {}): Promise<Result<number, { readonly code: string; readonly message: string }>> {
+        const policy = options.policy ?? 'loot';
+        const getRidOfVeterans = options.getRidOfVeterans === true;
         if (policy === 'off') return ok(0);
         const overview = await this.overview(marketId, { includeMercenaries: false, includeConfig: false });
         if (!overview.ok) return overview;
+        const veteranByExpeditionId = new Map<string, boolean>();
+        for (const expedition of [...overview.value.active, ...overview.value.archived]) {
+            if (expedition.id.length > 0) {
+                veteranByExpeditionId.set(expedition.id, isVeteranRank(expedition.mercenaryRank));
+            }
+        }
         let responded = 0;
-        this.trace?.(`Expedition decision scan: ${overview.value.decisions.length} decision(s), active=${overview.value.active.length}, policy=${policy}`, {
+        this.trace?.(`Expedition decision scan: ${overview.value.decisions.length} decision(s), active=${overview.value.active.length}, policy=${policy}, getRidOfVeterans=${getRidOfVeterans}`, {
             decisions: overview.value.decisions.length,
             active: overview.value.active.length,
             policy,
+            getRidOfVeterans,
         });
         for (const decision of overview.value.decisions) {
-            const option = chooseDecisionOption(decision.options, policy);
+            const isVeteran = veteranByExpeditionId.get(decision.expeditionId) === true;
+            const effectivePolicy = resolveEffectiveDecisionPolicy({ policy, getRidOfVeterans, isVeteran });
+            const option = chooseDecisionOption(decision.options, effectivePolicy);
             const optionSummary = decision.options.length === 0
                 ? 'no options'
                 : decision.options.map((entry) =>
                     `${entry.id || '?'}[${entry.label}] risk=${entry.riskModifier} loot=${entry.lootModifier} chance=${entry.successChance ?? '-'} module=${entry.requiredModuleId ?? '-'}`,
                 ).join(' | ');
             this.trace?.(
-                `Expedition decision ${decision.expeditionId || '?'}/${decision.id || '?'}: ${optionSummary} => ${option?.id ?? 'none'} (policy=${policy})`,
+                `Expedition decision ${decision.expeditionId || '?'}/${decision.id || '?'}: ${optionSummary} => ${option?.id ?? 'none'} (policy=${effectivePolicy}, isVeteran=${isVeteran})`,
                 {
                     expeditionId: decision.expeditionId,
                     decisionId: decision.id,
@@ -123,6 +141,9 @@ export class ExpeditionService {
                     options: decision.options,
                     chosen: option?.id ?? null,
                     policy,
+                    effectivePolicy,
+                    isVeteran,
+                    getRidOfVeterans,
                 },
             );
             this.trace?.('Expedition decision evaluated', {
@@ -138,6 +159,8 @@ export class ExpeditionService {
                 })),
                 chosen: option?.id ?? null,
                 policy,
+                effectivePolicy,
+                isVeteran,
             });
             if (!option) continue;
             const result = await this.respond(decision.expeditionId, decision.id, option.id);

@@ -87,4 +87,20 @@ describe('expedition mapping', () => {
         expect(overview.decisions).toHaveLength(1);
         expect(overview.decisions[0]?.options[0]).toMatchObject({ id: 'opt-1', label: 'Go' });
     });
+
+    it('maps mercenary rank from active expeditions and mercenary lists', () => {
+        const overview = mapExpeditionOverview({
+            expeditions: [{ ...expedition, mercenary: { callsign: 'Nova', rank: 'veteran' } }],
+        }, {}, { mercenaries: [{ id: 'merc-1', name: 'Nova', rank: 'VETERAN' }] }, {});
+        expect(overview.active[0]?.mercenaryName).toBe('Nova');
+        expect(overview.active[0]?.mercenaryRank).toBe('veteran');
+        expect(overview.mercenaries[0]?.rank).toBe('VETERAN');
+    });
+
+    it('gives decision placeholder expeditions an empty mercenary rank', () => {
+        const overview = mapExpeditionOverview({
+            decisions: [{ id: 'msg-1', expeditionId: 'exp-2', options: [{ id: 'opt-1' }] }],
+        }, {}, {}, {});
+        expect(overview.active[0]?.mercenaryRank).toBeNull();
+    });
 });
