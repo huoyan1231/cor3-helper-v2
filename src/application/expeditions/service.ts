@@ -185,6 +185,8 @@ export class ExpeditionService {
         readonly hasInsurance: boolean;
         readonly insuranceMinPriceEnabled?: boolean;
         readonly insuranceMinPrice?: number;
+        /** Insure VETERAN mercenaries regardless of the price threshold. */
+        readonly insureVeterans?: boolean;
         readonly maxCandidates?: number;
         readonly locations?: readonly ExpeditionLocation[];
         readonly locationConfigId?: string;
@@ -210,7 +212,7 @@ export class ExpeditionService {
                 enabled: request.hasInsurance,
                 minPriceEnabled: request.insuranceMinPriceEnabled ?? false,
                 minPrice: request.insuranceMinPrice ?? 10000,
-            });
+            }) || (request.insureVeterans === true && isVeteranRank(merc.rank));
             let totalCost = merc.totalCost;
             let costEstimated = false;
             let riskScore = merc.riskScore ?? 0;

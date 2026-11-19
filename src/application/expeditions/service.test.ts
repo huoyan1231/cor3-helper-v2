@@ -15,11 +15,11 @@ const locations: ExpeditionLocation[] = [{
     }],
 }];
 
-function port(configure: ReturnType<typeof vi.fn>, price = 100): ExpeditionPort {
+function port(configure: ReturnType<typeof vi.fn>, price = 100, rank: string | null = null): ExpeditionPort {
     return {
         getActive: async () => ({ ok: true, value: [] }),
         getArchived: async () => ({ ok: true, value: [] }),
-        getMercenaries: async () => ({ ok: true, value: { mercenaries: [{ id: 'merc-1', name: 'Merc', price }] } }),
+        getMercenaries: async () => ({ ok: true, value: { mercenaries: [{ id: 'merc-1', name: 'Merc', price, rank }] } }),
         getConfig: async () => ({ ok: true, value: {} }),
         respond: async () => ({ ok: true, value: undefined }),
         configure,
@@ -180,5 +180,37 @@ describe('ExpeditionService candidates', () => {
         });
         expect(configure).toHaveBeenCalledWith(expect.objectContaining({ hasInsurance: true }));
         if (result.ok) expect(result.value[0]?.insurance).toBe(true);
+    });
+
+    it('insures veterans regardless of price threshold when insureVeterans is on', async () => {
+        const configure = vi.fn().mockResolvedValue({ ok: true, value: { totalCost: 250 } });
+        const service = new ExpeditionService(port(configure, 100, 'VETERAN'), async () => undefined);
+        const result = await service.candidates({
+            marketId: 'home',
+            marketKey: 'core',
+            hasInsurance: false,
+            insuranceMinPriceEnabled: true,
+            insuranceMinPrice: 10000,
+            insureVeterans: true,
+            locations,
+        });
+        expect(configure).toHaveBeenCalledWith(expect.objectContaining({ hasInsurance: true }));
+        if (result.ok) expect(result.value[0]?.insurance).toBe(true);
+    });
+
+    it('does not insure non-veterans via insureVeterans', async () => {
+        const configure = vi.fn().mockResolvedValue({ ok: true, value: { totalCost: 250 } });
+        const service = new ExpeditionService(port(configure, 100, 'ELITE'), async () => undefined);
+        const result = await service.candidates({
+            marketId: 'home',
+            marketKey: 'core',
+            hasInsurance: false,
+            insuranceMinPriceEnabled: true,
+            insuranceMinPrice: 10000,
+            insureVeterans: true,
+            locations,
+        });
+        expect(configure).toHaveBeenCalledWith(expect.objectContaining({ hasInsurance: false }));
+        if (result.ok) expect(result.value[0]?.insurance).toBe(false);
     });
 });

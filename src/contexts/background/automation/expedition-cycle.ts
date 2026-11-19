@@ -302,6 +302,7 @@ export class ExpeditionCycle {
                     hasInsurance: current.mercInsuranceEnabled,
                     insuranceMinPriceEnabled: current.mercInsuranceMinPriceEnabled,
                     insuranceMinPrice: current.mercInsuranceMinPrice,
+                    insureVeterans: current.mercInsureVeterans,
                     locations: marketLocations,
                     locationConfigId: profile.locationConfigId,
                     zoneConfigId: profile.zoneConfigId,

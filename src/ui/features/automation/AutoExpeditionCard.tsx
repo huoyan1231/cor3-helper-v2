@@ -560,6 +560,21 @@ export function AutoExpeditionCard({
                         />
                     </div>
 
+                    <div class={`v2-expedition-subsettings${settings?.mercGetRidOfVeterans && settings?.mercDecisionPolicy !== 'off' ? '' : ' v2-expedition-disabled'}`}>
+                        <div class="v2-expedition-setting-row">
+                            <div>
+                                <strong>{tr('Insure veterans being cleared')}</strong>
+                                <p class="v2-muted">{tr('Add insurance for VETERAN mercenaries cleared through high-risk events, regardless of the insurance price threshold.')}</p>
+                            </div>
+                            <Switch
+                                checked={settings?.mercInsureVeterans ?? false}
+                                disabled={!settings?.mercGetRidOfVeterans || settings?.mercDecisionPolicy === 'off'}
+                                label={tr('Insure veterans being cleared')}
+                                onClick={() => void updateSettings({ mercInsureVeterans: !settings?.mercInsureVeterans })}
+                            />
+                        </div>
+                    </div>
+
                     <div class="v2-expedition-setting-row">
                         <div>
                             <strong>{tr('Auto pay and send rewards to mailbox')}</strong>

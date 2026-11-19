@@ -51,6 +51,7 @@ describe('SettingsRepository', () => {
         expect(defaults.mercMinCreditsEnabled).toBe(false);
         expect(defaults.mercMinCredits).toBe(50000);
         expect(defaults.mercGetRidOfVeterans).toBe(false);
+        expect(defaults.mercInsureVeterans).toBe(false);
 
         const updated = await repo.update({ uiLanguage: 'zh', autoDismissFailedJobsEnabled: true });
         expect(updated.uiLanguage).toBe('zh');

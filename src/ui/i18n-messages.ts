@@ -205,6 +205,8 @@ export const ZH_MESSAGES: Readonly<Record<string, string>> = {
     'Off (let the system decide)': '关闭（由系统决定）',
     'Get rid of veterans': '清除老兵',
     'When enabled, VETERAN mercenaries get high-risk event choices to consume them.': '开启后，老兵雇佣兵的远征事件将偏向高风险选项，以消耗老兵。',
+    'Insure veterans being cleared': '清除老兵时投保',
+    'Add insurance for VETERAN mercenaries cleared through high-risk events, regardless of the insurance price threshold.': '为通过高风险事件清除的老兵雇佣兵投保，不受投保价格阈值限制。',
     'Highest loot first': '最高战利品优先',
     'Lowest risk first': '最低风险优先',
     'Auto pay and send rewards to mailbox': '自动支付并将奖励发送到邮箱',
