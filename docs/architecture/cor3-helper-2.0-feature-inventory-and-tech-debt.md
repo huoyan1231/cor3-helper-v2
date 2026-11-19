@@ -54,6 +54,7 @@ Reading the numbers:
 | Last-updated timestamps | `src/popup/timestamps.js`, `.last-updated` DOM ids | **Missing** | No per-section timestamps; only market/snapshot ages |
 | Popup/side-panel layout | `src/popup/panel-controls.js` | **Implemented** | Toolbar popup offers a launcher plus an in-popup full workspace; side panel and detached window remain optional entry points |
 | Toolbar default open mode | No v1 equivalent | **Implemented (v2-only)** | Right-click the toolbar icon for a radio menu (side panel / detached window / popup / none); `toolbarOpenMode` persists the choice and icon clicks dispatch to the selected target |
+| Remember workspace view | No v1 equivalent | **Implemented (v2-only)** | Active page and scroll offset persist in `v2.workspace-view` and are shared by the side panel, toolbar popup and detached window |
 | Welcome launcher | v1 popup was the full UI | **Implemented (v2-only)** | `WelcomeApp.tsx`; "Use in this popup" navigates to `sidepanel.html?mode=popup` |
 | Settings export/import/reset | No v1 equivalent | **Implemented (v2-only)** | `SettingsPage.tsx`; `settings.export/import/reset` in background |
 | Session panel | Scattered in v1 | **Implemented (v2-only)** | Auth/endpoint/snapshot/readiness in `SettingsPage.tsx` |

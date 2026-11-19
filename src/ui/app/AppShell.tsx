@@ -1,8 +1,9 @@
 import type { ComponentChildren } from 'preact';
+import type { WorkspacePage } from '../../contracts/workspace-view.js';
 import { BrandHeader } from '../components/BrandHeader.js';
 import { t, type UiLanguage } from '../i18n.js';
 
-export type PopupPage = 'overview' | 'progress' | 'automation' | 'game' | 'settings' | 'developer';
+export type PopupPage = WorkspacePage;
 export interface AppShellProps {
     readonly language: UiLanguage;
     readonly ping: string;

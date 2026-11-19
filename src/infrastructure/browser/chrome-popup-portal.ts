@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { SettingsPatch } from '../../contracts/storage.js';
 import { authStatusSchema, settingsPatchSchema, settingsV1Schema } from '../../contracts/storage.js';
+import { DEFAULT_WORKSPACE_VIEW, WORKSPACE_VIEW_KEY, workspaceViewStateSchema, type WorkspaceViewState } from '../../contracts/workspace-view.js';
 import { networkMapSummarySchema } from '../../application/network/summary.js';
 import type { BridgeClient } from '../bridge/bridge-client.js';
 import { UpdateChecker } from '../update/update-checker.js';
@@ -719,6 +720,25 @@ export class ChromePopupPortal implements PopupPortal {
             versionName: (manifest as { version_name?: string }).version_name ?? manifest.version,
             build: typeof __COR3_BUILD_NUMBER__ === 'string' ? __COR3_BUILD_NUMBER__ : null,
         };
+    }
+
+    async getWorkspaceView(): Promise<WorkspaceViewState> {
+        try {
+            const stored = await chrome.storage.local.get(WORKSPACE_VIEW_KEY);
+            const parsed = workspaceViewStateSchema.safeParse(stored[WORKSPACE_VIEW_KEY]);
+            return parsed.success ? parsed.data : DEFAULT_WORKSPACE_VIEW;
+        } catch {
+            return DEFAULT_WORKSPACE_VIEW;
+        }
+    }
+
+    async saveWorkspaceView(state: WorkspaceViewState): Promise<void> {
+        try {
+            const parsed = workspaceViewStateSchema.parse(state);
+            await chrome.storage.local.set({ [WORKSPACE_VIEW_KEY]: parsed });
+        } catch {
+            // View state is best effort; a failed write must not break the UI.
+        }
     }
 
     openSidePanel(): Promise<boolean> {

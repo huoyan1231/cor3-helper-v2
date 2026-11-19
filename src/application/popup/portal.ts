@@ -1,4 +1,5 @@
 import type { BridgeResult } from '../../contracts/bridge.js';
+import type { WorkspaceViewState } from '../../contracts/workspace-view.js';
 import type { AutoJobsSkippedJob } from '../../contracts/auto-jobs.js';
 import type { AuthStatus, SettingsPatch, SettingsV1 } from '../../contracts/storage.js';
 import type { NetworkMapSummary } from '../network/summary.js';
@@ -496,6 +497,10 @@ export interface PopupPortal {
     subscribeStorage(listener: (keys: readonly string[]) => void): () => void;
     subscribeEvents(listener: (event: BackgroundEvent) => void): () => void;
     versionInfo(): PopupVersionInfo;
+    /** Reads the last workspace page and scroll offset shared by all entry points. */
+    getWorkspaceView(): Promise<WorkspaceViewState>;
+    /** Persists the current workspace page and scroll offset. */
+    saveWorkspaceView(state: WorkspaceViewState): Promise<void>;
     openSidePanel(): Promise<boolean>;
     /** Opens the full workspace inside the current browser action popup. */
     openInPopup(): Promise<boolean>;

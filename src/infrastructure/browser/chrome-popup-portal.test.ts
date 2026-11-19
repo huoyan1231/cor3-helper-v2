@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { BridgeClient } from '../bridge/bridge-client.js';
 import { ChromePopupPortal, droneStateSchema, expeditionOverviewSchema } from './chrome-popup-portal.js';
+import { DEFAULT_WORKSPACE_VIEW, WORKSPACE_VIEW_KEY } from '../../contracts/workspace-view.js';
 
 function portalWithRequest(request: ReturnType<typeof vi.fn>): ChromePopupPortal {
     return new ChromePopupPortal({ request } as unknown as BridgeClient);
@@ -43,6 +44,34 @@ describe('ChromePopupPortal', () => {
     });
 });
 
+describe('ChromePopupPortal workspace view', () => {
+    afterEach(() => vi.unstubAllGlobals());
+
+    it('returns the default view when storage is empty or invalid', async () => {
+        const get = vi.fn().mockResolvedValue({});
+        vi.stubGlobal('chrome', { storage: { local: { get, set: vi.fn() } } });
+        await expect(portalWithRequest(vi.fn()).getWorkspaceView()).resolves.toEqual(DEFAULT_WORKSPACE_VIEW);
+
+        get.mockResolvedValue({ [WORKSPACE_VIEW_KEY]: { page: 'unknown', scrollTop: 20 } });
+        await expect(portalWithRequest(vi.fn()).getWorkspaceView()).resolves.toEqual(DEFAULT_WORKSPACE_VIEW);
+    });
+
+    it('reads a stored view', async () => {
+        const view = { page: 'game', scrollTop: 320 };
+        vi.stubGlobal('chrome', {
+            storage: { local: { get: vi.fn().mockResolvedValue({ [WORKSPACE_VIEW_KEY]: view }), set: vi.fn() } },
+        });
+        await expect(portalWithRequest(vi.fn()).getWorkspaceView()).resolves.toEqual(view);
+    });
+
+    it('writes a validated view', async () => {
+        const set = vi.fn().mockResolvedValue(undefined);
+        vi.stubGlobal('chrome', { storage: { local: { get: vi.fn(), set } } });
+
+        await portalWithRequest(vi.fn()).saveWorkspaceView({ page: 'settings', scrollTop: 88 });
+        expect(set).toHaveBeenCalledWith({ [WORKSPACE_VIEW_KEY]: { page: 'settings', scrollTop: 88 } });
+    });
+});
 
 describe('portal response schemas', () => {
     it('accepts a full expedition overview with decisions and active fields', () => {

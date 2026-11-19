@@ -40,11 +40,20 @@ export interface SidePanelAppProps {
     readonly portal: PopupPortal;
     readonly windowMode?: boolean;
     readonly popupMode?: boolean;
+    readonly initialPage?: PopupPage;
+    readonly onPageChange?: ((page: PopupPage) => void) | undefined;
 }
 
-export function SidePanelApp({ portal, windowMode = false, popupMode = false }: SidePanelAppProps) {
-    const [activePage, setActivePage] = useState<PopupPage>('overview');
+export function SidePanelApp({
+    portal,
+    windowMode = false,
+    popupMode = false,
+    initialPage = 'overview',
+    onPageChange,
+}: SidePanelAppProps) {
+    const [activePage, setActivePage] = useState<PopupPage>(initialPage);
     const [now, setNow] = useState(Date.now());
+    const pageChangeNotified = useRef(false);
 
     const connection = usePortalConnection(portal);
 
@@ -186,6 +195,14 @@ export function SidePanelApp({ portal, windowMode = false, popupMode = false }: 
     useEffect(() => {
         if (settings.helperMode && activePage === 'automation') setActivePage('overview');
     }, [settings.helperMode, activePage]);
+
+    useEffect(() => {
+        if (!pageChangeNotified.current) {
+            pageChangeNotified.current = true;
+            return;
+        }
+        onPageChange?.(activePage);
+    }, [activePage, onPageChange]);
 
     // Clock used by the countdowns on the overview, game and automation pages.
     usePolling(() => setNow(Date.now()), 1000, { enabled: activePage !== 'settings' && activePage !== 'developer' });
