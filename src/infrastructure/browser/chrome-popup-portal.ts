@@ -5,6 +5,7 @@ import { DEFAULT_WORKSPACE_VIEW, WORKSPACE_VIEW_KEY, workspaceViewStateSchema, t
 import { networkMapSummarySchema } from '../../application/network/summary.js';
 import type { BridgeClient } from '../bridge/bridge-client.js';
 import { UpdateChecker } from '../update/update-checker.js';
+import { toVersionCode } from '../../kernel/version.js';
 import type { AutoDailyStatus, AutoDroneStatus, AutoExpeditionStatus, AutoFinishRunResult, AutoFinishStatus, AutoJobsSnapshot, AutoJobsStatus, AutoMailStatus, BackgroundEvent, CachedMarketView, DailyHackResult, DebugLogLine, DismissFailedSummary, DroneAutoResult, InventoryFilterResult, InventoryItemSellResult, InventoryPreviewResult, InventorySortResult, InventoryView, JobAllMarketsResult, JobHistoryEntry, JobMarketSyncResult, JobQueueResult, JobQueueState, LoadoutApplyResult, LoadoutView, MailClaimResult, MarketOptionsView, ActivityState, NetworkDiagnostics, NetworkServerSummary, OverviewState, PopupPortal, ValuableReport, ValuableRunState, ValuableSaleResult, ValuableSearchResult } from '../../application/popup/portal.js';
 import type { NetworkOperationQueueStatus } from '../../application/network/operation-queue.js';
 import { gameReadinessSchema } from '../../application/game/readiness.js';
@@ -777,7 +778,10 @@ export class ChromePopupPortal implements PopupPortal {
     async updateCheck() {
         // v1 checked directly from the popup. Keep that path first: it avoids a
         // service-worker/bridge timeout on slow or restricted networks.
-        const direct = await new UpdateChecker().check(this.versionInfo().versionName);
+        const localVersionCode = toVersionCode(
+            typeof __COR3_VERSION_CODE__ === 'number' ? __COR3_VERSION_CODE__ : undefined,
+        );
+        const direct = await new UpdateChecker().check(this.versionInfo().versionName, localVersionCode);
         if (direct.ok) return direct;
         return this.client.request('system.updateCheck', {}, updateCheckSchema, 120_000);
     }

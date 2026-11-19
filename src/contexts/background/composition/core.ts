@@ -22,9 +22,13 @@ import { JobHistoryStore } from '../../../infrastructure/storage/job-history-sto
 import { NetworkSnapshotStore } from '../../../infrastructure/storage/network-snapshot-store.js';
 import { NetworkOperationQueue } from '../../../application/network/operation-queue.js';
 import type { EventPublisher } from '../../../application/automation/ports.js';
+import { toVersionCode } from '../../../kernel/version.js';
 
 const manifest = chrome.runtime.getManifest();
 export const VERSION = manifest.version_name ?? manifest.version;
+export const APP_VERSION_CODE = toVersionCode(
+    typeof __COR3_VERSION_CODE__ === 'number' ? __COR3_VERSION_CODE__ : undefined,
+);
 export const PHASE = 'v2';
 
 const SESSION_LOG_KEY = 'v2.sessionLogs';
@@ -56,6 +60,7 @@ export interface CoreRuntime {
     readonly server: BridgeServer;
     readonly bridgeAudits: BridgeAuditEvent[];
     readonly appVersion: () => string;
+    readonly appVersionCode: () => number;
     readonly storageArea: ChromeStorageArea;
     readonly settings: SettingsRepository;
     readonly tabs: ChromeTabsMessagePort;
@@ -219,6 +224,7 @@ export function createCoreRuntime(): CoreRuntime {
         server,
         bridgeAudits,
         appVersion: () => VERSION,
+        appVersionCode: () => APP_VERSION_CODE,
         storageArea,
         settings,
         tabs,

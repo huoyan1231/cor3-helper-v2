@@ -29,6 +29,7 @@ Reading the numbers:
 - Most **Partial** rows are narrower UI scope (per-market refresh, market lot tables, debug-console filters, timers), not missing automation.
 - Most **Missing** rows are v1 presentation/polish features: 10-theme system, pinned timers, market item INFO popup, Valuable Seller result tables, game-version notices and settings sync.
 - The remaining engineering risk is concentrated in **H4** (static catalog artifact), **H10** (background/content/portal and UI tests), **M7** (unused settings) and **O-016** (settings sync). Part 6 records the loadout/decryption fixes; Part 7 records the dev.230 hardening pass; Part 8 records the dev.231 release pipeline.
+- **Update check (current):** reads a single `update.json` from `raw.githubusercontent.com/huoyan1231/cor3-helper-v2/main`, compares its integer `versionCode` against the locally injected `cor3Fork.versionCode`, and uses `versionName` only for display. The only update-related host permission is that raw path; the former jsDelivr, GitHub raw, and `api.github.com` permissions were removed. See Part 44.
 
 ---
 
@@ -1128,3 +1129,14 @@ Market refresh used `RouteExecutor` directly. The executor always walked interme
 - Popup version info, the Settings footer, the debug-log version header and the startup diagnostic no longer carry a build number.
 - Update checks compare release versions only. Remote packages that still contain legacy `cor3Fork.build` metadata are tolerated, but the field is ignored.
 - Historical release notes retain their original build-number labels; active status sections, README/contributing guidance, the PR template and ADR rules no longer reference a local counter.
+
+---
+
+# Part 44 — update.json Version-Code Update Check
+
+- The update checker now reads a single file, `https://raw.githubusercontent.com/huoyan1231/cor3-helper-v2/main/update.json`, replacing the GitHub Releases API and the multiple remote `package.json` mirrors. One `fetch` per check (`cache: no-store`, optional abort timeout).
+- The file carries `versionName` (display only), `versionCode` (integer used for comparison), and an optional `releaseUrl`. It is validated with Zod at the boundary.
+- `UpdateChecker.check(currentVersionName, currentVersionCode)` marks an update available only when the remote `versionCode` is strictly greater than the local one. `latest` is the remote `versionName`; the download link prefers the remote `releaseUrl` and falls back to `https://github.com/huoyan1231/cor3-helper-v2/releases/latest`.
+- The local version code comes from a new independent `cor3Fork.versionCode` in `package.json` (initial 279, matching the remote baseline), injected by `build.js` as `__COR3_VERSION_CODE__` into every bundle. `toVersionCode()` normalizes the injected value to a non-negative integer; the previous build number is not restored.
+- Both check paths pass the local version code: background `system.updateCheck` via `core.appVersionCode()`, and `ChromePopupPortal.updateCheck()` on its direct path before the bridge fallback. `UpdateCheckResult` / `UpdateCheckView` shapes are unchanged, so bridge schema, hooks, and UI are untouched.
+- `manifest.json` host permissions are now `https://raw.githubusercontent.com/huoyan1231/cor3-helper-v2/*` for update checks (plus the three cor3.gg hosts); the old `cdn.jsdelivr.net`, `github.com/SaltApocalypse`, and `api.github.com` permissions were removed.

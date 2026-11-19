@@ -15,10 +15,7 @@
     "https://cor3.gg/*",
     "https://os.cor3.gg/*",
     "https://svc-corie.cor3.gg/*",
-    "https://raw.githubusercontent.com/SaltApocalypse/cor3-helper/*",
-    "https://cdn.jsdelivr.net/gh/SaltApocalypse/*",
-    "https://github.com/SaltApocalypse/cor3-helper/*",
-    "https://api.github.com/repos/SaltApocalypse/cor3-helper/*"
+    "https://raw.githubusercontent.com/huoyan1231/cor3-helper-v2/*"
   ],
   "action": {
     "default_popup": "popup.html",

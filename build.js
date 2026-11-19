@@ -76,6 +76,9 @@ async function build() {
         jsx: 'automatic',
         jsxImportSource: 'preact',
         outdir: DIST,
+        define: {
+            __COR3_VERSION_CODE__: JSON.stringify(pkg.cor3Fork?.versionCode ?? 0),
+        },
     };
 
     await esbuild.build({
