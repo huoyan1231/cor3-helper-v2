@@ -46,7 +46,10 @@ export class UpdateChecker {
     constructor(options: UpdateCheckerOptions = {}) {
         this.url = options.url ?? DEFAULT_URL;
         this.now = options.now ?? (() => Date.now());
-        this.fetchImpl = options.fetchImpl ?? fetch;
+        // Native fetch must be called with the global scope as its receiver;
+        // storing it as a method and calling `this.fetchImpl(...)` makes the
+        // browser WebIDL check throw "Illegal invocation" in workers/popups.
+        this.fetchImpl = options.fetchImpl ?? ((input, init) => globalThis.fetch(input, init));
         this.releaseUrl = options.releaseUrl ?? DEFAULT_RELEASE_URL;
         this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     }

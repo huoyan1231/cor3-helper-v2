@@ -24,6 +24,22 @@ describe('UpdateChecker', () => {
         }
     });
 
+    it('calls native fetch with the global receiver (no Illegal invocation)', async () => {
+        const originalFetch = globalThis.fetch;
+        const nativeLikeFetch = function (this: unknown) {
+            if (this !== globalThis) throw new TypeError("Failed to execute 'fetch': Illegal invocation");
+            return Promise.resolve(jsonResponse({ versionName: '2.0.6', versionCode: 279 }));
+        } as typeof fetch;
+        globalThis.fetch = nativeLikeFetch;
+        try {
+            const checker = new UpdateChecker();
+            const result = await checker.check('2.0.6', 279);
+            expect(result.ok).toBe(true);
+        } finally {
+            globalThis.fetch = originalFetch;
+        }
+    });
+
     it('reports an update when the remote version code is higher', async () => {
         const checker = new UpdateChecker({
             fetchImpl: (async () => jsonResponse({
