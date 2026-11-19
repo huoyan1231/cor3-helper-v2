@@ -1,11 +1,11 @@
 name: Release
 
 # Release by pushing a tag that matches package.json version + releaseLabel:
-#   git tag v2.1.0-salta
-#   git push origin v2.1.0-salta
+#   git tag v2.1.0-huoyan1231
+#   git push origin v2.1.0-huoyan1231
 on:
   push:
-    tags: ['v2.*-salta']
+    tags: ['v2.*-huoyan1231']
 
 permissions:
   contents: write
