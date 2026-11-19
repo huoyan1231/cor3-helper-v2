@@ -50,7 +50,7 @@ Rules:
 - Freeze non-critical v1 feature work during 2.0.
 - Keep v1 open for critical bug fixes only.
 - Do not rewrite existing tags or history.
-- Final 2.0 release tags should use the `v2.0.0-salta` form (`<version>-<releaseLabel>`); `cor3Fork.build` remains the local build counter.
+- Final 2.0 release tags use the `v2.0.0-salta` form (`<version>-<releaseLabel>`); there is no separate local build counter.
 - The project remains a downstream fork of the original project. 2.0 is an independent architecture design and original rewrite, not an official upstream release.
 
 Consequences:
@@ -295,7 +295,7 @@ Development identity:
 ```text
 Name: COR3 Helper 2.0
 manifest key: shared 2.0 extension key
-version_name: <version>-salta (release) / <version>-salta.<build> (local)
+version_name: <version>-salta
 storage namespace: separate from v1
 ```
 
@@ -307,7 +307,7 @@ Rules:
 - Final release identity is **Open**: same ID/name for upgrade, or distinct identity for side-by-side.
 - If the final identity differs, provide a settings export/import migration path.
 - The release workflow must verify which identity is being built.
-- **Implementation note (2.0.0):** the development phase is complete. Local and release builds use the same `COR3 Helper 2.0` identity and extension key; only `version_name` differs (local builds append the build counter). This supersedes the separate-dev-identity profile for 2.0. Migration from v1 remains O-002.
+- **Implementation note (2.0.0):** the development phase is complete. Local and release builds use the same `COR3 Helper 2.0` identity, extension key and `version_name`. This supersedes the separate-dev-identity profile for 2.0. Migration from v1 remains O-002.
 
 ---
 
@@ -688,7 +688,7 @@ Remaining focus:
 | O-010 | Preserve reachability test as diagnostics | Dev TC deprecated | Maintainer/network owner |
 | O-011 | H9 store migrations | **Resolved in dev.230:** remaining stores use versioned envelopes with migrations and tests | — |
 | O-012 | H10 integration/UI tests | **Partial:** decrypt pipeline, storage migrations and boundaries covered; background/content/portal and UI rendering still lack coverage | Maintainer, next quality task |
-| O-013 | Release build number automation | **Resolved:** release tag must equal `version + releaseLabel`; `cor3Fork.build` is the local build counter | — |
+| O-013 | Release version identity | **Resolved:** release tag must equal `version + releaseLabel`; no separate local build counter | — |
 | O-014 | Static catalog artifact | **Partial:** the loader now merges; the artifact still needs a real module dump | Catalog owner (H4) |
 | O-015 | PSU policy post-processing | **Resolved in dev.230:** `MinPowerPsuPolicy` added; ranking goes through the policy and the cache key includes policy version | — |
 | O-016 | Settings-only sync | The [settings sync assessment](./cor3-helper-2.0-settings-sync-assessment.md) is a proposal; 2.0 remains local-only | Maintainer |

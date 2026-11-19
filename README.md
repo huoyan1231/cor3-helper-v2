@@ -13,11 +13,11 @@ This branch (`v2`) contains the **2.0 release line**. It is not the stable v1 ex
 
 ## Status
 
-- Version: `package.json` `version` + `cor3Fork.releaseLabel` for releases; local builds append `cor3Fork.build`
+- Version: `package.json` `version` + `cor3Fork.releaseLabel`
 - Branch: `v2`
 - Architecture: typed, layered 2.0 rewrite (domain / application / infrastructure / contexts)
 - Build output: `dist/` (Manifest V3)
-- Verification: typecheck, lint, Vitest (95 files / 473 tests) and build pass at `2.0.6-salta.279`; CI runs the same checks on pull requests
+- Verification: typecheck, lint, Vitest and build pass at `2.0.6-salta`; CI runs the same checks on pull requests
 - Known gaps: the static catalog artifact still needs a real module dump, and background/content/portal plus UI rendering tests remain incomplete; see [feature inventory](./docs/architecture/cor3-helper-2.0-feature-inventory-and-tech-debt.md)
 
 ## Requirements
@@ -72,7 +72,6 @@ The tag must equal `<version>-<cor3Fork.releaseLabel>`. Local builds use `<versi
 | `npm test` | Vitest unit tests |
 | `npm run format` | Format source with Prettier |
 | `npm run clean` | Remove `dist/` and `dist-tools/` |
-| `npm run bump:build` | Increment `cor3Fork.build` for a functional update |
 | `npm run catalog` | Build/validate the static item catalog CLI |
 
 ## Project structure

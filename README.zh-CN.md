@@ -13,11 +13,11 @@
 
 ## 当前状态
 
-- 版本：发布版见 `package.json` 的 `version` + `cor3Fork.releaseLabel`；本地构建追加 `cor3Fork.build`
+- 版本：`package.json` 的 `version` + `cor3Fork.releaseLabel`
 - 分支：`v2`
 - 架构：分层、强类型的 2.0 重写（domain / application / infrastructure / contexts）
 - 构建输出：`dist/`（Manifest V3）
-- 验证状态：`2.0.6-salta.279` 下 typecheck、lint、Vitest（95 个文件 / 473 个测试）和构建均通过；PR 会运行同样的 CI 检查
+- 验证状态：`2.0.6-salta` 下 typecheck、lint、Vitest 和构建均通过；PR 会运行同样的 CI 检查
 - 已知缺口：静态物品目录仍需真实模块转储，后台/内容/portal 与 UI 渲染测试仍不完整；见[功能清单与技术债](./docs/architecture/cor3-helper-2.0-feature-inventory-and-tech-debt.md)
 
 ## 环境要求
@@ -72,7 +72,6 @@ tag 必须等于 `<version>-<cor3Fork.releaseLabel>`。本地构建使用 `<vers
 | `npm test` | 运行 Vitest 单元测试 |
 | `npm run format` | 使用 Prettier 格式化源码 |
 | `npm run clean` | 删除 `dist/` 与 `dist-tools/` |
-| `npm run bump:build` | 功能性更新时递增 `cor3Fork.build` |
 | `npm run catalog` | 构建/校验静态物品目录 CLI |
 
 ## 目录结构

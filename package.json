@@ -4,8 +4,7 @@
     "private": true,
     "description": "COR3 Helper 2.0 — Chrome extension for cor3.gg",
     "cor3Fork": {
-        "releaseLabel": "salta",
-        "build": 279
+        "releaseLabel": "salta"
     },
     "engines": {
         "node": ">=24"
@@ -21,7 +20,6 @@
         "test": "vitest run",
         "test:watch": "vitest",
         "clean": "node -e \"for (const d of ['dist','dist-tools']) require('fs').rmSync(d,{recursive:true,force:true})\"",
-        "bump:build": "esbuild src/tools/release/bump.ts --bundle --platform=node --format=cjs --outfile=dist-tools/bump.cjs && node dist-tools/bump.cjs",
         "catalog": "esbuild src/tools/catalog/cli.ts --bundle --platform=node --format=esm --outfile=dist-tools/catalog.mjs && node dist-tools/catalog.mjs"
     },
     "devDependencies": {

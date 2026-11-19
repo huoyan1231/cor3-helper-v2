@@ -15,7 +15,6 @@ import type { ExpeditionOverview } from '../../domains/expeditions/model.js';
 import type { DroneState } from '../../domains/drone/model.js';
 import type { JobMarketDefinition } from '../../domains/jobs/markets.js';
 import { jobOfferSchema } from '../../contracts/jobs.js';
-import { buildNumberFromVersionName } from '../../kernel/version.js';
 import { openWorkspaceSidePanel, openWorkspaceWindow } from './workspace-opener.js';
 
 const pingSchema = z.object({ version: z.string(), phase: z.string() });
@@ -724,15 +723,13 @@ export class ChromePopupPortal implements PopupPortal {
         };
     }
 
-    versionInfo(): { readonly name: string; readonly version: string; readonly versionName: string; readonly build: string | null } {
+    versionInfo(): { readonly name: string; readonly version: string; readonly versionName: string } {
         const manifest = chrome.runtime.getManifest();
         const versionName = (manifest as { version_name?: string }).version_name ?? manifest.version;
-        const embeddedBuild = buildNumberFromVersionName(versionName);
         return {
             name: manifest.name,
             version: manifest.version,
             versionName,
-            build: embeddedBuild ?? (typeof __COR3_BUILD_NUMBER__ === 'string' ? __COR3_BUILD_NUMBER__ : null),
         };
     }
 

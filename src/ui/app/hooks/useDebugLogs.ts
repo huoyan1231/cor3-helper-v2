@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'preact/hooks';
 import type { DebugLogLine, PopupPortal } from '../../../application/popup/portal.js';
 import type { PopupPage } from '../AppShell.js';
-import { displayVersion } from '../view-models/version.js';
 
 /**
  * Merged automation debug log (H8 phase 7).
@@ -23,21 +22,19 @@ export interface DebugLogsState {
 }
 
 export function buildDebugLogStatusLine(
-    versionInfo: { readonly version: string; readonly versionName: string; readonly build: string | null },
+    versionInfo: { readonly version: string; readonly versionName: string },
     lineCount: number,
     runId: string | null,
     refreshed: boolean,
 ): DebugLogLine {
-    const display = displayVersion(versionInfo.versionName, versionInfo.build);
     return {
         at: Date.now(),
         level: 'info',
         scope: 'system',
-        message: `COR3 Helper ${display} · logs ${refreshed ? 'refreshed' : 'loaded'} · ${lineCount} line(s)`,
+        message: `COR3 Helper ${versionInfo.versionName} · logs ${refreshed ? 'refreshed' : 'loaded'} · ${lineCount} line(s)`,
         data: {
             version: versionInfo.version,
             versionName: versionInfo.versionName,
-            build: versionInfo.build,
             runId,
             lines: lineCount,
             reason: refreshed ? 'refresh' : 'load',

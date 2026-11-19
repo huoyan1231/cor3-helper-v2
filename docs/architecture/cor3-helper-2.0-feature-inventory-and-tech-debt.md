@@ -4,11 +4,11 @@
 - **Scope:** v1 (git history, behavior oracle) vs v2 (`src/`, branch `v2`)
 - **Method:** static source review of popup, content scripts, MAIN-world hooks, background scheduler, bridge contracts, tests, build/release config, and architecture docs
 - **Status legend for v1 → v2:** `Implemented` = equivalent user capability exists; `Partial` = core exists but visible scope/behavior differs; `Missing` = no counterpart found; `Unknown` = cannot confirm without runtime QA
-- **Caveat:** this is not a runtime parity sign-off. The 2.0 release line is complete; local builds use `<version>-salta.<build>`. Historical sections retain their original development labels.
-- **Last verified:** 2026-11-15 against build `2.0.6-salta.279`
-- **Current verification:** `npm run typecheck`, `npm run lint`, `npm test` (95 files / 473 tests) and `npm run build` all pass.
+- **Caveat:** this is not a runtime parity sign-off. The 2.0 release line is complete and uses `<version>-salta` without a local build counter. Historical sections retain their original development labels.
+- **Last verified:** 2026-11-19 against `2.0.6-salta`
+- **Current verification:** `npm run typecheck`, `npm run lint`, `npm test` and `npm run build` all pass.
 
-## Current completion snapshot (build `2.0.6-salta.279`)
+## Current completion snapshot (`2.0.6-salta`)
 
 | Metric | Value |
 |---|---|
@@ -382,7 +382,7 @@ Reading the numbers:
 | M14 | Non-null assertion in job execution | `application/auto-job/execution-service.ts` uses `job.serverId!` after only checking the file name. | Unexpected throw for upload jobs missing server. | Add explicit `NO_SERVER` guard. |
 | M15 | Docs drift | ADR status/progress, `MODULES.md`, `CONTRIBUTING.md`, `SECURITY.md` and the feature inventory drifted from the implementation. | Contributors/agents follow stale guidance. | Refresh the docs and make docs part of DoD. **Addressed on the `v2` branch.** |
 | M16 | i18n architecture | `ui/i18n.ts` + `ui/i18n-messages.ts` use exact-English-source dictionary alongside semantic keys; ADR requires key-based catalog. DevTools hardcoded English; some labels hardcoded. | Renames silently fall back to English; no coverage metric. | Consolidate on semantic keys; move DevTools/hardcoded labels; add completeness test. |
-| M17 | Release/version debt | `package.json` still needs a manual `cor3Fork.build` bump; update checker now targets the `v2` branch root package; `raw.githubusercontent.com/*` host permission; unused `scripting`/`activeTab` permissions. | Build numbers can drift; broad permissions remain. | Automate build number; derive update URL from release metadata; scope host permission; remove unused permissions. |
+| M17 | Release/version debt | Update checker targets the `v2` branch root package; `raw.githubusercontent.com/*` host permission; unused `scripting`/`activeTab` permissions. | Broad permissions remain. | Derive update URL from release metadata; scope host permission; remove unused permissions. Local build counter removed. |
 | M18 | No architecture enforcement | No CI except release; `.oxlintrc.json` ignores v1 but has no boundary rules; no dependency-cruiser; single tsconfig mixes DOM/chrome/node. | Layering violations recur; domain could import chrome and typecheck. | Add dependency-cruiser/ESLint boundary rules + per-context tsconfigs; run in CI. |
 
 ## Low severity
@@ -653,7 +653,6 @@ This pass closed the non-runtime items from the Part 6 review.
 
 - Generate and commit `catalog/item-catalog.json` from real game data.
 - Extend H10 coverage to background/content/portal orchestration and UI rendering.
-- Decide the release `COR3_BUILD` policy.
 - M7 unused settings and O-016 settings sync remain open.
 
 ---
@@ -1118,3 +1117,14 @@ Market refresh used `RouteExecutor` directly. The executor always walked interme
 - Options/lots are cached in the content script for five minutes; market refreshes only fetch `get.jobs` in steady state.
 - The network map TTL is 60 seconds. Single-market syncs reuse the cached map and force a refresh only when routing fails; the job preflight refreshes a maintenance-blocked map after 30 seconds instead of 120.
 - Market reports preserve rows for markets that were not refreshed, so per-market passes do not blank statuses for the other markets.
+
+
+---
+
+# Part 43 — Remove Local Build Counter
+
+- `cor3Fork.build`, `npm run bump:build`, the `bump.ts` tool, `COR3_BUILD`, and the `__COR3_BUILD_NUMBER__` bundle constant have been removed. Local and release builds now share the same `<version>-<releaseLabel>` identity.
+- `build.js` no longer appends a counter to `version_name`; CI verifies the manifest against `version + releaseLabel` only.
+- Popup version info, the Settings footer, the debug-log version header and the startup diagnostic no longer carry a build number.
+- Update checks compare release versions only. Remote packages that still contain legacy `cor3Fork.build` metadata are tolerated, but the field is ignored.
+- Historical release notes retain their original build-number labels; active status sections, README/contributing guidance, the PR template and ADR rules no longer reference a local counter.

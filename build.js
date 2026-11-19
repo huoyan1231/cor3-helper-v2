@@ -6,19 +6,8 @@ const V2 = __dirname;
 const ROOT = __dirname;
 const DIST = path.join(ROOT, 'dist');
 const pkg = JSON.parse(fs.readFileSync(path.join(V2, 'package.json'), 'utf8'));
-const fork = pkg.cor3Fork || null;
-// CI/release runs can override the build counter without editing package.json.
-// Local builds append the committed counter to the release label.
-const buildOverride = process.env.COR3_BUILD === undefined ? null : Number(process.env.COR3_BUILD);
-if (buildOverride !== null && (!Number.isInteger(buildOverride) || buildOverride < 1)) {
-    console.error('COR3_BUILD must be a positive integer');
-    process.exit(1);
-}
-const buildNumber = buildOverride ?? fork?.build ?? 1;
-const releaseLabel = typeof fork?.releaseLabel === 'string' ? fork.releaseLabel : null;
-const computedVersionName = releaseLabel
-    ? `${pkg.version}-${releaseLabel}.${buildNumber}`
-    : pkg.version;
+const releaseLabel = typeof pkg.cor3Fork?.releaseLabel === 'string' ? pkg.cor3Fork.releaseLabel : null;
+const computedVersionName = releaseLabel ? `${pkg.version}-${releaseLabel}` : pkg.version;
 const versionName = (process.env.COR3_VERSION_NAME || '').trim() || computedVersionName;
 
 function cleanDist() {
@@ -87,9 +76,6 @@ async function build() {
         jsx: 'automatic',
         jsxImportSource: 'preact',
         outdir: DIST,
-        define: {
-            __COR3_BUILD_NUMBER__: JSON.stringify(String(buildNumber)),
-        },
     };
 
     await esbuild.build({

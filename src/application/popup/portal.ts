@@ -480,8 +480,6 @@ export interface PopupVersionInfo {
     readonly name: string;
     readonly version: string;
     readonly versionName: string;
-    /** Build counter from the bundle; releases keep it out of the tag/manifest version. */
-    readonly build: string | null;
 }
 
 export interface SettingsExportData {
