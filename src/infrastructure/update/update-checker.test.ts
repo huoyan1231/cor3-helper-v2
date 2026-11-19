@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { UpdateChecker } from './update-checker.js';
 
-const DEFAULT_URL = 'https://raw.githubusercontent.com/huoyan1231/cor3-helper-v2/main/update.json';
+const DEFAULT_URL = 'https://raw.githubusercontent.com/huoyan1231/cor3-helper-v2/refs/heads/v2/update.json';
 
 function jsonResponse(body: unknown, status = 200): Response {
     return new Response(JSON.stringify(body), { status });

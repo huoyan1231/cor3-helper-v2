@@ -29,7 +29,7 @@ Reading the numbers:
 - Most **Partial** rows are narrower UI scope (per-market refresh, market lot tables, debug-console filters, timers), not missing automation.
 - Most **Missing** rows are v1 presentation/polish features: 10-theme system, pinned timers, market item INFO popup, Valuable Seller result tables, game-version notices and settings sync.
 - The remaining engineering risk is concentrated in **H4** (static catalog artifact), **H10** (background/content/portal and UI tests), **M7** (unused settings) and **O-016** (settings sync). Part 6 records the loadout/decryption fixes; Part 7 records the dev.230 hardening pass; Part 8 records the dev.231 release pipeline.
-- **Update check (current):** reads a single `update.json` from `raw.githubusercontent.com/huoyan1231/cor3-helper-v2/main`, compares its integer `versionCode` against the locally injected `cor3Fork.versionCode`, and uses `versionName` only for display. The only update-related host permission is that raw path; the former jsDelivr, GitHub raw, and `api.github.com` permissions were removed. See Part 44.
+- **Update check (current):** reads a single `update.json` from `raw.githubusercontent.com/huoyan1231/cor3-helper-v2/refs/heads/v2`, compares its integer `versionCode` against the locally injected `cor3Fork.versionCode`, and uses `versionName` only for display. The only update-related host permission is that raw path; the former jsDelivr, GitHub raw, and `api.github.com` permissions were removed. See Part 44.
 
 ---
 
@@ -1134,7 +1134,7 @@ Market refresh used `RouteExecutor` directly. The executor always walked interme
 
 # Part 44 — update.json Version-Code Update Check
 
-- The update checker now reads a single file, `https://raw.githubusercontent.com/huoyan1231/cor3-helper-v2/main/update.json`, replacing the GitHub Releases API and the multiple remote `package.json` mirrors. One `fetch` per check (`cache: no-store`, optional abort timeout).
+- The update checker now reads a single file, `https://raw.githubusercontent.com/huoyan1231/cor3-helper-v2/refs/heads/v2/update.json`, replacing the GitHub Releases API and the multiple remote `package.json` mirrors. One `fetch` per check (`cache: no-store`, optional abort timeout).
 - The file carries `versionName` (display only), `versionCode` (integer used for comparison), and an optional `releaseUrl`. It is validated with Zod at the boundary.
 - Displayed versions no longer carry the `-salta` suffix: `update.json` publishes `versionName: 2.0.6`, `build.js` writes `manifest.version_name` from `package.json.version` directly, and the Settings footer shows the plain version. Release tags and ZIP artifact names still use `v<version>-salta`; CI and release workflows verify `manifest.version_name` against the plain package version.
 - `UpdateChecker.check(currentVersionName, currentVersionCode)` marks an update available only when the remote `versionCode` is strictly greater than the local one. `latest` is the remote `versionName`; the download link prefers the remote `releaseUrl` and falls back to `https://github.com/huoyan1231/cor3-helper-v2/releases/latest`.

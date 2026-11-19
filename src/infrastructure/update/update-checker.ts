@@ -7,7 +7,7 @@ import { err, ok } from '../../kernel/result.js';
  * branch. The remote file carries a display version (`versionName`) and an
  * integer `versionCode`; only the version code is compared.
  */
-const DEFAULT_URL = 'https://raw.githubusercontent.com/huoyan1231/cor3-helper-v2/main/update.json';
+const DEFAULT_URL = 'https://raw.githubusercontent.com/huoyan1231/cor3-helper-v2/refs/heads/v2/update.json';
 const DEFAULT_RELEASE_URL = 'https://github.com/huoyan1231/cor3-helper-v2/releases/latest';
 /** 0 means no request timeout. */
 const DEFAULT_TIMEOUT_MS = 0;
