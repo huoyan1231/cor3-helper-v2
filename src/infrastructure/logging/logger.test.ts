@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { CapturingLogger, redact, redactText } from './logger.js';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { CapturingLogger, ConsoleLogger, redact, redactText } from './logger.js';
 
 describe('redaction', () => {
     it('redacts bearer tokens and JWT strings', () => {
@@ -35,5 +35,15 @@ describe('redaction', () => {
         logger.info('test', 'request failed', { authorization: 'Bearer secret', safe: 'value' });
         expect(JSON.stringify(logger.events)).not.toContain('secret');
         expect(JSON.stringify(logger.events)).toContain('value');
+    });
+});
+
+describe('console logger', () => {
+    afterEach(() => vi.restoreAllMocks());
+
+    it('prints the message text instead of a bare event object', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        new ConsoleLogger({ now: () => 1 }).warn('test', 'menu create failed: duplicate id');
+        expect(warn).toHaveBeenCalledWith('[cor3-helper 2.0] menu create failed: duplicate id');
     });
 });

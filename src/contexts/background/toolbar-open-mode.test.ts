@@ -28,16 +28,7 @@ function stubChrome(options: { readonly failCreateId?: string } = {}) {
     const logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
     const setPopup = vi.fn().mockResolvedValue(undefined);
     const setPanelBehavior = vi.fn().mockResolvedValue(undefined);
-    const removeAll = vi.fn().mockResolvedValue(undefined);
-    const create = vi.fn((properties: { readonly id?: string }) => {
-        runtime.lastError = options.failCreateId && properties.id === options.failCreateId
-            ? { message: 'duplicate id' }
-            : undefined;
-        return 1;
-    });
-    const update = vi.fn().mockResolvedValue(undefined);
-    const sidePanelOpen = vi.fn().mockResolvedValue(undefined);
-    const windowsCreate = vi.fn().mockResolvedValue({ id: 2 });
+    const menuItems = new Set<string>();
     const runtime: {
         lastError?: { readonly message: string } | undefined;
         getURL: (path: string) => string;
@@ -48,10 +39,30 @@ function stubChrome(options: { readonly failCreateId?: string } = {}) {
         onInstalled: { addListener: listeners.installed },
         onStartup: { addListener: listeners.startup },
     };
+    const create = vi.fn((properties: { readonly id?: string }) => {
+        const id = properties.id ?? '';
+        runtime.lastError = undefined;
+        if (options.failCreateId === id) {
+            runtime.lastError = { message: 'forced create failure' };
+            return 1;
+        }
+        if (menuItems.has(id)) {
+            runtime.lastError = { message: 'duplicate id' };
+            return 1;
+        }
+        menuItems.add(id);
+        return 1;
+    });
+    const update = vi.fn(async (id: string) => {
+        runtime.lastError = menuItems.has(id) ? undefined : { message: 'No item with id' };
+        return undefined;
+    });
+    const sidePanelOpen = vi.fn().mockResolvedValue(undefined);
+    const windowsCreate = vi.fn().mockResolvedValue({ id: 2 });
 
     vi.stubGlobal('chrome', {
         action: { setPopup, onClicked: { addListener: listeners.actionClick } },
-        contextMenus: { removeAll, create, update, onClicked: { addListener: listeners.menuClick } },
+        contextMenus: { create, update, onClicked: { addListener: listeners.menuClick } },
         storage: { onChanged: { addListener: listeners.storageChanged } },
         runtime,
         windows: {
@@ -63,7 +74,7 @@ function stubChrome(options: { readonly failCreateId?: string } = {}) {
         sidePanel: { open: sidePanelOpen, setPanelBehavior },
     });
 
-    return { listeners, logger, setPopup, setPanelBehavior, removeAll, create, update, sidePanelOpen, windowsCreate };
+    return { listeners, logger, setPopup, setPanelBehavior, create, update, sidePanelOpen, windowsCreate, menuItems };
 }
 
 function envelope(data: SettingsV1): { readonly newValue: unknown } {
@@ -94,20 +105,19 @@ describe('toolbar open mode router', () => {
             title: '弹窗',
             checked: true,
         }));
+        expect(chromeApi.create).toHaveBeenCalledTimes(5);
     });
 
     it('opens the side panel natively without calling the opener on icon click', async () => {
         const chromeApi = stubChrome();
-        const settings = fakeSettings();
-        registerToolbarOpenMode({ settings, logger: chromeApi.logger });
+        registerToolbarOpenMode({ settings: fakeSettings(), logger: chromeApi.logger });
         await vi.waitFor(() => expect(chromeApi.create).toHaveBeenCalled());
 
         const onMenuClick = chromeApi.listeners.menuClick.mock.calls[0]?.[0] as (info: { menuItemId: string }) => void;
         onMenuClick({ menuItemId: toolbarOpenModeMenuItemId('sidePanel') });
 
-        expect(settings.update).toHaveBeenCalledWith({ toolbarOpenMode: 'sidePanel' });
         await vi.waitFor(() => expect(chromeApi.setPanelBehavior).toHaveBeenCalledWith({ openPanelOnActionClick: true }));
-        expect(chromeApi.setPopup).toHaveBeenCalledWith({ popup: '' });
+        expect(chromeApi.update).toHaveBeenCalledWith(toolbarOpenModeMenuItemId('sidePanel'), { checked: true });
 
         const onActionClick = chromeApi.listeners.actionClick.mock.calls[0]?.[0] as () => void;
         onActionClick();
@@ -148,41 +158,53 @@ describe('toolbar open mode router', () => {
         await vi.waitFor(() => expect(chromeApi.windowsCreate).toHaveBeenCalledTimes(1), { timeout: 1000 });
     });
 
-    it('rebuilds menu labels when the interface language changes', async () => {
+    it('updates menu labels when the interface language changes without recreating items', async () => {
         const chromeApi = stubChrome();
         const settings = fakeSettings();
         registerToolbarOpenMode({ settings, logger: chromeApi.logger });
-        await vi.waitFor(() => expect(chromeApi.create).toHaveBeenCalledWith(expect.objectContaining({ title: 'Default open mode' })));
+        await vi.waitFor(() => expect(chromeApi.create).toHaveBeenCalledTimes(5));
 
-        const changed = settingsV1Schema.parse({ ...settingsV1Schema.parse({}), uiLanguage: 'zh' });
         await settings.update({ uiLanguage: 'zh' });
         const onStorageChanged = chromeApi.listeners.storageChanged.mock.calls[0]?.[0] as (
             changes: Record<string, unknown>,
             area: string,
         ) => void;
+        const changed = settingsV1Schema.parse({ ...settingsV1Schema.parse({}), uiLanguage: 'zh' });
         onStorageChanged({ [ 'v2.settings' ]: envelope(changed) }, 'local');
 
-        await vi.waitFor(() => expect(chromeApi.create).toHaveBeenCalledWith(expect.objectContaining({ title: '默认打开方式' })));
+        await vi.waitFor(() => expect(chromeApi.update).toHaveBeenCalledWith('cor3-toolbar-open-mode', expect.objectContaining({
+            title: '默认打开方式',
+        })));
+        expect(chromeApi.update).toHaveBeenCalledWith(toolbarOpenModeMenuItemId('popup'), expect.objectContaining({
+            title: '弹窗',
+        }));
+        expect(chromeApi.create).toHaveBeenCalledTimes(5);
     });
 
-    it('serializes menu rebuilds and logs context menu creation errors', async () => {
-        const chromeApi = stubChrome({ failCreateId: toolbarOpenModeMenuItemId('window') });
+    it('reuses existing menu items on repeated refreshes', async () => {
+        const chromeApi = stubChrome();
         registerToolbarOpenMode({ settings: fakeSettings(), logger: chromeApi.logger });
-        await vi.waitFor(() => expect(chromeApi.removeAll).toHaveBeenCalledTimes(1));
+        await vi.waitFor(() => expect(chromeApi.create).toHaveBeenCalledTimes(5));
 
         const onInstalled = chromeApi.listeners.installed.mock.calls[0]?.[0] as () => void;
         const onStartup = chromeApi.listeners.startup.mock.calls[0]?.[0] as () => void;
         onInstalled();
         onStartup();
 
-        await vi.waitFor(() => expect(chromeApi.removeAll).toHaveBeenCalledTimes(3));
-        const firstCreateOrder = chromeApi.create.mock.invocationCallOrder[0] ?? 0;
-        const secondRemoveOrder = chromeApi.removeAll.mock.invocationCallOrder[1] ?? 0;
-        expect(secondRemoveOrder).toBeGreaterThan(firstCreateOrder);
+        await vi.waitFor(() => expect(chromeApi.update.mock.calls.length).toBeGreaterThanOrEqual(10));
+        expect(chromeApi.create).toHaveBeenCalledTimes(5);
+        expect(chromeApi.logger.warn).not.toHaveBeenCalled();
+    });
+
+    it('logs context menu creation failures with a readable message', async () => {
+        const failedId = toolbarOpenModeMenuItemId('window');
+        const chromeApi = stubChrome({ failCreateId: failedId });
+        registerToolbarOpenMode({ settings: fakeSettings(), logger: chromeApi.logger });
+        await vi.waitFor(() => expect(chromeApi.create).toHaveBeenCalledTimes(5));
+
         expect(chromeApi.logger.warn).toHaveBeenCalledWith(
             'toolbar-open-mode',
-            'contextMenus.create failed',
-            expect.objectContaining({ itemId: toolbarOpenModeMenuItemId('window') }),
+            `contextMenus.create failed for ${failedId}: forced create failure`,
         );
     });
 });

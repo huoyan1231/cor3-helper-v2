@@ -78,7 +78,9 @@ export class ConsoleLogger implements Logger {
             (event as { data?: unknown }).data = redact(data);
         }
         const method = level === 'debug' ? 'debug' : level === 'info' ? 'info' : level === 'warn' ? 'warn' : 'error';
-        console[method]('[cor3-helper 2.0]', event);
+        const label = `[cor3-helper 2.0] ${event.message}`;
+        if (event.data !== undefined) console[method](label, event.data);
+        else console[method](label);
     }
 }
 

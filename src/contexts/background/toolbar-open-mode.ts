@@ -31,22 +31,39 @@ export function registerToolbarOpenMode({ settings, logger }: ToolbarOpenModeDep
 
     function enqueueState(task: () => Promise<void>): Promise<void> {
         stateQueue = stateQueue.then(task).catch((error: unknown) => {
-            logger.warn(LOG_SCOPE, 'Toolbar mode update failed', { error });
+            logger.warn(LOG_SCOPE, `Toolbar mode update failed: ${errorText(error)}`);
         });
         return stateQueue;
     }
 
     function enqueueMenu(task: () => Promise<void>): Promise<void> {
         menuQueue = menuQueue.then(task).catch((error: unknown) => {
-            logger.warn(LOG_SCOPE, 'Toolbar menu update failed', { error });
+            logger.warn(LOG_SCOPE, `Toolbar menu update failed: ${errorText(error)}`);
         });
         return menuQueue;
     }
 
-    function checkMenuError(operation: string, itemId: string): void {
-        const error = chrome.runtime.lastError;
-        if (error) {
-            logger.warn(LOG_SCOPE, `contextMenus.${operation} failed`, { itemId, message: error.message });
+    function errorText(error: unknown): string {
+        return error instanceof Error ? error.message : String(error);
+    }
+
+    async function updateMenuItem(id: string, properties: Parameters<typeof chrome.contextMenus.update>[1]): Promise<boolean> {
+        try {
+            await chrome.contextMenus.update(id, properties);
+            return !chrome.runtime.lastError;
+        } catch {
+            return false;
+        }
+    }
+
+    function createMenuItem(properties: chrome.contextMenus.CreateProperties): void {
+        const id = String(properties.id);
+        try {
+            chrome.contextMenus.create(properties);
+            const error = chrome.runtime.lastError;
+            if (error) logger.warn(LOG_SCOPE, `contextMenus.create failed for ${id}: ${error.message}`);
+        } catch (error) {
+            logger.warn(LOG_SCOPE, `contextMenus.create failed for ${id}: ${errorText(error)}`);
         }
     }
 
@@ -54,51 +71,47 @@ export function registerToolbarOpenMode({ settings, logger }: ToolbarOpenModeDep
         try {
             await chrome.action.setPopup({ popup: toolbarOpenModePopup(mode) });
         } catch (error) {
-            logger.warn(LOG_SCOPE, 'Failed to set the action popup', { error });
+            logger.warn(LOG_SCOPE, `Failed to set the action popup: ${errorText(error)}`);
         }
         try {
             await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: mode === 'sidePanel' });
         } catch (error) {
-            logger.warn(LOG_SCOPE, 'Failed to set the side panel behavior', { error });
+            logger.warn(LOG_SCOPE, `Failed to set the side panel behavior: ${errorText(error)}`);
         }
     }
 
     async function syncMenuChecked(mode: ToolbarOpenMode): Promise<void> {
         for (const item of TOOLBAR_OPEN_MODES) {
-            try {
-                await chrome.contextMenus.update(toolbarOpenModeMenuItemId(item), { checked: item === mode });
-                checkMenuError('update', toolbarOpenModeMenuItemId(item));
-            } catch (error) {
-                logger.warn(LOG_SCOPE, 'Failed to update a toolbar menu item', { error });
-            }
+            await updateMenuItem(toolbarOpenModeMenuItemId(item), { checked: item === mode });
         }
     }
 
-    async function rebuildMenu(current: SettingsV1): Promise<void> {
+    async function syncMenu(current: SettingsV1): Promise<void> {
         const labels = toolbarOpenModeLabels(current.uiLanguage);
-        try {
-            await chrome.contextMenus.removeAll();
-            checkMenuError('removeAll', MENU_ROOT_ID);
-            chrome.contextMenus.create({
-                id: MENU_ROOT_ID,
-                title: labels.parent,
+        if (!(await updateMenuItem(MENU_ROOT_ID, { title: labels.parent, contexts: ['action'] }))) {
+            createMenuItem({ id: MENU_ROOT_ID, title: labels.parent, contexts: ['action'] });
+        }
+
+        for (const mode of TOOLBAR_OPEN_MODES) {
+            const itemId = toolbarOpenModeMenuItemId(mode);
+            const title = labels.items[mode];
+            const checked = mode === currentMode;
+            if (!(await updateMenuItem(itemId, {
+                parentId: MENU_ROOT_ID,
+                title,
+                type: 'radio',
+                checked,
                 contexts: ['action'],
-            });
-            checkMenuError('create', MENU_ROOT_ID);
-            for (const mode of TOOLBAR_OPEN_MODES) {
-                const itemId = toolbarOpenModeMenuItemId(mode);
-                chrome.contextMenus.create({
+            }))) {
+                createMenuItem({
                     id: itemId,
                     parentId: MENU_ROOT_ID,
-                    title: labels.items[mode],
+                    title,
                     type: 'radio',
-                    checked: mode === currentMode,
+                    checked,
                     contexts: ['action'],
                 });
-                checkMenuError('create', itemId);
             }
-        } catch (error) {
-            logger.warn(LOG_SCOPE, 'Failed to rebuild the toolbar menu', { error });
         }
     }
 
@@ -107,9 +120,9 @@ export function registerToolbarOpenMode({ settings, logger }: ToolbarOpenModeDep
             const current = await settings.get();
             currentMode = current.toolbarOpenMode;
             await applyMode(currentMode);
-            await enqueueMenu(() => rebuildMenu(current));
+            await enqueueMenu(() => syncMenu(current));
         } catch (error) {
-            logger.warn(LOG_SCOPE, 'Failed to read toolbar mode settings', { error });
+            logger.warn(LOG_SCOPE, `Failed to read toolbar mode settings: ${errorText(error)}`);
         }
     }
 
@@ -127,7 +140,7 @@ export function registerToolbarOpenMode({ settings, logger }: ToolbarOpenModeDep
             await enqueueMenu(() => syncMenuChecked(mode));
         });
         void settings.update({ toolbarOpenMode: mode }).catch((error: unknown) => {
-            logger.warn(LOG_SCOPE, 'Failed to save toolbar mode', { error });
+            logger.warn(LOG_SCOPE, `Failed to save toolbar mode: ${errorText(error)}`);
         });
     });
 
