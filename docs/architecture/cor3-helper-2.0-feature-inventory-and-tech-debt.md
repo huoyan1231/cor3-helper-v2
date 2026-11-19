@@ -4,11 +4,11 @@
 - **Scope:** v1 (git history, behavior oracle) vs v2 (`src/`, branch `v2`)
 - **Method:** static source review of popup, content scripts, MAIN-world hooks, background scheduler, bridge contracts, tests, build/release config, and architecture docs
 - **Status legend for v1 → v2:** `Implemented` = equivalent user capability exists; `Partial` = core exists but visible scope/behavior differs; `Missing` = no counterpart found; `Unknown` = cannot confirm without runtime QA
-- **Caveat:** this is not a runtime parity sign-off. The 2.0 release line is complete and uses `<version>-salta` without a local build counter. Historical sections retain their original development labels.
-- **Last verified:** 2026-11-19 against `2.0.6-salta`
+- **Caveat:** this is not a runtime parity sign-off. The 2.0 release line is complete; the displayed version is now the plain `<version>` (no `-salta` suffix, no local build counter), while release tags and artifact names still use `<version>-salta`. Historical sections retain their original development labels.
+- **Last verified:** 2026-11-19 against `2.0.6`
 - **Current verification:** `npm run typecheck`, `npm run lint`, `npm test` and `npm run build` all pass.
 
-## Current completion snapshot (`2.0.6-salta`)
+## Current completion snapshot (`2.0.6`)
 
 | Metric | Value |
 |---|---|
@@ -1136,6 +1136,7 @@ Market refresh used `RouteExecutor` directly. The executor always walked interme
 
 - The update checker now reads a single file, `https://raw.githubusercontent.com/huoyan1231/cor3-helper-v2/main/update.json`, replacing the GitHub Releases API and the multiple remote `package.json` mirrors. One `fetch` per check (`cache: no-store`, optional abort timeout).
 - The file carries `versionName` (display only), `versionCode` (integer used for comparison), and an optional `releaseUrl`. It is validated with Zod at the boundary.
+- Displayed versions no longer carry the `-salta` suffix: `update.json` publishes `versionName: 2.0.6`, `build.js` writes `manifest.version_name` from `package.json.version` directly, and the Settings footer shows the plain version. Release tags and ZIP artifact names still use `v<version>-salta`; CI and release workflows verify `manifest.version_name` against the plain package version.
 - `UpdateChecker.check(currentVersionName, currentVersionCode)` marks an update available only when the remote `versionCode` is strictly greater than the local one. `latest` is the remote `versionName`; the download link prefers the remote `releaseUrl` and falls back to `https://github.com/huoyan1231/cor3-helper-v2/releases/latest`.
 - The local version code comes from a new independent `cor3Fork.versionCode` in `package.json` (initial 279, matching the remote baseline), injected by `build.js` as `__COR3_VERSION_CODE__` into every bundle. `toVersionCode()` normalizes the injected value to a non-negative integer; the previous build number is not restored.
 - Both check paths pass the local version code: background `system.updateCheck` via `core.appVersionCode()`, and `ChromePopupPortal.updateCheck()` on its direct path before the bridge fallback. `UpdateCheckResult` / `UpdateCheckView` shapes are unchanged, so bridge schema, hooks, and UI are untouched.

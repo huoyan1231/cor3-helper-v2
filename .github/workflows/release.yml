@@ -52,14 +52,15 @@ jobs:
             exit 1
           fi
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "PKG_VERSION=$PKG_VERSION" >> "$GITHUB_ENV"
 
       - name: Build
         run: |
-          COR3_VERSION_NAME="$VERSION" npm run build
+          COR3_VERSION_NAME="$PKG_VERSION" npm run build
 
       - name: Verify manifest identity
         run: |
-          node -e "const m=require('./dist/manifest.json');if(m.version_name!==process.env.VERSION){console.error('version_name',m.version_name,'!=',process.env.VERSION);process.exit(1)}if(m.name!=='COR3 Helper 2.0'){console.error('unexpected manifest name',m.name);process.exit(1)}"
+          node -e "const m=require('./dist/manifest.json');if(m.version_name!==process.env.PKG_VERSION){console.error('version_name',m.version_name,'!=',process.env.PKG_VERSION);process.exit(1)}if(m.name!=='COR3 Helper 2.0'){console.error('unexpected manifest name',m.name);process.exit(1)}"
 
       - name: Package
         run: |

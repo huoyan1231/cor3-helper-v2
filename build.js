@@ -6,9 +6,7 @@ const V2 = __dirname;
 const ROOT = __dirname;
 const DIST = path.join(ROOT, 'dist');
 const pkg = JSON.parse(fs.readFileSync(path.join(V2, 'package.json'), 'utf8'));
-const releaseLabel = typeof pkg.cor3Fork?.releaseLabel === 'string' ? pkg.cor3Fork.releaseLabel : null;
-const computedVersionName = releaseLabel ? `${pkg.version}-${releaseLabel}` : pkg.version;
-const versionName = (process.env.COR3_VERSION_NAME || '').trim() || computedVersionName;
+const versionName = (process.env.COR3_VERSION_NAME || '').trim() || pkg.version;
 
 function cleanDist() {
     if (fs.existsSync(DIST)) fs.rmSync(DIST, { recursive: true, force: true });
