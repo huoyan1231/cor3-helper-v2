@@ -5,7 +5,7 @@ import { GameSection } from '../components/GameSection.js';
 import { InfoTip } from '../components/InfoTip.js';
 import { Modal } from '../components/Modal.js';
 import { ToggleSwitch } from '../components/ToggleSwitch.js';
-import { FORK_ISSUES_URL, FORK_RELEASES_URL, FORK_REPO_URL, UPSTREAM_REPO_URL } from '../app/fork-info.js';
+import { FORK_DISPLAY_NAME, FORK_ISSUES_URL, FORK_RELEASES_URL, FORK_REPO_URL, UPSTREAM_REPO, UPSTREAM_REPO_URL } from '../app/fork-info.js';
 import { t, type UiLanguage } from '../i18n.js';
 
 export interface SettingsPageProps {
@@ -338,11 +338,14 @@ export function SettingsPage({
                 </div>
                 <div class="v2-about-line">
                     <span>{t(language, 'settings.about.fork')}</span>
-                    <strong>SaltA Fork</strong>
+                    <strong>{FORK_DISPLAY_NAME}</strong>
                 </div>
-                <p class="v2-muted">{t(language, 'settings.about.upstream')}</p>
+                <p class="v2-muted">
+                    {t(language, 'settings.about.upstream')}
+                    <a href={UPSTREAM_REPO_URL} target="_blank" rel="noreferrer">{UPSTREAM_REPO}</a>
+                </p>
                 <div class="v2-about-links">
-                    <a href={FORK_REPO_URL} target="_blank" rel="noreferrer">Fork</a>
+                    <a href={FORK_REPO_URL} target="_blank" rel="noreferrer">github</a>
                     <a href={FORK_RELEASES_URL} target="_blank" rel="noreferrer">{t(language, 'settings.about.releases')}</a>
                     <a href={FORK_ISSUES_URL} target="_blank" rel="noreferrer">Issues</a>
                     <a href={UPSTREAM_REPO_URL} target="_blank" rel="noreferrer">Upstream</a>

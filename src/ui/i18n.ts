@@ -99,8 +99,8 @@ const EN = {
 
     'settings.about.version': 'Version',
     'settings.about.fork': 'Fork',
-    'settings.about.forkValue': 'SaltA Fork',
-    'settings.about.upstream': 'Built on the upstream COR3 Helper project by Femtoce11.',
+    'settings.about.forkValue': 'huoyan1231 fork',
+    'settings.about.upstream': 'Based on ',
     'settings.about.links': 'Project links',
     'settings.about.check': 'Check for updates',
     'settings.about.checking': 'Checking...',
@@ -255,8 +255,8 @@ const ZH: Dictionary = {
 
     'settings.about.version': '版本',
     'settings.about.fork': '分支',
-    'settings.about.forkValue': 'SaltA Fork',
-    'settings.about.upstream': '基于 Femtoce11 的上游 COR3 Helper 项目。',
+    'settings.about.forkValue': 'huoyan1231 fork',
+    'settings.about.upstream': '基于',
     'settings.about.links': '项目链接',
     'settings.about.check': '检查更新',
     'settings.about.checking': '检查中...',

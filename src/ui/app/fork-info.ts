@@ -4,13 +4,13 @@
  * Runtime update checks and release links point at this fork. Upstream is only
  * credited and linked; the extension never queries upstream at runtime.
  */
-export const FORK_REPO = 'SaltApocalypse/cor3-helper';
+export const FORK_REPO = 'huoyan1231/cor3-helper-v2';
 export const FORK_REPO_URL = `https://github.com/${FORK_REPO}`;
 export const FORK_RELEASES_URL = `${FORK_REPO_URL}/releases`;
 export const FORK_ISSUES_URL = `${FORK_REPO_URL}/issues`;
-export const FORK_DISPLAY_NAME = 'SaltA Fork';
+export const FORK_DISPLAY_NAME = 'huoyan1231 fork';
 
-export const UPSTREAM_REPO = 'Femtoce11/cor3-helper';
+export const UPSTREAM_REPO = 'SaltApocalypse/cor3-helper';
 export const UPSTREAM_REPO_URL = `https://github.com/${UPSTREAM_REPO}`;
 
 export const RELATED_LINKS = [
