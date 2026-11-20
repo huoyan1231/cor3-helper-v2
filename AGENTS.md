@@ -30,6 +30,11 @@ npm run build:min       # minified build -> dist/
 8. Do not use a global event bus or service locator.
 9. Do not edit architecture decisions silently; add an ADR/open item instead.
 10. Do not recreate the v1 static path table in new code.
+11. Increment `cor3Fork.versionCode` in `package.json` by exactly 1 on every commit.
+
+### Version code rule
+
+Every commit bumps `package.json` → `cor3Fork.versionCode` by 1 (e.g. 301 → 302). This is the local update-check code injected by `build.js` as `__COR3_VERSION_CODE__`; it must increase monotonically with each commit. Do **not** bump `update.json` — that file is the remote release baseline published to GitHub raw, not a local value. This rule is independent of semantic version bumps (`package.json.version` / `manifest.json` / `package-lock.json`) and tagging.
 
 ## Architecture
 
