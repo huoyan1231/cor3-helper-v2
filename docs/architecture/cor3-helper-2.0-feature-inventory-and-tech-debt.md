@@ -609,8 +609,8 @@ Residual risk: these changes have unit coverage but still need a live-game smoke
 
 - `npm run typecheck` — pass
 - `npm run lint` — pass
-- `npm test` — 95 files / 473 tests pass
-- `npm run build` — pass, `2.0.6-salta.279`
+- `npm test` — 95 files / 478 tests pass
+- `npm run build` — pass, `2.0.6-salta.281`
 
 ---
 
@@ -738,7 +738,7 @@ Fixes:
 
 - typecheck / lint pass
 - 80 test files / 355 tests
-- build `2.0.6-salta.279`
+- build `2.0.6-salta.281`
 
 ---
 
@@ -1141,3 +1141,15 @@ Market refresh used `RouteExecutor` directly. The executor always walked interme
 - The local version code comes from a new independent `cor3Fork.versionCode` in `package.json` (initial 279, matching the remote baseline), injected by `build.js` as `__COR3_VERSION_CODE__` into every bundle. `toVersionCode()` normalizes the injected value to a non-negative integer; the previous build number is not restored.
 - Both check paths pass the local version code: background `system.updateCheck` via `core.appVersionCode()`, and `ChromePopupPortal.updateCheck()` on its direct path before the bridge fallback. `UpdateCheckResult` / `UpdateCheckView` shapes are unchanged, so bridge schema, hooks, and UI are untouched.
 - `manifest.json` host permissions are now `https://raw.githubusercontent.com/huoyan1231/cor3-helper-v2/*` for update checks (plus the three cor3.gg hosts); the old `cdn.jsdelivr.net`, `github.com/SaltApocalypse`, and `api.github.com` permissions were removed.
+
+---
+
+# Part 45 — Decrypt file matching, minigame locks and worker log noise (upstream/v2-test snapshot)
+
+- A downloaded encrypted file is now matched to a job by the base name from its decrypt conditions as well as the file id/name. Previously `Decrypt & Extract` tried to match `export_9724.txt` against `export_9724.ab52p`, found nothing, and then attempted completion, producing `job-conditions-not-met`.
+- The `alreadyTaken` completion fallback for a missing decrypt file was removed. It masked the real file-matching failure and consumed retry budgets.
+- Decrypt jobs are no longer taken while the game reports a global minigame lock. The Auto Finish selection reads the lock once, skips decrypt jobs with a lock reason, and schedules the retry at lock expiry. The execution service and preflight also refuse to take a decrypt job while locked.
+- The minigame solve path now uses the same auto-solver switches as the background tick. A disabled solver returns immediately (`solver disabled for <kind>`) instead of waiting 30 seconds; the job is skipped as a capability gap and gets a 10-minute cooldown, and the detected kind/result is logged.
+- When every decrypt minigame solver is disabled, the decrypt preflight skips the job before take.
+- Startup no longer runs a full market refresh on every service-worker restart when a persisted snapshot exists. A `system` initialization line is logged once per browser session; later worker starts log at debug level.
+- Network market sync waits briefly after an endpoint change and retries transient `market-not-reachable` responses three times with increasing delays.

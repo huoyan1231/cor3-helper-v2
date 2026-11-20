@@ -114,11 +114,30 @@ export function createCoreRuntime(): CoreRuntime {
             if (Array.isArray(stored)) logger.hydrate(stored.filter(isFreshLogEvent));
         }).catch(() => undefined);
     }
-    logger.info('system', `COR3 Helper initialized — ${VERSION}`, {
+    const initPayload = {
         version: VERSION,
         phase: PHASE,
         initializedAt: Date.now(),
-    });
+    };
+    const logInitialized = (level: 'info' | 'debug'): void => {
+        logger[level]('system', `COR3 Helper initialized — ${VERSION}`, initPayload);
+    };
+    // The MV3 service worker stops after ~30 seconds idle and is restarted by
+    // any event. Log the full initialization once per browser session and use
+    // debug for later worker starts so the 300-line session log stays readable.
+    const INITIALIZED_KEY = 'v2.sessionInitialized';
+    if (sessionLogArea) {
+        void sessionLogArea.get(INITIALIZED_KEY).then((raw) => {
+            if (raw[INITIALIZED_KEY] === true) {
+                logInitialized('debug');
+                return;
+            }
+            logInitialized('info');
+            void sessionLogArea.set({ [INITIALIZED_KEY]: true }).catch(() => undefined);
+        }).catch(() => logInitialized('info'));
+    } else {
+        logInitialized('info');
+    }
     const runLogs = new RunLogStore();
     setInterval(() => {
         logger.prune(isFreshLogEvent);
