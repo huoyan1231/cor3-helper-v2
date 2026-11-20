@@ -1153,3 +1153,16 @@ Market refresh used `RouteExecutor` directly. The executor always walked interme
 - When every decrypt minigame solver is disabled, the decrypt preflight skips the job before take.
 - Startup no longer runs a full market refresh on every service-worker restart when a persisted snapshot exists. A `system` initialization line is logged once per browser session; later worker starts log at debug level.
 - Network market sync waits briefly after an endpoint change and retries transient `market-not-reachable` responses three times with increasing delays.
+
+# Part 46 — Drone mission tracker page (v2.2.0)
+
+A standalone **Drone Task** tab tracks the game's fixed 14-step drone mission. It reads the live warehouse from the existing `inventory.view` bridge and combines it with locally persisted progress to show, per group, what is still missing, how much, which groups can be skipped with CR, and the wait time where relevant.
+
+- **Static catalog** in `src/domains/drone-mission/catalog.ts` transcribes the 14 steps into structured data (items / cr-only / choice / no-requirement). Group ids are stable so progress survives wording changes. No runtime text parsing, no v1 static path table.
+- **Pure computation** in `src/domains/drone-mission/compute.ts` matches warehouse items first by `itemConfigId` and falls back to display name (with aliases) while config ids are not yet supplied. Repeated requirements merge by id or name. CR is split into two independent figures: `requiredCr` (cr-only steps/debts) and `skippableCr` (skipping item groups) — they are never added together.
+- **Progress source isolation**: `MissionProgress` is a dependency-free shape. Today it is driven by checkboxes; the aggregation and UI do not care where it comes from, so a future game-WS progress feed can replace only the source.
+- **Persistence reuses settings**: `settingsV1Schema` gained `droneMissionTracker` (`completedSteps`, `completedGroupIds`, `skippedGroupIds`, `selectedChoices`). Old configs are backfilled by Zod defaults. Writes go through the existing `settings.update` bridge via `portal.updateSettings`; no new bridge command was added.
+- **UI wiring**: `AppShell` nav + `SidePanelApp` branch + `DroneMissionPanel` composition root, `useDroneMissionTracker` hook, and `DroneMissionPage` (summary bar, step chips, step cards, global shortage table, refresh/clear controls). Styles live under the `.v2-dm-*` namespace in `html/popup.css` and follow the existing dark tokens.
+- **Matching transparency**: items without an `itemConfigId` are flagged "Name only" / "未精确匹配" so a zero count is not mistaken for a precise match. A refresh button re-reads the warehouse; the data-matching notice and inventory status are shown inline.
+
+**Follow-up / open item:** populate `itemConfigId` for every catalog item once the game config ids are available; then replace the manual checkbox source with the game WS progress frame without touching `compute.ts` or `DroneMissionPage.tsx`.

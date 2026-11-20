@@ -52,6 +52,12 @@ describe('SettingsRepository', () => {
         expect(defaults.mercMinCredits).toBe(50000);
         expect(defaults.mercGetRidOfVeterans).toBe(false);
         expect(defaults.mercInsureVeterans).toBe(false);
+        expect(defaults.droneMissionTracker).toEqual({
+            completedSteps: [],
+            completedGroupIds: [],
+            skippedGroupIds: [],
+            selectedChoices: {},
+        });
 
         const updated = await repo.update({ uiLanguage: 'zh', autoDismissFailedJobsEnabled: true });
         expect(updated.uiLanguage).toBe('zh');

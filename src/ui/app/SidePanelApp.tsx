@@ -22,6 +22,7 @@ import { useSettings } from './hooks/useSettings.js';
 import { useValuable } from './hooks/useValuable.js';
 import { AutomationPanel } from './panels/AutomationPanel.js';
 import { DeveloperPanel } from './panels/DeveloperPanel.js';
+import { DroneMissionPanel } from './panels/DroneMissionPanel.js';
 import { GamePanel } from './panels/GamePanel.js';
 import { OverviewPanel } from './panels/OverviewPanel.js';
 import { ProgressPanel } from './panels/ProgressPanel.js';
@@ -254,6 +255,10 @@ export function SidePanelApp({
                         settings={settings}
                         now={now}
                     />
+                ) : null}
+
+                {activePage === 'droneMission' ? (
+                    <DroneMissionPanel portal={portal} settings={settings} inventory={inventory} />
                 ) : null}
 
                 {activePage === 'progress' ? (

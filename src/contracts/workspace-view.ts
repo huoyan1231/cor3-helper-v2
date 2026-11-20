@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const WORKSPACE_PAGES = ['overview', 'progress', 'automation', 'game', 'settings', 'developer'] as const;
+export const WORKSPACE_PAGES = ['overview', 'progress', 'automation', 'droneMission', 'game', 'settings', 'developer'] as const;
 export type WorkspacePage = (typeof WORKSPACE_PAGES)[number];
 
 export const WORKSPACE_VIEW_KEY = 'v2.workspace-view';

@@ -39,6 +39,7 @@ export function AppShell({
         ['overview', t(language, 'nav.overview')],
         ['progress', t(language, 'nav.progress')],
         ...(helperMode ? [] : [['automation', t(language, 'nav.automation')] as const]),
+        ['droneMission', t(language, 'nav.droneMission')],
         ['game', t(language, 'nav.game')],
         ['settings', t(language, 'nav.settings')],
         ...(developerMode ? [['developer', t(language, 'nav.developer')] as const] : []),
