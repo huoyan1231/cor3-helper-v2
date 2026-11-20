@@ -20,7 +20,7 @@ import { usePolling } from './hooks/usePolling.js';
 import { usePortalConnection, usePortalEvents } from './hooks/usePortalConnection.js';
 import { useSettings } from './hooks/useSettings.js';
 import { useValuable } from './hooks/useValuable.js';
-import { useWingsOfMarsAutoReveal } from './hooks/useWingsOfMarsAutoReveal.js';
+import { useWingsOfMarsVisibility } from './hooks/useWingsOfMarsVisibility.js';
 import { AutomationPanel } from './panels/AutomationPanel.js';
 import { DeveloperPanel } from './panels/DeveloperPanel.js';
 import { DroneMissionPanel } from './panels/DroneMissionPanel.js';
@@ -70,7 +70,7 @@ export function SidePanelApp({
         reloadAutomation: () => reloadAutomationRef.current(),
         reportDetail: connection.setDetail,
     });
-    useWingsOfMarsAutoReveal(portal, settings);
+    useWingsOfMarsVisibility(portal, settings);
 
     const network = useNetwork(portal, { reportDetail: connection.setDetail, tt: settings.tt, activePage });
     const gameStatus = useGameStatus(portal, { activePage, loadNetwork: network.loadNetwork });
