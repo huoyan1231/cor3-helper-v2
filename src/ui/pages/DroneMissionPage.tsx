@@ -1,4 +1,5 @@
-import { useT } from '../i18n-context.js';
+import { useEffect, useState } from 'preact/hooks';
+import { useT, type TranslateSource } from '../i18n-context.js';
 import type { DroneMissionTrackerState } from '../app/hooks/useDroneMissionTracker.js';
 import type { MissionStepView, MissionWsStatus } from '../../domains/drone-mission/index.js';
 
@@ -24,14 +25,18 @@ function StepCard({
 }: {
     readonly step: MissionStepView;
     readonly tracker: DroneMissionTrackerState;
-    readonly tr: (text: string) => string;
+    readonly tr: TranslateSource;
     readonly ws: MissionWsStatus;
 }) {
-    const variants = step.number === ws.currentStep && ws.automatic
+    const isCurrent = step.number === ws.currentStep;
+    const [open, setOpen] = useState(isCurrent);
+    // WS data may arrive after first render; auto-expand whichever step becomes current.
+    useEffect(() => { if (isCurrent) setOpen(true); }, [isCurrent]);
+    const variants = isCurrent && ws.automatic
         ? Object.entries(ws.currentSubtaskVariants).filter(([, value]) => value !== null)
         : [];
     return (
-        <article class={`v2-dm-step${step.completed ? ' v2-dm-step-done' : ''}`}>
+        <article class={`v2-dm-step${step.completed ? ' v2-dm-step-done' : ''}${open ? '' : ' v2-dm-step-collapsed'}`}>
             <header class="v2-dm-step-head">
                 <button
                     type="button"
@@ -42,10 +47,16 @@ function StepCard({
                 >
                     {step.completed ? '✓' : step.number}
                 </button>
-                <div class="v2-dm-step-title">
-                    <strong>{step.title}</strong>
+                <button
+                    type="button"
+                    class="v2-dm-step-title v2-dm-step-toggle"
+                    aria-expanded={open}
+                    aria-label={open ? tr('Collapse {name}', { name: step.title }) : tr('Expand {name}', { name: step.title })}
+                    onClick={() => setOpen(!open)}
+                >
+                    <strong><span class="v2-dm-step-caret">{open ? '▾' : '▸'}</span>{step.title}</strong>
                     <span class="v2-muted">{step.number === 4 ? tr('No requirements') : `${step.itemGroups.length + step.crOnlyGroups.length + step.choiceGroups.length} ${tr('groups')}`}</span>
-                </div>
+                </button>
                 {variants.length > 0 ? (
                     <div class="v2-dm-variants">
                         {variants.map(([key, value]) => (
@@ -57,6 +68,7 @@ function StepCard({
                 ) : null}
             </header>
 
+            {open ? <div class="v2-dm-step-body">
             {step.itemGroups.map((group) => (
                 <div class={`v2-dm-group${group.done || group.skipped ? ' v2-dm-group-closed' : ''}`} key={group.groupId}>
                     <div class="v2-dm-group-head">
@@ -126,12 +138,14 @@ function StepCard({
                     </div>
                 </div>
             ))}
+            </div> : null}
         </article>
     );
 }
 
 export function DroneMissionPage({ tracker, inventoryStatus, inventoryBusy, onRefreshInventory }: DroneMissionPageProps) {
     const tr = useT();
+    const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
     const { summary, shortages, steps, ws, diagnostics } = tracker.viewModel;
     const percent = summary.totalSteps === 0 ? 0 : Math.round((summary.completedSteps / summary.totalSteps) * 100);
     const sourceLabel = diagnostics.source === 'live'
@@ -164,12 +178,6 @@ export function DroneMissionPage({ tracker, inventoryStatus, inventoryBusy, onRe
                     {ws.automatic
                         ? tr('Auto progress: step {step} in game · {source}').replace('{step}', String(ws.currentStep)).replace('{source}', sourceLabel)
                         : tr('Manual progress · WS source: {source}').replace('{source}', sourceLabel)}
-                </div>
-                <div class="v2-dm-diagnostics" data-source={diagnostics.source}>
-                    <div class="v2-dm-diag-row"><span>{tr('Data source')}</span><strong>{sourceLabel}</strong></div>
-                    <div class="v2-dm-diag-row"><span>{tr('list.history (completed steps)')}</span><strong class={diagnostics.hasHistory ? 'v2-dm-ok' : 'v2-dm-alert'}>{diagnostics.hasHistory ? tr('Captured') : tr('Not captured')} · {diagnostics.detectedCompletedSteps} {tr('done')}</strong></div>
-                    <div class="v2-dm-diag-row"><span>{tr('get.page (current step + ids)')}</span><strong class={diagnostics.hasPage ? 'v2-dm-ok' : 'v2-dm-alert'}>{diagnostics.hasPage ? tr('Captured') : tr('Not captured')}</strong></div>
-                    <div class="v2-dm-diag-row"><span>{tr('Last updated')}</span><strong>{stamp > 0 ? new Date(stamp).toLocaleString() : tr('never')}</strong></div>
                 </div>
                 <div class="v2-dm-progress-bar"><span style={{ width: `${percent}%` }} /></div>
                 <div class="v2-dm-summary-grid">
@@ -226,6 +234,26 @@ export function DroneMissionPage({ tracker, inventoryStatus, inventoryBusy, onRe
                         </table>
                     </div>
                 )}
+            </section>
+
+            <section class="v2-dm-diagnostics-section">
+                <button
+                    type="button"
+                    class="v2-dm-diagnostics-toggle"
+                    aria-expanded={diagnosticsOpen}
+                    aria-label={diagnosticsOpen ? tr('Collapse {name}', { name: tr('Diagnostics') }) : tr('Expand {name}', { name: tr('Diagnostics') })}
+                    onClick={() => setDiagnosticsOpen(!diagnosticsOpen)}
+                >
+                    <strong><span class="v2-dm-step-caret">{diagnosticsOpen ? '▾' : '▸'}</span>{tr('Diagnostics')}</strong>
+                </button>
+                {diagnosticsOpen ? (
+                    <div class="v2-dm-diagnostics" data-source={diagnostics.source}>
+                        <div class="v2-dm-diag-row"><span>{tr('Data source')}</span><strong>{sourceLabel}</strong></div>
+                        <div class="v2-dm-diag-row"><span>{tr('list.history (completed steps)')}</span><strong class={diagnostics.hasHistory ? 'v2-dm-ok' : 'v2-dm-alert'}>{diagnostics.hasHistory ? tr('Captured') : tr('Not captured')} · {diagnostics.detectedCompletedSteps} {tr('done')}</strong></div>
+                        <div class="v2-dm-diag-row"><span>{tr('get.page (current step + ids)')}</span><strong class={diagnostics.hasPage ? 'v2-dm-ok' : 'v2-dm-alert'}>{diagnostics.hasPage ? tr('Captured') : tr('Not captured')}</strong></div>
+                        <div class="v2-dm-diag-row"><span>{tr('Last updated')}</span><strong>{stamp > 0 ? new Date(stamp).toLocaleString() : tr('never')}</strong></div>
+                    </div>
+                ) : null}
             </section>
 
             <footer class="v2-dm-footer">
