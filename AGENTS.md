@@ -16,6 +16,7 @@ npm test                # Vitest
 npm run lint            # oxlint src
 npm run build           # build extension -> dist/
 npm run build:min       # minified build -> dist/
+npm run bump -- 2.4.0   # one-shot: bump version+versionCode, build, commit, tag v2.4.0
 ```
 
 ## Hard rules
@@ -35,6 +36,8 @@ npm run build:min       # minified build -> dist/
 ### Version code rule
 
 Every commit bumps `package.json` → `cor3Fork.versionCode` by 1 (e.g. 301 → 302). This is the local update-check code injected by `build.js` as `__COR3_VERSION_CODE__`; it must increase monotonically with each commit. Do **not** bump `update.json` — that file is the remote release baseline published to GitHub raw, not a local value. This rule is independent of semantic version bumps (`package.json.version` / `manifest.json` / `package-lock.json`) and tagging.
+
+For a version bump, run `npm run bump -- <x.y.z>` (script `bump.mjs`): it updates all version fields plus versionCode, builds, commits and creates the annotated tag in one shot. Avoid doing these steps by hand.
 
 ## Architecture
 

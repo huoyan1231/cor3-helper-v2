@@ -5,7 +5,7 @@
     "description": "COR3 Helper 2.0 — Chrome extension for cor3.gg",
     "cor3Fork": {
         "releaseLabel": "huoyan1231",
-        "versionCode": 303
+        "versionCode": 304
     },
     "engines": {
         "node": ">=24"
@@ -20,6 +20,7 @@
         "format:check": "prettier --check \"src/**/*.{ts,tsx,css,html}\"",
         "test": "vitest run",
         "test:watch": "vitest",
+        "bump": "node bump.mjs",
         "clean": "node -e \"for (const d of ['dist','dist-tools']) require('fs').rmSync(d,{recursive:true,force:true})\"",
         "catalog": "esbuild src/tools/catalog/cli.ts --bundle --platform=node --format=esm --outfile=dist-tools/catalog.mjs && node dist-tools/catalog.mjs"
     },
