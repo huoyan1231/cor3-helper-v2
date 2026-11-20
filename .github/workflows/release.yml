@@ -5,7 +5,7 @@ name: Release
 #   git push origin v2.1.0-huoyan1231
 on:
   push:
-    tags: ['v2.*-huoyan1231']
+    tags: ['v2.*']
 
 permissions:
   contents: write
