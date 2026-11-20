@@ -16,14 +16,14 @@ describe('computeDroneMission', () => {
                 id: 'g1',
                 kind: 'items',
                 label: 'item',
-                items: [{ name: '中文名', quantity: 2, itemConfigId: 'cfg-1' }],
+                items: [{ name: 'Circuit components', quantity: 2, itemConfigId: 'cfg-1' }],
                 skipCr: 100,
             }],
         });
         const result = computeDroneMission(
             [
                 { name: 'other', quantity: 2, itemConfigId: 'cfg-1' },
-                { name: '中文名', quantity: 99, itemConfigId: null },
+                { name: 'Circuit components', quantity: 99, itemConfigId: null },
             ],
             EMPTY_MISSION_PROGRESS,
             steps,
@@ -39,12 +39,12 @@ describe('computeDroneMission', () => {
                 id: 'g1',
                 kind: 'items',
                 label: 'item',
-                items: [{ name: '高负荷电缆', quantity: 5 }],
+                items: [{ name: 'High-load auxiliary cable', quantity: 5 }],
                 skipCr: 100,
             }],
         });
         const result = computeDroneMission(
-            [{ name: '高负荷电缆', quantity: 2, itemConfigId: null }],
+            [{ name: 'High-load auxiliary cable', quantity: 2, itemConfigId: null }],
             EMPTY_MISSION_PROGRESS,
             steps,
         );
@@ -60,12 +60,12 @@ describe('computeDroneMission', () => {
                 id: groupId,
                 kind: 'items',
                 label: 'electronics',
-                items: [{ name: '电子元件', quantity: 2, itemConfigId: 'cfg-e' }],
+                items: [{ name: 'Circuit components', quantity: 2, itemConfigId: 'cfg-e' }],
                 skipCr: 26000,
             }],
         });
         const result = computeDroneMission(
-            [{ name: '电子元件', quantity: 3, itemConfigId: 'cfg-e' }],
+            [{ name: 'Circuit components', quantity: 3, itemConfigId: 'cfg-e' }],
             EMPTY_MISSION_PROGRESS,
             stepsOf(duplicate(8, 's8'), duplicate(9, 's9')),
         );
@@ -139,5 +139,31 @@ describe('computeDroneMission', () => {
         const choice = result.steps[1]?.choiceGroups[0];
         expect(choice?.selectedKey).toBe('hangar');
         expect(choice?.options.find((option) => option.key === 'cuu')?.waitMinutes).toBe(240);
+    });
+
+    it('matches the real catalog item names against an English warehouse by name', () => {
+        const result = computeDroneMission([
+            { name: 'FARLINE Universal Crimper', quantity: 1, itemConfigId: null },
+            { name: 'Old Abibas beanie', quantity: 3, itemConfigId: null },
+            { name: 'CCS "Kaloshi" Utility boots', quantity: 3, itemConfigId: null },
+            { name: 'Circuit components', quantity: 4, itemConfigId: null },
+        ], EMPTY_MISSION_PROGRESS, DRONE_MISSION_STEPS);
+
+        const step1 = result.steps.find((step) => step.number === 1);
+        expect(step1?.itemGroups[0]?.items[0]).toMatchObject({ required: 1, owned: 1, missing: 0, exactMatch: false });
+        const step5 = result.steps.find((step) => step.number === 5);
+        expect(step5?.itemGroups[0]?.items.every((entry) => entry.missing === 0)).toBe(true);
+        // Circuit components appears in step 8 (x2) and step 9 (x2) = 4 required.
+        const circuit = result.shortages.find((entry) => entry.name === 'Circuit components');
+        expect(circuit).toMatchObject({ required: 4, owned: 4, missing: 0 });
+    });
+
+    it('falls back to the Holoscene spelling variant for the holographic cable', () => {
+        const result = computeDroneMission([
+            { name: 'Holoscene Holographic cable', quantity: 1, itemConfigId: null },
+        ], EMPTY_MISSION_PROGRESS, DRONE_MISSION_STEPS);
+        const step7 = result.steps.find((step) => step.number === 7);
+        const cable = step7?.itemGroups.find((group) => group.groupId === 's7-cable')?.items[0];
+        expect(cable).toMatchObject({ owned: 1, missing: 0, exactMatch: false });
     });
 });
