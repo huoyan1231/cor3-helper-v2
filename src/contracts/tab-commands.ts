@@ -84,6 +84,8 @@ export const tabCommandSchemas = {
         priceId: z.string().min(1),
     }).strict(),
     V2_DRONE_ACTION: actionPayload,
+    V2_DRONE_BUILD_VIEW: empty,
+    V2_DRONE_BUILD_REFRESH: empty,
     V2_EXPEDITION_ACTION: actionPayload,
     V2_VALUABLE_ACTION: actionPayload,
     V2_WS_LOGS: empty,
