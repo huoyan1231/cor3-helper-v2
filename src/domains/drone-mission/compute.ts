@@ -5,7 +5,15 @@ import type {
     MissionStep,
     MissionStepView,
     MissionViewModel,
+    MissionWsStatus,
 } from './model.js';
+
+export const EMPTY_WS_STATUS: MissionWsStatus = {
+    automatic: false,
+    currentStep: 0,
+    capturedAt: 0,
+    currentSubtaskVariants: {},
+};
 
 function normalizeName(value: string): string {
     return value.trim().toLowerCase().replace(/\s+/g, ' ');
@@ -67,6 +75,7 @@ export function computeDroneMission(
     inventory: readonly InventoryQuantity[],
     progress: MissionProgress,
     steps: readonly MissionStep[],
+    ws: MissionWsStatus = EMPTY_WS_STATUS,
 ): MissionViewModel {
     const index = buildInventoryIndex(inventory);
     const completedSteps = new Set(progress.completedSteps);
@@ -193,5 +202,6 @@ export function computeDroneMission(
             missingKinds: shortages.filter((entry) => entry.missing > 0).length,
             unmatchedKinds: shortages.filter((entry) => !entry.exactMatch).length,
         },
+        ws,
     };
 }

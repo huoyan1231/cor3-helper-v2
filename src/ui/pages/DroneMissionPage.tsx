@@ -1,6 +1,6 @@
 import { useT } from '../i18n-context.js';
 import type { DroneMissionTrackerState } from '../app/hooks/useDroneMissionTracker.js';
-import type { MissionStepView } from '../../domains/drone-mission/index.js';
+import type { MissionStepView, MissionWsStatus } from '../../domains/drone-mission/index.js';
 
 export interface DroneMissionPageProps {
     readonly tracker: DroneMissionTrackerState;
@@ -20,11 +20,16 @@ function StepCard({
     step,
     tracker,
     tr,
+    ws,
 }: {
     readonly step: MissionStepView;
     readonly tracker: DroneMissionTrackerState;
     readonly tr: (text: string) => string;
+    readonly ws: MissionWsStatus;
 }) {
+    const variants = step.number === ws.currentStep && ws.automatic
+        ? Object.entries(ws.currentSubtaskVariants).filter(([, value]) => value !== null)
+        : [];
     return (
         <article class={`v2-dm-step${step.completed ? ' v2-dm-step-done' : ''}`}>
             <header class="v2-dm-step-head">
@@ -41,6 +46,15 @@ function StepCard({
                     <strong>{step.title}</strong>
                     <span class="v2-muted">{step.number === 4 ? tr('No requirements') : `${step.itemGroups.length + step.crOnlyGroups.length + step.choiceGroups.length} ${tr('groups')}`}</span>
                 </div>
+                {variants.length > 0 ? (
+                    <div class="v2-dm-variants">
+                        {variants.map(([key, value]) => (
+                            <span key={key} class={value === 'BUY' ? 'v2-dm-variant-buy' : 'v2-dm-variant-barter'}>
+                                {key}: {value === 'BUY' ? tr('Buy with CR') : tr('Barter')}
+                            </span>
+                        ))}
+                    </div>
+                ) : null}
             </header>
 
             {step.itemGroups.map((group) => (
@@ -118,7 +132,7 @@ function StepCard({
 
 export function DroneMissionPage({ tracker, inventoryStatus, inventoryBusy, onRefreshInventory }: DroneMissionPageProps) {
     const tr = useT();
-    const { summary, shortages, steps } = tracker.viewModel;
+    const { summary, shortages, steps, ws } = tracker.viewModel;
     const percent = summary.totalSteps === 0 ? 0 : Math.round((summary.completedSteps / summary.totalSteps) * 100);
 
     return (
@@ -127,11 +141,21 @@ export function DroneMissionPage({ tracker, inventoryStatus, inventoryBusy, onRe
                 <div class="v2-dm-hero-top">
                     <div>
                         <h2>{tr('Drone Task Tracker')}</h2>
-                        <p class="v2-muted">{tr('Track the 14-step drone mission against your current stash.')}</p>
+                        <p class="v2-muted">{tr('Track the 15-step drone mission against your current stash.')}</p>
                     </div>
-                    <button type="button" class="v2-dm-refresh" disabled={inventoryBusy || tracker.busy} onClick={onRefreshInventory}>
-                        {inventoryBusy ? tr('Refreshing...') : tr('Refresh stash')}
-                    </button>
+                    <div class="v2-dm-hero-actions">
+                        <button type="button" class="v2-dm-refresh" disabled={inventoryBusy || tracker.busy} onClick={() => void tracker.reloadWs()}>
+                            {tr(ws.automatic ? 'Refresh WS' : 'Load WS progress')}
+                        </button>
+                        <button type="button" class="v2-dm-refresh" disabled={inventoryBusy || tracker.busy} onClick={onRefreshInventory}>
+                            {inventoryBusy ? tr('Refreshing...') : tr('Refresh stash')}
+                        </button>
+                    </div>
+                </div>
+                <div class="v2-dm-ws-badge" data-mode={ws.automatic ? 'auto' : 'manual'}>
+                    {ws.automatic
+                        ? tr('Auto progress: step {step} in game · {source}').replace('{step}', String(ws.currentStep)).replace('{source}', tr('game WS'))
+                        : tr('Manual progress: no game WS data yet')}
                 </div>
                 <div class="v2-dm-progress-bar"><span style={{ width: `${percent}%` }} /></div>
                 <div class="v2-dm-summary-grid">
@@ -163,7 +187,7 @@ export function DroneMissionPage({ tracker, inventoryStatus, inventoryBusy, onRe
             </section>
 
             <section class="v2-dm-steps">
-                {steps.map((step) => <StepCard key={step.number} step={step} tracker={tracker} tr={tr} />)}
+                {steps.map((step) => <StepCard key={step.number} step={step} tracker={tracker} tr={tr} ws={ws} />)}
             </section>
 
             <section class="v2-dm-shortages">

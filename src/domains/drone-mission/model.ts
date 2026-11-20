@@ -14,6 +14,8 @@ export interface MissionItemsGroup {
     readonly items: readonly MissionItemRequirement[];
     /** CR cost to skip handing in this whole group. */
     readonly skipCr: number;
+    /** Links this group to a game subtask key (e.g. `7A`) for WS progress. */
+    readonly subtaskKey?: string;
 }
 
 /** A group that can only be satisfied by handing in credits (debt / fee). */
@@ -23,6 +25,7 @@ export interface MissionCrOnlyGroup {
     readonly label: string;
     readonly requiredCr: number;
     readonly waitMinutes?: number;
+    readonly subtaskKey?: string;
 }
 
 export interface MissionChoiceOption {
@@ -38,13 +41,19 @@ export interface MissionChoiceGroup {
     readonly kind: 'choice';
     readonly label: string;
     readonly options: readonly MissionChoiceOption[];
+    readonly subtaskKey?: string;
 }
 
 export type MissionGroup = MissionItemsGroup | MissionCrOnlyGroup | MissionChoiceGroup;
 
 export interface MissionStep {
     readonly number: number;
+    /** English title from the game's `list.history` frame. */
     readonly title: string;
+    /** Chinese note/description from the same frame. */
+    readonly note?: string;
+    /** Stable key tying a subtask (e.g. `7A`) to this step's groups. */
+    readonly subtaskKeys?: readonly string[];
     readonly groups: readonly MissionGroup[];
 }
 
@@ -139,8 +148,18 @@ export interface MissionSummary {
     readonly unmatchedKinds: number;
 }
 
+export interface MissionWsStatus {
+    /** Whether progress was derived from live WS data rather than checkboxes. */
+    readonly automatic: boolean;
+    readonly currentStep: number;
+    readonly capturedAt: number;
+    /** Variant choices for the current step's subtasks (BUY / BARTER / null). */
+    readonly currentSubtaskVariants: Readonly<Record<string, string | null>>;
+}
+
 export interface MissionViewModel {
     readonly steps: readonly MissionStepView[];
     readonly shortages: readonly ItemShortage[];
     readonly summary: MissionSummary;
+    readonly ws: MissionWsStatus;
 }

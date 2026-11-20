@@ -97,7 +97,7 @@ export const settingsV1Schema = z.object({
     antiAfkEnabled: z.boolean().default(false),
     saiFileHighlightEnabled: z.boolean().default(false),
     droneMissionTracker: z.object({
-        completedSteps: z.array(z.number().int().min(1).max(14)).default([]),
+        completedSteps: z.array(z.number().int().min(1).max(15)).default([]),
         completedGroupIds: z.array(z.string()).default([]),
         skippedGroupIds: z.array(z.string()).default([]),
         selectedChoices: z.record(z.string(), z.string()).default({}),

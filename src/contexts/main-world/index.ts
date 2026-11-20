@@ -64,6 +64,7 @@ const server = new BridgeServer('main-world', logger);
 server.register('game.authStatus', z.object({}).strict(), async () => ok(hub.authStatus()));
 server.register('game.readiness', z.object({}).strict(), async () => ok(hub.readiness()));
 server.register('game.wsLogs', z.object({}).strict(), async () => ok(hub.wsLogs()));
+server.register('game.droneBuildView', z.object({}).strict(), async () => ok(hub.droneBuildSnapshot()));
 server.register('game.clearWsLogs', z.object({}).strict(), async () => {
     hub.clearWsLogs();
     return ok(undefined);

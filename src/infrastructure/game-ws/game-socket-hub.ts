@@ -1,3 +1,4 @@
+import { normalizeDroneBuildSnapshot, type DroneBuildSnapshotView } from '../../contracts/drone-build.js';
 import type { RawNetworkMap } from '../../contracts/map.js';
 import { rawMarketSnapshotSchema, type RawMarketSnapshot } from '../../contracts/market.js';
 import { normalizeSaiFile, normalizeSaiFiles, type SaiFileEntry } from '../../contracts/sai.js';
@@ -330,6 +331,9 @@ export class GameSocketHub {
     private joinedRooms = new Set<string>();
     private lastDroneEvent: unknown = null;
     private lastDroneCompleted: unknown = null;
+    private lastDroneBuildHistory: unknown = null;
+    private lastDroneBuildPage: unknown = null;
+    private droneBuildCapturedAt = 0;
     private minigameLock: { readonly lockExpiresAt: number; readonly at: number } | null = null;
     private frameLog: WsLogEntry[] = [];
     private installed = false;
@@ -770,6 +774,12 @@ export class GameSocketHub {
 
     clearDroneCompleted(): void {
         this.lastDroneCompleted = null;
+    }
+
+    /** Snapshot of the 15-step drone-build quest captured from live frames. */
+    droneBuildSnapshot(): DroneBuildSnapshotView | null {
+        if (this.lastDroneBuildHistory === null && this.lastDroneBuildPage === null) return null;
+        return normalizeDroneBuildSnapshot(this.lastDroneBuildHistory, this.lastDroneBuildPage, this.droneBuildCapturedAt);
     }
 
     async droneAction(kind: string, payload: Record<string, unknown>): Promise<Result<unknown, GameError>> {
@@ -1594,6 +1604,31 @@ export class GameSocketHub {
         }
         if (eventName === 'drone-missions' && action === 'event') this.lastDroneEvent = payload.data;
         if (eventName === 'drone-missions' && action === 'completed') this.lastDroneCompleted = payload.data;
+        if (eventName === 'drone-build' && payload.data !== undefined) {
+            // The frame text in frameLog is truncated, so cache the parsed
+            // payload directly (same pattern as the drone event cache).
+            let captured = false;
+            if (action === 'get.page') {
+                this.lastDroneBuildPage = payload.data;
+                captured = true;
+            } else if (action === 'list.history') {
+                this.lastDroneBuildHistory = payload.data;
+                captured = true;
+            } else if (action === undefined) {
+                // Room pushes echo the state without an action; sniff the shape,
+                // looking through the { event, data, requestId } envelope too.
+                const outer = payload.data as { data?: unknown };
+                const inner = outer && typeof outer === 'object' && outer.data ? outer.data : payload.data;
+                if (Array.isArray((inner as { items?: unknown }).items)) {
+                    this.lastDroneBuildHistory = payload.data;
+                    captured = true;
+                } else if ((inner as { currentStep?: unknown }).currentStep !== undefined) {
+                    this.lastDroneBuildPage = payload.data;
+                    captured = true;
+                }
+            }
+            if (captured) this.droneBuildCapturedAt = Date.now();
+        }
         if (eventName === 'specialists' && (action === undefined || action === 'get.state')) {
             // Some game builds return the specialist state as a room push
             // without echoing the action. Resolve the pending get.state request

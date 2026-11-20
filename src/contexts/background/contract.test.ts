@@ -49,6 +49,7 @@ const EXPECTED_BRIDGE_TYPES = [
     'drone.launch',
     'drone.repair',
     'drone.view',
+    'droneBuild.view',
     'expeditions.autoCancel',
     'expeditions.autoDisable',
     'expeditions.autoEnable',

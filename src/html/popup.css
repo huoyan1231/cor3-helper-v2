@@ -1023,6 +1023,21 @@ body.v2-popup-mode {
     transition: transform .15s, box-shadow .15s, filter .15s;
 }
 .v2-dm-refresh:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(118,193,209,.4); }
+.v2-dm-hero-actions { display: flex; flex-direction: column; gap: 6px; flex: 0 0 auto; }
+.v2-dm-ws-badge {
+    margin-top: 10px;
+    padding: 5px 9px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    display: inline-block;
+}
+.v2-dm-ws-badge[data-mode="auto"] { color: var(--v2-ok); background: rgba(67,209,122,.1); border: 1px solid rgba(67,209,122,.35); }
+.v2-dm-ws-badge[data-mode="manual"] { color: var(--v2-muted); background: rgba(38,50,71,.6); border: 1px solid var(--v2-border); }
+.v2-dm-variants { display: flex; flex-wrap: wrap; gap: 4px; margin-left: auto; }
+.v2-dm-variants span { padding: 2px 6px; border-radius: 999px; font-size: 10px; font-weight: 600; white-space: nowrap; }
+.v2-dm-variant-buy { color: var(--v2-error); background: rgba(255,107,107,.12); border: 1px solid rgba(255,107,107,.35); }
+.v2-dm-variant-barter { color: var(--v2-accent); background: rgba(118,193,209,.12); border: 1px solid rgba(118,193,209,.35); }
 .v2-dm-progress-bar {
     height: 7px;
     margin: 13px 0;

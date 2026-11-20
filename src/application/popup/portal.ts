@@ -1,4 +1,5 @@
 import type { BridgeResult } from '../../contracts/bridge.js';
+import type { DroneBuildSnapshotView } from '../../contracts/drone-build.js';
 import type { WorkspaceViewState } from '../../contracts/workspace-view.js';
 import type { AutoJobsSkippedJob } from '../../contracts/auto-jobs.js';
 import type { AuthStatus, SettingsPatch, SettingsV1 } from '../../contracts/storage.js';
@@ -542,6 +543,8 @@ export interface PopupPortal {
     enableAutoMail(intervalMinutes: number): Promise<BridgeResult<unknown>>;
     disableAutoMail(): Promise<BridgeResult<unknown>>;
     droneView(): Promise<BridgeResult<DroneState>>;
+    /** 15-step drone-build quest snapshot captured from live game WS frames. */
+    droneBuildView(): Promise<BridgeResult<DroneBuildSnapshotView | null>>;
     droneAutoRun(): Promise<BridgeResult<DroneAutoResult>>;
     autoDroneStatus(): Promise<BridgeResult<AutoDroneStatus>>;
     enableAutoDrone(intervalMinutes: number): Promise<BridgeResult<unknown>>;
