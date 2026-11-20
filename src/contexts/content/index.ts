@@ -227,6 +227,10 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
         void game.request('game.droneBuildView', {}, z.unknown(), 10000).then((result) => sendResponse(result));
         return true;
     }
+    if (type === 'V2_DRONE_BUILD_REFRESH') {
+        void game.request('game.droneBuildRefresh', {}, z.unknown(), 15000).then((result) => sendResponse(result));
+        return true;
+    }
     if (type === 'V2_CLEAR_WS_LOGS') {
         void game.request('game.clearWsLogs', {}, z.undefined(), 10000).then((result) => sendResponse(result));
         return true;

@@ -782,6 +782,52 @@ export class GameSocketHub {
         return normalizeDroneBuildSnapshot(this.lastDroneBuildHistory, this.lastDroneBuildPage, this.droneBuildCapturedAt);
     }
 
+    /**
+     * Actively ask the game for the drone-build quest state. Passive capture
+     * alone is unreliable: the game only emits get.page/list.history at certain
+     * moments (e.g. while the build screen is open) and those frames are missed
+     * if the extension injected after them. Issuing the same commands ourselves
+     * yields a fresh authoritative response, which handleIncoming caches.
+     * Returns the updated snapshot (or the previously captured one on failure).
+     */
+    async refreshDroneBuild(timeoutMs = 10000): Promise<DroneBuildSnapshotView | null> {
+        // The game joins the `drone-build` room before it emits get.page and
+        // list.history. When the helper injects after that join, its own
+        // commands never reach the room and the server stays silent. Force a
+        // rejoin first, same as getStash()/specialistAction(getState), so a
+        // stale room tracking state cannot suppress the responses below.
+        this.leaveRoom('drone-build', true);
+        await new Promise((resolve) => window.setTimeout(resolve, 300));
+        const joined = this.joinRoom('drone-build');
+        if (!joined.ok) {
+            // No token or no socket: keep whatever passive capture already has
+            // and let the caller fall back to its persisted snapshot.
+            return this.droneBuildSnapshot();
+        }
+        await new Promise((resolve) => window.setTimeout(resolve, 200));
+
+        // Issue commands serially: the game throttles rapid WS commands and
+        // parallel get.page/list.history can trip its rate limit.
+        for (const action of ['get.page', 'list.history']) {
+            const result = await this.request('drone-build', action, {}, timeoutMs).catch(() => null);
+            if (!result || result.error) continue;
+            const value = result.data;
+            if (!value || typeof value !== 'object') continue;
+            // handleIncoming normally caches the response via its action echo;
+            // this also covers builds that omit the echo on the reply.
+            const record = value as { currentStep?: unknown; items?: unknown };
+            if (action === 'list.history' && record.items !== undefined) {
+                this.lastDroneBuildHistory = value;
+            } else if (action === 'get.page' && record.currentStep !== undefined) {
+                this.lastDroneBuildPage = value;
+            }
+        }
+        if (this.lastDroneBuildHistory !== null || this.lastDroneBuildPage !== null) {
+            this.droneBuildCapturedAt = Date.now();
+        }
+        return this.droneBuildSnapshot();
+    }
+
     async droneAction(kind: string, payload: Record<string, unknown>): Promise<Result<unknown, GameError>> {
         const actions: Record<string, { action: string; timeoutMs: number }> = {
             getOptions: { action: 'get.options', timeoutMs: 20000 },

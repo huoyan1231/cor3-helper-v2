@@ -21,7 +21,12 @@ const snapshot: DroneBuildSnapshotView = {
 
 type Handler = (payload: unknown, request: unknown) => Promise<unknown>;
 
-function setup(options: { readonly tabId: number | null; readonly liveValue?: unknown; readonly sendThrows?: boolean }) {
+function setup(options: {
+    readonly tabId: number | null;
+    readonly liveValue?: unknown;
+    readonly sendThrows?: boolean;
+    readonly responses?: Record<string, unknown>;
+}) {
     let captured: Handler | null = null;
     const server = {
         register: (_type: string, _schema: z.ZodTypeAny, handler: Handler) => {
@@ -29,17 +34,21 @@ function setup(options: { readonly tabId: number | null; readonly liveValue?: un
         },
     } as unknown as CoreRuntime['server'];
     const store = new DroneBuildSnapshotStore(new MemoryStorageArea());
+    const send = vi.fn(async (tabId: number, message: { type: string }) => {
+        if (options.sendThrows) throw new Error('no tab');
+        if (options.responses && message.type in options.responses) {
+            return { ok: true, value: options.responses[message.type] };
+        }
+        return { ok: true, value: options.liveValue };
+    });
     const tabs = {
         findCor3Tab: vi.fn(async () => options.tabId),
-        send: vi.fn(async () => {
-            if (options.sendThrows) throw new Error('no tab');
-            return { ok: true, value: options.liveValue };
-        }),
+        send,
     };
     const core = { server, tabs, stores: { droneBuildSnapshot: store } } as unknown as CoreRuntime;
     registerDroneBuildHandlers(server, { core });
     const handler = captured as unknown as Handler;
-    return { handler, store };
+    return { handler, store, send };
 }
 
 async function call(handler: Handler): Promise<{ value: unknown }> {
@@ -73,5 +82,28 @@ describe('droneBuild.view persistence', () => {
         const parsed = droneBuildViewSchema.parse(value);
         expect(parsed.source).toBe('none');
         expect(parsed.snapshot).toBeNull();
+    });
+
+    it('actively refreshes from the game first', async () => {
+        const { handler, send } = setup({
+            tabId: 1,
+            responses: { V2_DRONE_BUILD_REFRESH: snapshot },
+        });
+        const { value } = await call(handler);
+        expect(droneBuildViewSchema.parse(value).source).toBe('live');
+        expect(send).toHaveBeenCalledWith(1, { type: 'V2_DRONE_BUILD_REFRESH' });
+        // No need to fall back to the passive view when refresh succeeded.
+        expect(send).not.toHaveBeenCalledWith(1, { type: 'V2_DRONE_BUILD_VIEW' });
+    });
+
+    it('falls back to the passive view when the active refresh finds nothing', async () => {
+        const { handler, send } = setup({
+            tabId: 1,
+            responses: { V2_DRONE_BUILD_REFRESH: null, V2_DRONE_BUILD_VIEW: snapshot },
+        });
+        const { value } = await call(handler);
+        expect(droneBuildViewSchema.parse(value).source).toBe('live');
+        expect(send).toHaveBeenCalledWith(1, { type: 'V2_DRONE_BUILD_REFRESH' });
+        expect(send).toHaveBeenCalledWith(1, { type: 'V2_DRONE_BUILD_VIEW' });
     });
 });

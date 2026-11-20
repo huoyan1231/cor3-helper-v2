@@ -65,6 +65,7 @@ server.register('game.authStatus', z.object({}).strict(), async () => ok(hub.aut
 server.register('game.readiness', z.object({}).strict(), async () => ok(hub.readiness()));
 server.register('game.wsLogs', z.object({}).strict(), async () => ok(hub.wsLogs()));
 server.register('game.droneBuildView', z.object({}).strict(), async () => ok(hub.droneBuildSnapshot()));
+server.register('game.droneBuildRefresh', z.object({}).strict(), async () => ok(await hub.refreshDroneBuild()));
 server.register('game.clearWsLogs', z.object({}).strict(), async () => {
     hub.clearWsLogs();
     return ok(undefined);
