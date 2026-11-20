@@ -49,6 +49,18 @@ export const droneBuildSnapshotSchema = z.object({
 
 export type DroneBuildSnapshotView = z.infer<typeof droneBuildSnapshotSchema>;
 
+/**
+ * What the popup receives when it asks for drone-build data. `source` tells the
+ * UI whether this is a live capture, the last persisted snapshot, or nothing.
+ */
+export const droneBuildViewSchema = z.object({
+    snapshot: droneBuildSnapshotSchema.nullable(),
+    source: z.enum(['live', 'persisted', 'none']),
+    storedAt: z.number().nullable(),
+}).strict();
+
+export type DroneBuildView = z.infer<typeof droneBuildViewSchema>;
+
 /** Raw `list.history` frame payload. */
 export const rawDroneBuildHistorySchema = z.object({
     items: z.array(z.object({

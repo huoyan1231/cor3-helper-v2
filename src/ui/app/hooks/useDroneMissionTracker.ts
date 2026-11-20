@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'preact/hooks';
 import type { PopupPortal } from '../../../application/popup/portal.js';
 import { buildDroneMissionViewModel } from '../../../application/drone-mission/view-model.js';
-import { EMPTY_MISSION_PROGRESS, type DroneBuildSnapshot, type MissionProgress } from '../../../domains/drone-mission/index.js';
+import { EMPTY_MISSION_PROGRESS, type MissionProgress } from '../../../domains/drone-mission/index.js';
+import type { DroneBuildView } from '../../../contracts/drone-build.js';
 import type { InventoryItemView } from '../../../application/popup/portal.js';
 import type { SettingsState } from './useSettings.js';
 
 export interface DroneMissionTrackerState {
     readonly progress: MissionProgress;
     readonly viewModel: ReturnType<typeof buildDroneMissionViewModel>;
-    readonly snapshot: DroneBuildSnapshot | null;
+    readonly wsView: DroneBuildView | null;
     readonly busy: boolean;
     readonly error: string | null;
     readonly reloadWs: () => Promise<void>;
@@ -34,7 +35,7 @@ export function useDroneMissionTracker(
 ): DroneMissionTrackerState {
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [snapshot, setSnapshot] = useState<DroneBuildSnapshot | null>(null);
+    const [wsView, setWsView] = useState<DroneBuildView | null>(null);
 
     const stored = settings.settings?.droneMissionTracker;
     const progress: MissionProgress = useMemo(() => ({
@@ -46,7 +47,7 @@ export function useDroneMissionTracker(
 
     const reloadWs = useCallback(async () => {
         const response = await portal.droneBuildView();
-        if (response.ok) setSnapshot(response.value as DroneBuildSnapshot | null);
+        if (response.ok) setWsView(response.value);
     }, [portal]);
 
     useEffect(() => {
@@ -54,8 +55,8 @@ export function useDroneMissionTracker(
     }, [reloadWs]);
 
     const viewModel = useMemo(
-        () => buildDroneMissionViewModel(inventoryItems, { manualProgress: progress, snapshot }),
-        [inventoryItems, progress, snapshot],
+        () => buildDroneMissionViewModel(inventoryItems, { manualProgress: progress, view: wsView }),
+        [inventoryItems, progress, wsView],
     );
 
     const persist = useCallback(async (next: MissionProgress) => {
@@ -94,5 +95,5 @@ export function useDroneMissionTracker(
 
     const clear = useCallback(() => persist(EMPTY_MISSION_PROGRESS), [persist]);
 
-    return { progress, viewModel, snapshot, busy, error, reloadWs, toggleStep, toggleGroup, toggleSkip, selectChoice, clear };
+    return { progress, viewModel, wsView, busy, error, reloadWs, toggleStep, toggleGroup, toggleSkip, selectChoice, clear };
 }

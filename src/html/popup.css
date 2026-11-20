@@ -1034,6 +1034,21 @@ body.v2-popup-mode {
 }
 .v2-dm-ws-badge[data-mode="auto"] { color: var(--v2-ok); background: rgba(67,209,122,.1); border: 1px solid rgba(67,209,122,.35); }
 .v2-dm-ws-badge[data-mode="manual"] { color: var(--v2-muted); background: rgba(38,50,71,.6); border: 1px solid var(--v2-border); }
+.v2-dm-diagnostics {
+    display: grid;
+    gap: 3px;
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: rgba(10,14,23,.55);
+    border: 1px solid var(--v2-border);
+    border-radius: 8px;
+    font-size: 11px;
+}
+.v2-dm-diagnostics[data-source="live"] { border-color: rgba(67,209,122,.35); }
+.v2-dm-diagnostics[data-source="persisted"] { border-color: rgba(229,181,103,.35); }
+.v2-dm-diag-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.v2-dm-diag-row span { color: var(--v2-muted); }
+.v2-dm-diag-row strong { color: var(--v2-text); font-weight: 600; text-align: right; }
 .v2-dm-variants { display: flex; flex-wrap: wrap; gap: 4px; margin-left: auto; }
 .v2-dm-variants span { padding: 2px 6px; border-radius: 999px; font-size: 10px; font-weight: 600; white-space: nowrap; }
 .v2-dm-variant-buy { color: var(--v2-error); background: rgba(255,107,107,.12); border: 1px solid rgba(255,107,107,.35); }

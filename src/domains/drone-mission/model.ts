@@ -157,9 +157,25 @@ export interface MissionWsStatus {
     readonly currentSubtaskVariants: Readonly<Record<string, string | null>>;
 }
 
+export interface MissionDiagnostics {
+    /** Where the drone-build data came from. */
+    readonly source: 'live' | 'persisted' | 'none';
+    /** When the game emitted the frame (snapshot.capturedAt). */
+    readonly capturedAt: number;
+    /** When the snapshot was last persisted. */
+    readonly storedAt: number | null;
+    /** Whether a list.history frame was captured (drives completed steps). */
+    readonly hasHistory: boolean;
+    /** Whether a get.page frame was captured (drives current step + ids). */
+    readonly hasPage: boolean;
+    /** Number of steps the game reports as COMPLETED. */
+    readonly detectedCompletedSteps: number;
+}
+
 export interface MissionViewModel {
     readonly steps: readonly MissionStepView[];
     readonly shortages: readonly ItemShortage[];
     readonly summary: MissionSummary;
     readonly ws: MissionWsStatus;
+    readonly diagnostics: MissionDiagnostics;
 }

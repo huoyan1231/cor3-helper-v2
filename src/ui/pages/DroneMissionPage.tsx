@@ -132,8 +132,16 @@ function StepCard({
 
 export function DroneMissionPage({ tracker, inventoryStatus, inventoryBusy, onRefreshInventory }: DroneMissionPageProps) {
     const tr = useT();
-    const { summary, shortages, steps, ws } = tracker.viewModel;
+    const { summary, shortages, steps, ws, diagnostics } = tracker.viewModel;
     const percent = summary.totalSteps === 0 ? 0 : Math.round((summary.completedSteps / summary.totalSteps) * 100);
+    const sourceLabel = diagnostics.source === 'live'
+        ? tr('live WS')
+        : diagnostics.source === 'persisted'
+            ? tr('saved snapshot')
+            : tr('no data');
+    const stamp = diagnostics.source === 'persisted' && diagnostics.storedAt
+        ? diagnostics.storedAt
+        : diagnostics.capturedAt;
 
     return (
         <div class="v2-dm-page">
@@ -154,8 +162,14 @@ export function DroneMissionPage({ tracker, inventoryStatus, inventoryBusy, onRe
                 </div>
                 <div class="v2-dm-ws-badge" data-mode={ws.automatic ? 'auto' : 'manual'}>
                     {ws.automatic
-                        ? tr('Auto progress: step {step} in game · {source}').replace('{step}', String(ws.currentStep)).replace('{source}', tr('game WS'))
-                        : tr('Manual progress: no game WS data yet')}
+                        ? tr('Auto progress: step {step} in game · {source}').replace('{step}', String(ws.currentStep)).replace('{source}', sourceLabel)
+                        : tr('Manual progress · WS source: {source}').replace('{source}', sourceLabel)}
+                </div>
+                <div class="v2-dm-diagnostics" data-source={diagnostics.source}>
+                    <div class="v2-dm-diag-row"><span>{tr('Data source')}</span><strong>{sourceLabel}</strong></div>
+                    <div class="v2-dm-diag-row"><span>{tr('list.history (completed steps)')}</span><strong class={diagnostics.hasHistory ? 'v2-dm-ok' : 'v2-dm-alert'}>{diagnostics.hasHistory ? tr('Captured') : tr('Not captured')} · {diagnostics.detectedCompletedSteps} {tr('done')}</strong></div>
+                    <div class="v2-dm-diag-row"><span>{tr('get.page (current step + ids)')}</span><strong class={diagnostics.hasPage ? 'v2-dm-ok' : 'v2-dm-alert'}>{diagnostics.hasPage ? tr('Captured') : tr('Not captured')}</strong></div>
+                    <div class="v2-dm-diag-row"><span>{tr('Last updated')}</span><strong>{stamp > 0 ? new Date(stamp).toLocaleString() : tr('never')}</strong></div>
                 </div>
                 <div class="v2-dm-progress-bar"><span style={{ width: `${percent}%` }} /></div>
                 <div class="v2-dm-summary-grid">

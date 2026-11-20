@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { droneBuildSnapshotSchema, type DroneBuildSnapshotView } from '../../contracts/drone-build.js';
+import { droneBuildViewSchema, type DroneBuildView } from '../../contracts/drone-build.js';
 import type { SettingsPatch } from '../../contracts/storage.js';
 import { authStatusSchema, settingsPatchSchema, settingsV1Schema } from '../../contracts/storage.js';
 import { DEFAULT_WORKSPACE_VIEW, WORKSPACE_VIEW_KEY, workspaceViewStateSchema, type WorkspaceViewState } from '../../contracts/workspace-view.js';
@@ -919,8 +919,8 @@ export class ChromePopupPortal implements PopupPortal {
         return this.client.request('drone.view', {}, droneStateSchema, 60000) as Promise<{ ok: true; value: DroneState } | { ok: false; error: { code: string; message: string } }>;
     }
 
-    droneBuildView(): Promise<{ ok: true; value: DroneBuildSnapshotView | null } | { ok: false; error: { code: string; message: string } }> {
-        return this.client.request('droneBuild.view', {}, droneBuildSnapshotSchema.nullable(), 15000) as Promise<{ ok: true; value: DroneBuildSnapshotView | null } | { ok: false; error: { code: string; message: string } }>;
+    droneBuildView(): Promise<{ ok: true; value: DroneBuildView } | { ok: false; error: { code: string; message: string } }> {
+        return this.client.request('droneBuild.view', {}, droneBuildViewSchema, 15000) as Promise<{ ok: true; value: DroneBuildView } | { ok: false; error: { code: string; message: string } }>;
     }
 
     droneAutoRun(): Promise<{ ok: true; value: DroneAutoResult } | { ok: false; error: { code: string; message: string } }> {

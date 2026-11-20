@@ -17,6 +17,7 @@ import { MarketCacheStore } from '../../../infrastructure/storage/market-cache-s
 import { FeatureAvailabilityStore } from '../../../infrastructure/storage/feature-availability-store.js';
 import { ExpeditionConfigCacheStore } from '../../../infrastructure/storage/expedition-config-cache-store.js';
 import { DroneDataCacheStore } from '../../../infrastructure/storage/drone-data-cache-store.js';
+import { DroneBuildSnapshotStore } from '../../../infrastructure/storage/drone-build-snapshot-store.js';
 import { AutomationStateStore } from '../../../infrastructure/storage/automation-state-store.js';
 import { JobHistoryStore } from '../../../infrastructure/storage/job-history-store.js';
 import { NetworkSnapshotStore } from '../../../infrastructure/storage/network-snapshot-store.js';
@@ -78,6 +79,7 @@ export interface CoreRuntime {
         readonly featureAvailability: FeatureAvailabilityStore;
         readonly expeditionConfigCache: ExpeditionConfigCacheStore;
         readonly droneDataCache: DroneDataCacheStore;
+        readonly droneBuildSnapshot: DroneBuildSnapshotStore;
         readonly automationState: AutomationStateStore;
         readonly dailyOpsCache: DailyOpsCacheStore;
         readonly jobHistory: JobHistoryStore;
@@ -194,6 +196,7 @@ export function createCoreRuntime(): CoreRuntime {
         featureAvailability: new FeatureAvailabilityStore(storageArea),
         expeditionConfigCache: new ExpeditionConfigCacheStore(storageArea),
         droneDataCache: new DroneDataCacheStore(storageArea),
+        droneBuildSnapshot: new DroneBuildSnapshotStore(storageArea),
         automationState: new AutomationStateStore(storageArea),
         dailyOpsCache: new DailyOpsCacheStore(storageArea),
         jobHistory: new JobHistoryStore(storageArea, undefined, logger),

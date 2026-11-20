@@ -1,6 +1,7 @@
 import type {
     InventoryQuantity,
     ItemShortage,
+    MissionDiagnostics,
     MissionProgress,
     MissionStep,
     MissionStepView,
@@ -13,6 +14,15 @@ export const EMPTY_WS_STATUS: MissionWsStatus = {
     currentStep: 0,
     capturedAt: 0,
     currentSubtaskVariants: {},
+};
+
+export const EMPTY_DIAGNOSTICS: MissionDiagnostics = {
+    source: 'none',
+    capturedAt: 0,
+    storedAt: null,
+    hasHistory: false,
+    hasPage: false,
+    detectedCompletedSteps: 0,
 };
 
 function normalizeName(value: string): string {
@@ -203,5 +213,6 @@ export function computeDroneMission(
             unmatchedKinds: shortages.filter((entry) => !entry.exactMatch).length,
         },
         ws,
+        diagnostics: EMPTY_DIAGNOSTICS,
     };
 }
