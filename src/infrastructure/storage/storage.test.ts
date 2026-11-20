@@ -46,6 +46,7 @@ describe('SettingsRepository', () => {
         expect(defaults.moveNotificationsLeft).toBe(false);
         expect(defaults.antiAfkEnabled).toBe(false);
         expect(defaults.saiFileHighlightEnabled).toBe(false);
+        expect(defaults.hideWingsOfMars).toBe(true);
         expect(defaults.autoCompleteJobTypes).toHaveLength(9);
         expect(defaults.autoDismissFailedJobsEnabled).toBe(false);
         expect(defaults.mercMinCreditsEnabled).toBe(false);

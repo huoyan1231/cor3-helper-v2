@@ -96,6 +96,8 @@ export const settingsV1Schema = z.object({
     moveNotificationsLeft: z.boolean().default(false),
     antiAfkEnabled: z.boolean().default(false),
     saiFileHighlightEnabled: z.boolean().default(false),
+    /** Hide the "Wings of Mars" tab from the navigation. Enabled by default. */
+    hideWingsOfMars: z.boolean().default(true),
     droneMissionTracker: z.object({
         completedSteps: z.array(z.number().int().min(1).max(15)).default([]),
         completedGroupIds: z.array(z.string()).default([]),

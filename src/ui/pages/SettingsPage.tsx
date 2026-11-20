@@ -21,7 +21,7 @@ export interface SettingsPageProps {
     readonly onChangeLanguage: (language: UiLanguage) => void | Promise<void>;
     readonly onChangeHelperMode: (enabled: boolean) => void | Promise<void>;
     readonly onChangeDeveloperMode: (enabled: boolean) => void | Promise<void>;
-    readonly onChangeQol: (key: 'disableNetworkFog' | 'disableBackground' | 'moveNotificationsLeft' | 'antiAfkEnabled', enabled: boolean) => void | Promise<void>;
+    readonly onChangeQol: (key: 'disableNetworkFog' | 'disableBackground' | 'moveNotificationsLeft' | 'antiAfkEnabled' | 'hideWingsOfMars', enabled: boolean) => void | Promise<void>;
     readonly onExportSettings: () => Promise<string | null>;
     readonly onImportSettings: (json: string) => Promise<string | null>;
     readonly onResetSettings: () => Promise<string | null>;
@@ -198,6 +198,19 @@ export function SettingsPage({
                         disabled={!settings}
                         label={t(language, 'settings.developerMode')}
                         onChange={(next) => void onChangeDeveloperMode(next)}
+                    />
+                </div>
+
+                <div class="v2-settings-row">
+                    <div class="v2-settings-copy">
+                        <strong>{t(language, 'settings.hideWingsOfMars')}</strong>
+                        <span class="v2-muted">{t(language, 'settings.hideWingsOfMars.description')}</span>
+                    </div>
+                    <ToggleSwitch
+                        checked={settings?.hideWingsOfMars ?? true}
+                        disabled={!settings}
+                        label={t(language, 'settings.hideWingsOfMars')}
+                        onChange={(next) => void onChangeQol('hideWingsOfMars', next)}
                     />
                 </div>
 

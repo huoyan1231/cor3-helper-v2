@@ -4,6 +4,27 @@ import { BrandHeader } from '../components/BrandHeader.js';
 import { t, type UiLanguage } from '../i18n.js';
 
 export type PopupPage = WorkspacePage;
+
+export interface NavVisibility {
+    readonly language: UiLanguage;
+    readonly helperMode: boolean;
+    readonly developerMode: boolean;
+    readonly hideWingsOfMars: boolean;
+}
+
+/** Navigation order and visibility, kept pure so it can be tested without a DOM. */
+export function buildNavPages({ language, helperMode, developerMode, hideWingsOfMars }: NavVisibility): readonly (readonly [PopupPage, string])[] {
+    return [
+        ['overview', t(language, 'nav.overview')],
+        ['progress', t(language, 'nav.progress')],
+        ...(helperMode ? [] : [['automation', t(language, 'nav.automation')] as const]),
+        ['game', t(language, 'nav.game')],
+        ...(hideWingsOfMars ? [] : [['droneMission', t(language, 'nav.droneMission')] as const]),
+        ['settings', t(language, 'nav.settings')],
+        ...(developerMode ? [['developer', t(language, 'nav.developer')] as const] : []),
+    ];
+}
+
 export interface AppShellProps {
     readonly language: UiLanguage;
     readonly ping: string;
@@ -12,6 +33,7 @@ export interface AppShellProps {
     readonly helperMode: boolean;
     readonly activePage: PopupPage;
     readonly developerMode: boolean;
+    readonly hideWingsOfMars: boolean;
     readonly windowMode?: boolean;
     readonly popupMode?: boolean;
     readonly onOpenSidePanel?: (() => void) | undefined;
@@ -28,6 +50,7 @@ export function AppShell({
     helperMode,
     activePage,
     developerMode,
+    hideWingsOfMars,
     windowMode = false,
     popupMode = false,
     onOpenSidePanel,
@@ -35,15 +58,7 @@ export function AppShell({
     onPageChange,
     children,
 }: AppShellProps) {
-    const pages: readonly (readonly [PopupPage, string])[] = [
-        ['overview', t(language, 'nav.overview')],
-        ['progress', t(language, 'nav.progress')],
-        ...(helperMode ? [] : [['automation', t(language, 'nav.automation')] as const]),
-        ['droneMission', t(language, 'nav.droneMission')],
-        ['game', t(language, 'nav.game')],
-        ['settings', t(language, 'nav.settings')],
-        ...(developerMode ? [['developer', t(language, 'nav.developer')] as const] : []),
-    ];
+    const pages = buildNavPages({ language, helperMode, developerMode, hideWingsOfMars });
     return (
         <main class={`v2-shell${windowMode ? ' v2-window-shell' : ''}${popupMode ? ' v2-popup-shell' : ''}`}>
             <BrandHeader>

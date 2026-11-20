@@ -199,6 +199,11 @@ export function SidePanelApp({
     }, [settings.helperMode, activePage]);
 
     useEffect(() => {
+        const hidden = settings.settings?.hideWingsOfMars ?? true;
+        if (hidden && activePage === 'droneMission') setActivePage('game');
+    }, [settings.settings?.hideWingsOfMars, activePage]);
+
+    useEffect(() => {
         if (!pageChangeNotified.current) {
             pageChangeNotified.current = true;
             return;
@@ -219,6 +224,7 @@ export function SidePanelApp({
                 helperMode={settings.helperMode}
                 activePage={activePage}
                 developerMode={settings.settings?.developerMode !== false}
+                hideWingsOfMars={settings.settings?.hideWingsOfMars ?? true}
                 windowMode={windowMode}
                 popupMode={popupMode}
                 onOpenSidePanel={popupMode ? () => void portal.openSidePanel() : undefined}
