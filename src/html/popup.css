@@ -992,7 +992,9 @@ body.v2-popup-mode {
 .v2-popup-shell .v2-modal { max-height: 92vh; }
 
 /* ---- Drone mission tracker ---- */
-.v2-dm-page { display: grid; gap: 12px; }
+.v2-dm-page { display: grid; gap: 12px; min-width: 0; }
+/* Keep the wide shortages table from raising the whole popup's min-content width. */
+.v2-dm-page > section, .v2-dm-table-wrap { min-width: 0; max-width: 100%; }
 .v2-dm-hero {
     position: relative;
     padding: 14px;
