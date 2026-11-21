@@ -157,7 +157,7 @@ export function registerSystemHandlers(server: CoreRuntime['server'], deps: Syst
         return ok({ version: VERSION, phase: PHASE });
     });
     server.register('system.updateCheck', z.object({}).strict(), async () => {
-        const result = await deps.core.updateChecker.check(deps.core.appVersion(), deps.core.appVersionCode());
+        const result = await deps.core.updateChecker.check(deps.core.appVersion());
         return result.ok ? ok(result.value) : { ok: false, error: result.error };
     });
     server.register('automation.logs', z.object({

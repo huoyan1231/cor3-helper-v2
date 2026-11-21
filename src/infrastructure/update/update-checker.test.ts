@@ -14,7 +14,7 @@ describe('UpdateChecker', () => {
             versionCode: 279,
         })) as unknown as typeof fetch;
         const checker = new UpdateChecker({ fetchImpl, now: () => 123 });
-        const result = await checker.check('2.0.6-salta', 279);
+        const result = await checker.check('2.0.6-salta');
         expect(fetchImpl).toHaveBeenCalledTimes(1);
         expect(fetchImpl).toHaveBeenCalledWith(DEFAULT_URL, expect.objectContaining({ cache: 'no-store' }));
         expect(result.ok).toBe(true);
@@ -33,14 +33,14 @@ describe('UpdateChecker', () => {
         globalThis.fetch = nativeLikeFetch;
         try {
             const checker = new UpdateChecker();
-            const result = await checker.check('2.0.6', 279);
+            const result = await checker.check('2.0.6');
             expect(result.ok).toBe(true);
         } finally {
             globalThis.fetch = originalFetch;
         }
     });
 
-    it('reports an update when the remote version code is higher', async () => {
+    it('reports an update when the remote version name is newer', async () => {
         const checker = new UpdateChecker({
             fetchImpl: (async () => jsonResponse({
                 versionName: '2.1.0-salta',
@@ -48,7 +48,7 @@ describe('UpdateChecker', () => {
                 releaseUrl: 'https://example.test/release',
             })) as typeof fetch,
         });
-        const result = await checker.check('2.0.6-salta', 279);
+        const result = await checker.check('2.0.6-salta');
         expect(result.ok).toBe(true);
         if (result.ok) {
             expect(result.value.updateAvailable).toBe(true);
@@ -58,24 +58,42 @@ describe('UpdateChecker', () => {
         }
     });
 
-    it('reports up to date when version codes are equal or lower', async () => {
+    it('reports up to date when version names are equal or lower', async () => {
         const equal = new UpdateChecker({
             fetchImpl: (async () => jsonResponse({ versionName: '2.0.6-salta', versionCode: 279 })) as typeof fetch,
         });
         const lower = new UpdateChecker({
             fetchImpl: (async () => jsonResponse({ versionName: '2.0.5-salta', versionCode: 278 })) as typeof fetch,
         });
-        const equalResult = await equal.check('2.0.6-salta', 279);
-        const lowerResult = await lower.check('2.0.6-salta', 279);
+        const equalResult = await equal.check('2.0.6-salta');
+        const lowerResult = await lower.check('2.0.6-salta');
         expect(equalResult.ok && equalResult.value.updateAvailable).toBe(false);
         expect(lowerResult.ok && lowerResult.value.updateAvailable).toBe(false);
+    });
+
+    it('does not report an update when only the remote versionCode is higher', async () => {
+        // Regression: versionCode increments on every commit; it is a build
+        // counter, not a release. Only a higher versionName may prompt.
+        const checker = new UpdateChecker({
+            fetchImpl: (async () => jsonResponse({ versionName: '2.3.1', versionCode: 9999 })) as typeof fetch,
+        });
+        const result = await checker.check('2.3.1');
+        expect(result.ok && result.value.updateAvailable).toBe(false);
+    });
+
+    it('reports an update for a higher versionName even with a lower versionCode', async () => {
+        const checker = new UpdateChecker({
+            fetchImpl: (async () => jsonResponse({ versionName: '2.4.0', versionCode: 1 })) as typeof fetch,
+        });
+        const result = await checker.check('2.3.1');
+        expect(result.ok && result.value.updateAvailable).toBe(true);
     });
 
     it('falls back to the fork releases page when releaseUrl is absent', async () => {
         const checker = new UpdateChecker({
             fetchImpl: (async () => jsonResponse({ versionName: '2.0.6-salta', versionCode: 280 })) as typeof fetch,
         });
-        const result = await checker.check('2.0.6-salta', 279);
+        const result = await checker.check('2.0.6-salta');
         expect(result.ok).toBe(true);
         if (result.ok) {
             expect(result.value.releaseUrl).toBe('https://github.com/huoyan1231/cor3-helper-v2/releases/latest');
@@ -87,7 +105,7 @@ describe('UpdateChecker', () => {
             releaseUrl: 'https://example.test/releases',
             fetchImpl: (async () => jsonResponse({ versionName: '2.0.6-salta', versionCode: 280 })) as typeof fetch,
         });
-        const result = await checker.check('2.0.6-salta', 279);
+        const result = await checker.check('2.0.6-salta');
         expect(result.ok && result.value.releaseUrl).toBe('https://example.test/releases');
     });
 
@@ -95,7 +113,7 @@ describe('UpdateChecker', () => {
         const checker = new UpdateChecker({
             fetchImpl: (async () => jsonResponse({}, 404)) as typeof fetch,
         });
-        const result = await checker.check('2.0.6-salta', 279);
+        const result = await checker.check('2.0.6-salta');
         expect(result.ok).toBe(false);
         if (!result.ok) expect(result.error.code).toBe('UPDATE_CHECK_FAILED');
     });
@@ -104,7 +122,7 @@ describe('UpdateChecker', () => {
         const checker = new UpdateChecker({
             fetchImpl: (async () => { throw new Error('offline'); }) as typeof fetch,
         });
-        const result = await checker.check('2.0.6-salta', 279);
+        const result = await checker.check('2.0.6-salta');
         expect(result.ok).toBe(false);
     });
 
@@ -112,7 +130,7 @@ describe('UpdateChecker', () => {
         const checker = new UpdateChecker({
             fetchImpl: (async () => new Response('not json')) as typeof fetch,
         });
-        const result = await checker.check('2.0.6-salta', 279);
+        const result = await checker.check('2.0.6-salta');
         expect(result.ok).toBe(false);
     });
 
@@ -129,7 +147,7 @@ describe('UpdateChecker', () => {
             const checker = new UpdateChecker({
                 fetchImpl: (async () => jsonResponse(body)) as typeof fetch,
             });
-            const result = await checker.check('2.0.6-salta', 279);
+            const result = await checker.check('2.0.6-salta');
             expect(result.ok).toBe(false);
         }
     });
