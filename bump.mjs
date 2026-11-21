@@ -36,7 +36,10 @@ edit('package-lock.json', (t) => t.replace(/"version"\s*:\s*"[^"]+"/g,
     (match) => (++rootVersions <= 2 ? `"version": "${next}"` : match)));
 
 console.log(`${current} -> ${next} (versionCode +1)`);
-execFileSync('npm', ['run', 'build'], { stdio: 'inherit' });
+// On Windows npm is npm.cmd and execFileSync does not resolve it without a
+// shell. git.exe resolves directly on all platforms, so only npm needs this.
+const npmShell = process.platform === 'win32';
+execFileSync('npm', ['run', 'build'], { stdio: 'inherit', shell: npmShell });
 execFileSync('git', ['add', 'package.json', 'manifest.json', 'package-lock.json'], { stdio: 'inherit' });
 execFileSync('git', ['commit', '-m', `chore: bump version to ${next}`], { stdio: 'inherit' });
 execFileSync('git', ['tag', '-a', tag, '-m', tag], { stdio: 'inherit' });
