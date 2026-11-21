@@ -5,7 +5,7 @@
     "description": "COR3 Helper 2.0 — Chrome extension for cor3.gg",
     "cor3Fork": {
         "releaseLabel": "huoyan1231",
-        "versionCode": 315
+        "versionCode": 316
     },
     "engines": {
         "node": ">=24"

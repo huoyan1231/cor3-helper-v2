@@ -18,10 +18,9 @@ export interface DroneMissionTrackerState {
     readonly wsView: DroneBuildView | null;
     readonly busy: boolean;
     readonly error: string | null;
+    readonly status: string | null;
     readonly surplusPlan: MissionSurplusSellPlan;
     readonly sellingSurplus: boolean;
-    readonly sellSurplusConfirm: boolean;
-    readonly requestSellSurplus: () => void;
     readonly sellSurplus: () => Promise<void>;
     readonly reloadWs: () => Promise<void>;
     readonly toggleStep: (step: number) => Promise<void>;
@@ -47,9 +46,9 @@ export function useDroneMissionTracker(
 ): DroneMissionTrackerState {
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [status, setStatus] = useState<string | null>(null);
     const [wsView, setWsView] = useState<DroneBuildView | null>(null);
     const [sellingSurplus, setSellingSurplus] = useState(false);
-    const [sellSurplusConfirm, setSellSurplusConfirm] = useState(false);
 
     const stored = settings.settings?.droneMissionTracker;
     const progress: MissionProgress = useMemo(() => ({
@@ -92,16 +91,11 @@ export function useDroneMissionTracker(
         }
     }, [portal, settings]);
 
-    const requestSellSurplus = useCallback(() => setSellSurplusConfirm((value) => !value), []);
-
     const sellSurplus = useCallback(async () => {
         if (sellingSurplus || surplusPlan.entries.length === 0) return;
-        if (!sellSurplusConfirm) {
-            setSellSurplusConfirm(true);
-            return;
-        }
         setSellingSurplus(true);
         setError(null);
+        setStatus(null);
         let soldQuantity = 0;
         let soldValue = 0;
         const failed: string[] = [];
@@ -115,17 +109,16 @@ export function useDroneMissionTracker(
                     failed.push(`${entry.name}: ${response.error.message}`);
                 }
             }
-            setSellSurplusConfirm(false);
             await reloadInventory();
-            setError(failed.length > 0
-                ? `${settings.tt('Sold {quantity} item(s) for {value} cr', { quantity: soldQuantity, value: soldValue })} · ${failed.join('; ')}`
-                : settings.tt('Sold {quantity} item(s) for {value} cr', { quantity: soldQuantity, value: soldValue }));
+            const result = settings.tt('Sold {quantity} item(s) for {value} cr', { quantity: soldQuantity, value: soldValue });
+            setStatus(result);
+            setError(failed.length > 0 ? failed.join('; ') : null);
         } catch (cause) {
             setError(cause instanceof Error ? cause.message : String(cause));
         } finally {
             setSellingSurplus(false);
         }
-    }, [portal, sellingSurplus, sellSurplusConfirm, surplusPlan, reloadInventory, settings.tt]);
+    }, [portal, sellingSurplus, surplusPlan, reloadInventory, settings.tt]);
 
     const toggleStep = useCallback((step: number) => persist({
         ...progress,
@@ -155,10 +148,9 @@ export function useDroneMissionTracker(
         wsView,
         busy,
         error,
+        status,
         surplusPlan,
         sellingSurplus,
-        sellSurplusConfirm,
-        requestSellSurplus,
         sellSurplus,
         reloadWs,
         toggleStep,

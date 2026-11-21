@@ -1030,6 +1030,7 @@ body.v2-popup-mode {
 }
 .v2-dm-refresh:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(118,193,209,.4); }
 .v2-dm-sell-surplus { background: linear-gradient(135deg, #b28dff, #6d54b5); color: #100a1c; }
+.v2-dm-sell-status { color: var(--v2-ok); }
 .v2-dm-hero-actions { display: flex; flex-direction: column; gap: 6px; flex: 0 0 auto; }
 .v2-dm-surplus-modal { min-width: 0; }
 .v2-dm-surplus-list { display: grid; gap: 4px; max-height: 260px; overflow: auto; margin: 8px 0; }

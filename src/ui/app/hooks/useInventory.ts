@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'preact/hooks';
+import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import type {
     InventoryItemView,
     InventoryPreviewResult,
@@ -55,6 +55,7 @@ export function useInventory(portal: PopupPortal, tt: TranslateSource): Inventor
     const [sellConfirm, setSellConfirm] = useState(false);
     const [sellAllExceptMilkConfirm, setSellAllExceptMilkConfirm] = useState(false);
     const [sellingGroupKey, setSellingGroupKey] = useState<string | null>(null);
+    const sellingGroupKeyRef = useRef<string | null>(null);
     const [inventoryStatus, setInventoryStatus] = useState('Inventory not loaded');
     const [inventoryBusy, setInventoryBusy] = useState(false);
     const [inventorySorting, setInventorySorting] = useState(false);
@@ -79,6 +80,9 @@ export function useInventory(portal: PopupPortal, tt: TranslateSource): Inventor
             setInventory(view.value.summary);
             setInventoryItems(view.value.items);
             setSortingTableItems(view.value.sortingTableItems);
+            // A fresh stash invalidates any pending two-step sell confirmation.
+            setSellConfirm(false);
+            setSellAllExceptMilkConfirm(false);
             setInventoryStatus('');
         } else {
             setInventoryStatus(view.error.message);
@@ -193,31 +197,40 @@ export function useInventory(portal: PopupPortal, tt: TranslateSource): Inventor
     }, [portal, inventoryBusy, sellAllExceptMilkConfirm, loadInventory, tt]);
 
     const sellInventoryItem = useCallback(async (stacks: readonly InventoryItemView[], quantity: number, groupKey: string) => {
-        if (sellingGroupKey !== null) return;
+        if (sellingGroupKeyRef.current !== null) return;
+        sellingGroupKeyRef.current = groupKey;
         setSellingGroupKey(groupKey);
+        setInventoryBusy(true);
         let remaining = quantity;
         let soldQuantity = 0;
         let soldValue = 0;
         let lastName = '';
         let failure: string | null = null;
-        for (const stack of stacks) {
-            if (remaining <= 0) break;
-            const response = await portal.sellInventoryItem(stack.id, Math.min(remaining, stack.quantity));
-            if (!response.ok) {
-                failure = response.error.message;
-                break;
+        try {
+            for (const stack of stacks) {
+                if (remaining <= 0) break;
+                const response = await portal.sellInventoryItem(stack.id, Math.min(remaining, stack.quantity));
+                if (!response.ok) {
+                    failure = response.error.message;
+                    break;
+                }
+                remaining -= response.value.quantity;
+                soldQuantity += response.value.quantity;
+                soldValue += response.value.sellValue;
+                lastName = response.value.name;
             }
-            remaining -= response.value.quantity;
-            soldQuantity += response.value.quantity;
-            soldValue += response.value.sellValue;
-            lastName = response.value.name;
+            if (soldQuantity > 0) await loadInventory();
+            setInventoryStatus(soldQuantity > 0
+                ? `${tt('Sold {quantity} × {name} for {value} credits', { quantity: soldQuantity, name: lastName, value: soldValue })}${remaining > 0 ? ` · ${tt('{count} item(s) not sold', { count: remaining })}` : ''}${failure ? ` · ${failure}` : ''}`
+                : failure ?? tt('No items were sold'));
+        } catch (cause) {
+            setInventoryStatus(cause instanceof Error ? cause.message : String(cause));
+        } finally {
+            sellingGroupKeyRef.current = null;
+            setSellingGroupKey(null);
+            setInventoryBusy(false);
         }
-        setSellingGroupKey(null);
-        setInventoryStatus(soldQuantity > 0
-            ? `${tt('Sold {quantity} × {name} for {value} credits', { quantity: soldQuantity, name: lastName, value: soldValue })}${failure ? ` · ${failure}` : ''}`
-            : failure ?? tt('No items were sold'));
-        if (soldQuantity > 0) await loadInventory();
-    }, [portal, sellingGroupKey, loadInventory, tt]);
+    }, [portal, loadInventory, tt]);
 
     const purchaseSpecialist = useCallback(async (purchase: SpecialistPurchase) => {
         setSpecialistBusy(true);

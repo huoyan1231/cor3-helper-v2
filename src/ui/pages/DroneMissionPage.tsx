@@ -149,17 +149,11 @@ export function DroneMissionPage({ tracker, inventoryStatus, inventoryBusy, onRe
     const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
     const [sellSurplusOpen, setSellSurplusOpen] = useState(false);
     const { summary, shortages, steps, ws, diagnostics } = tracker.viewModel;
-    const openSellSurplus = () => {
-        if (!tracker.sellSurplusConfirm) tracker.requestSellSurplus();
-        setSellSurplusOpen(true);
-    };
-    const closeSellSurplus = () => {
-        if (tracker.sellSurplusConfirm) tracker.requestSellSurplus();
-        setSellSurplusOpen(false);
-    };
+    const openSellSurplus = () => setSellSurplusOpen(true);
+    const closeSellSurplus = () => { if (!tracker.sellingSurplus) setSellSurplusOpen(false); };
     const confirmSellSurplus = () => {
-        void tracker.sellSurplus();
         setSellSurplusOpen(false);
+        void tracker.sellSurplus();
     };
     const percent = summary.totalSteps === 0 ? 0 : Math.round((summary.completedSteps / summary.totalSteps) * 100);
     const sourceLabel = diagnostics.source === 'live'
@@ -212,6 +206,7 @@ export function DroneMissionPage({ tracker, inventoryStatus, inventoryBusy, onRe
                     <p class="v2-dm-notice">{tr('{count} item(s) have no itemConfigId yet and are matched by name only.').replace('{count}', String(summary.unmatchedKinds))}</p>
                 ) : null}
                 <p class="v2-muted v2-dm-status">{inventoryStatus}</p>
+                {tracker.status ? <p class="v2-dm-status v2-dm-sell-status">{tracker.status}</p> : null}
                 {tracker.error ? <p class="v2-dm-error">{tracker.error}</p> : null}
             </section>
 

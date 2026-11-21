@@ -5,7 +5,7 @@
 - **Method:** static source review of popup, content scripts, MAIN-world hooks, background scheduler, bridge contracts, tests, build/release config, and architecture docs
 - **Status legend for v1 → v2:** `Implemented` = equivalent user capability exists; `Partial` = core exists but visible scope/behavior differs; `Missing` = no counterpart found; `Unknown` = cannot confirm without runtime QA
 - **Caveat:** this is not a runtime parity sign-off. The 2.0 release line is complete; the displayed version is now the plain `<version>` (no `-salta` suffix, no local build counter), while release tags and artifact names still use `<version>-salta`. Historical sections retain their original development labels.
-- **Last verified:** 2026-11-21 against `2.4.0` (Part 47 records the v2.3.x drone-tab work; Part 49 records the v2.4.0 inventory bulk-sell addition; Part 50 records the tracker tab-switch fix; Part 51 records the per-item quantity modal; Part 52 records the mission-surplus sale; older Parts keep their original version labels)
+- **Last verified:** 2026-11-21 against `2.4.0` (Part 47 records the v2.3.x drone-tab work; Part 49 records the v2.4.0 inventory bulk-sell addition; Part 50 records the tracker tab-switch fix; Part 51 records the per-item quantity modal; Part 52 records the mission-surplus sale; Part 53 records the full-test bug-fix pass; older Parts keep their original version labels)
 - **Current verification:** `npm run typecheck`, `npm run lint`, `npm test` and `npm run build` all pass.
 
 ## Current completion snapshot (`2.0.6`)
@@ -1229,3 +1229,15 @@ A new **Sell all except Artificial milk** button in Game → Inventory → Batch
 - **Domain:** new pure `planMissionSurplusSell()` in `src/domains/drone-mission/surplus-sell.ts` walks the catalog + progress, reserving each unfinished/unskipped item group's required quantity and treating done/skipped groups (and completed steps) as no longer needing their items. Matching mirrors `computeDroneMission`: exact `itemConfigId` first (and when it hits, name/alias stacks are not double-reserved), then name/aliases. Each remaining stack contributes only its surplus; unrelated stacks are fully sold. Returns entries with per-stack sell quantity/value plus totals and kept-kind count. Six unit tests cover surplus, unrelated items, id-vs-alias matching, tier filter, price/sellability filter and released reservations.
 - **Progress alignment:** `effectiveMissionProgress()` is exported from `view-model.ts` and reused by both `buildDroneMissionViewModel()` and the sell plan, so the plan always reflects the WS-driven progress the page displays.
 - **Execution:** `useDroneMissionTracker()` now receives `reloadInventory`, exposes `surplusPlan` / `sellSurplus` / confirm state, and executes the plan via `portal.sellInventoryItem()` per entry with a two-click confirm. The page shows a `Modal` listing each stack and its value; styles under `.v2-dm-sell-surplus` / `.v2-dm-surplus-*`. No bridge or schema changes. TypeScript, oxlint, Vitest and the production build pass.
+
+---
+
+# Part 53 — Full-test pass bug fixes (v2.4.0)
+
+A full verification run (typecheck, Vitest, oxlint, build) plus a review of the recent sell-path changes found and fixed several real defects; `format:check` still fails repo-wide on all files (pre-existing formatting/line-ending debt, not part of the Definition of Done).
+
+- **Stale two-step confirmation:** `loadInventory()` now clears `sellConfirm` and `sellAllExceptMilkConfirm` whenever a fresh stash arrives, so a confirmation armed against one stash cannot authorize a sale after mail auto-claim, tab-switch reloads or any other inventory refresh.
+- **Stuck selling lock:** `useInventory.sellInventoryItem()` now uses a ref lock plus `try/finally`, sets `inventoryBusy` for the whole cross-stack loop, refreshes the stash before writing the final status, and reports any unsold remainder. A thrown portal error can no longer leave every Sell button disabled.
+- **Redundant sell-surplus confirm state machine:** removed the internal toggle; the confirmation `Modal` is now the single confirmation step. `sellSurplus()` executes directly, closing the modal on confirm and blocking close while selling. Success/failure are split into separate `status` / `error` fields so the result is no longer rendered with the error style.
+- **Surplus matching could sell needed items:** `planMissionSurplusSell()` now accumulates aliases from every requirement sharing a key and uses two-phase assignment (exact itemConfigId stacks first, then name/alias stacks only to cover a shortfall). Previously a static "id matched" flag could skip alias stacks entirely when id stacks were insufficient. Added tests for shortfall coverage and multi-alias accumulation (587 tests total).
+- **Verification:** typecheck, 587 Vitest tests, oxlint and production build all pass.

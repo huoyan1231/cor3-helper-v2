@@ -34,8 +34,10 @@ export interface MissionSurplusSellPlan {
 interface RequirementBucket {
     required: number;
     requiredTotal: number;
-    readonly nameKeys: readonly string[];
-    readonly idMatched: boolean;
+    /** Normalized itemConfigId when the requirement specifies one. */
+    readonly idKey: string | null;
+    /** All normalized names/aliases seen for this requirement key. */
+    readonly nameKeys: Set<string>;
     readonly stacks: SurplusSellSourceItem[];
 }
 
@@ -47,7 +49,7 @@ function canSellStack(item: SurplusSellSourceItem): boolean {
 /**
  * Build a plan that sells every COMMON/RARE stack the drone mission does not
  * need, and only the surplus of stacks it does need. Requirement matching
- * mirrors `computeDroneMission`: exact itemConfigId first, then name/aliases.
+ * prefers exact itemConfigId, then name/aliases to cover any shortfall.
  * Groups already done or skipped (and completed steps) no longer reserve any
  * items, so those stacks become surplus. Pure: no I/O or browser APIs.
  */
@@ -59,13 +61,6 @@ export function planMissionSurplusSell(
     const completedSteps = new Set(progress.completedSteps);
     const completedGroups = new Set(progress.completedGroupIds);
     const skippedGroups = new Set(progress.skippedGroupIds);
-
-    const byId = new Map<string, number>();
-    for (const item of inventory) {
-        if (!item.itemConfigId || item.quantity <= 0) continue;
-        const key = normalizeName(item.itemConfigId);
-        byId.set(key, (byId.get(key) ?? 0) + Math.max(0, Math.floor(item.quantity)));
-    }
 
     const buckets = new Map<string, RequirementBucket>();
     for (const step of steps) {
@@ -79,37 +74,52 @@ export function planMissionSurplusSell(
                     : `name:${normalizeName(entry.name)}`;
                 let bucket = buckets.get(key);
                 if (!bucket) {
-                    const nameKeys = [entry.name, ...(entry.aliases ?? [])].map((name) => `name:${normalizeName(name)}`);
-                    const idMatched = Boolean(entry.itemConfigId && byId.has(normalizeName(entry.itemConfigId)));
-                    bucket = { required: 0, requiredTotal: 0, nameKeys, idMatched, stacks: [] };
+                    bucket = {
+                        required: 0,
+                        requiredTotal: 0,
+                        idKey: entry.itemConfigId ? normalizeName(entry.itemConfigId) : null,
+                        nameKeys: new Set<string>(),
+                        stacks: [],
+                    };
                     buckets.set(key, bucket);
+                }
+                for (const name of [entry.name, ...(entry.aliases ?? [])]) {
+                    bucket.nameKeys.add(`name:${normalizeName(name)}`);
                 }
                 bucket.required += entry.quantity;
             }
         }
     }
 
+    // Phase 1: assign exact itemConfigId stacks to their buckets.
+    const assigned = new Set<SurplusSellSourceItem>();
     for (const item of inventory) {
-        if (item.quantity <= 0) continue;
-        let matched: RequirementBucket | null = null;
-        if (item.itemConfigId) {
-            matched = buckets.get(`id:${normalizeName(item.itemConfigId)}`) ?? null;
-        }
-        if (!matched) {
-            const nameKey = `name:${normalizeName(item.name)}`;
-            for (const bucket of buckets.values()) {
-                if (bucket.idMatched) continue;
-                if (bucket.nameKeys.includes(nameKey)) {
-                    matched = bucket;
-                    break;
-                }
+        if (item.quantity <= 0 || !item.itemConfigId) continue;
+        const bucket = buckets.get(`id:${normalizeName(item.itemConfigId)}`);
+        if (!bucket) continue;
+        bucket.stacks.push(item);
+        assigned.add(item);
+    }
+
+    // Phase 2: cover each bucket's shortfall with name/alias stacks that were
+    // not already claimed by an exact id. This prevents selling a stack that
+    // is the same physical item under a different display name when id stacks
+    // are insufficient.
+    for (const item of inventory) {
+        if (item.quantity <= 0 || assigned.has(item)) continue;
+        const nameKey = `name:${normalizeName(item.name)}`;
+        for (const bucket of buckets.values()) {
+            const matchedQuantity = bucket.stacks.reduce((sum, stack) => sum + stack.quantity, 0);
+            if (matchedQuantity >= bucket.required) continue;
+            if (bucket.nameKeys.has(nameKey)) {
+                bucket.stacks.push(item);
+                assigned.add(item);
+                break;
             }
         }
-        if (matched) matched.stacks.push(item);
     }
 
     const entries: SurplusSellEntry[] = [];
-    const assigned = new Set<SurplusSellSourceItem>();
     let keptKinds = 0;
 
     const addSurplus = (stack: SurplusSellSourceItem, quantity: number): void => {
@@ -122,7 +132,6 @@ export function planMissionSurplusSell(
     for (const bucket of buckets.values()) {
         let remainingNeed = bucket.required;
         for (const stack of bucket.stacks) {
-            assigned.add(stack);
             const keep = Math.min(stack.quantity, Math.max(0, remainingNeed));
             remainingNeed -= keep;
             if (keep > 0) bucket.requiredTotal += keep;

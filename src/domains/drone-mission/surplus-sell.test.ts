@@ -65,18 +65,50 @@ describe('planMissionSurplusSell', () => {
         expect(plan.keptKinds).toBe(0);
     });
 
-    it('matches by itemConfigId ahead of name and ignores name-only items for a taken group', () => {
-        const plan = planMissionSurplusSell(
+    it('matches by itemConfigId ahead of name, then covers a shortfall with alias stacks', () => {
+        const requirements = stepsWith({ name: 'Holocene Holographic cable', itemConfigId: 'CFG-1', aliases: ['Holoscene Holographic cable'], quantity: 1 });
+        const covered = planMissionSurplusSell(
             [
                 stack('exact', 'Holocene Holographic cable', 1, { itemConfigId: 'CFG-1', sellPrice: 100 }),
                 stack('alias', 'Holoscene Holographic cable', 4, { sellPrice: 100 }),
             ],
-            stepsWith({ name: 'Holocene Holographic cable', itemConfigId: 'CFG-1', aliases: ['Holoscene Holographic cable'], quantity: 1 }),
+            requirements,
             EMPTY_PROGRESS,
         );
-        // The exact-id stack covers the requirement; the alias-named stack has no
-        // itemConfigId, so the id-matched requirement does not reserve it and it is sold.
-        expect(plan.entries).toEqual([{ itemId: 'alias', name: 'Holoscene Holographic cable', quantity: 4, sellValue: 400 }]);
+        // The exact-id stack covers the requirement, so the alias stack is surplus.
+        expect(covered.entries).toEqual([{ itemId: 'alias', name: 'Holoscene Holographic cable', quantity: 4, sellValue: 400 }]);
+        expect(covered.keptKinds).toBe(1);
+
+        const shortfall = planMissionSurplusSell(
+            [
+                stack('exact', 'Holocene Holographic cable', 1, { itemConfigId: 'CFG-1', sellPrice: 100 }),
+                stack('alias', 'Holoscene Holographic cable', 4, { sellPrice: 100 }),
+            ],
+            stepsWith({ name: 'Holocene Holographic cable', itemConfigId: 'CFG-1', aliases: ['Holoscene Holographic cable'], quantity: 3 }),
+            EMPTY_PROGRESS,
+        );
+        // id stack has 1 but 3 are required; the alias stack fills the 2-item gap.
+        expect(shortfall.entries).toEqual([{ itemId: 'alias', name: 'Holoscene Holographic cable', quantity: 2, sellValue: 200 }]);
+        expect(shortfall.keptKinds).toBe(1);
+    });
+
+    it('accumulates aliases from every requirement sharing a key', () => {
+        const steps: readonly MissionStep[] = [{
+            number: 1,
+            title: 'Step 1',
+            groups: [{
+                id: 'g1',
+                kind: 'items',
+                label: 'Group 1',
+                items: [
+                    { name: 'Beanie', aliases: ['Cap'], quantity: 2 },
+                    { name: 'Beanie', aliases: ['Beanie hat', 'Knit cap'], quantity: 1 },
+                ],
+                skipCr: 0,
+            }],
+        }];
+        const plan = planMissionSurplusSell([stack('c', 'Knit cap', 4)], steps, EMPTY_PROGRESS);
+        expect(plan.entries).toEqual([{ itemId: 'c', name: 'Knit cap', quantity: 1, sellValue: 10 }]);
         expect(plan.keptKinds).toBe(1);
     });
 
