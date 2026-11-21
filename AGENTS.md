@@ -32,12 +32,17 @@ npm run bump -- 2.4.0   # one-shot: bump version+versionCode, build, commit, tag
 9. Do not edit architecture decisions silently; add an ADR/open item instead.
 10. Do not recreate the v1 static path table in new code.
 11. Increment `cor3Fork.versionCode` in `package.json` by exactly 1 on every commit.
+12. When adding or changing a feature, update `AGENTS.md` and the relevant docs under `docs/` in the same change.
 
 ### Version code rule
 
 Every commit bumps `package.json` → `cor3Fork.versionCode` by 1 (e.g. 301 → 302). This is the local update-check code injected by `build.js` as `__COR3_VERSION_CODE__`; it must increase monotonically with each commit. Do **not** bump `update.json` — that file is the remote release baseline published to GitHub raw, not a local value. This rule is independent of semantic version bumps (`package.json.version` / `manifest.json` / `package-lock.json`) and tagging.
 
 For a version bump, run `npm run bump -- <x.y.z>` (script `bump.mjs`): it updates all version fields plus versionCode, builds, commits and creates the annotated tag in one shot. Avoid doing these steps by hand.
+
+### Documentation sync rule
+
+Any change that adds or modifies user-facing behavior, contracts, ports or protocols must update `AGENTS.md` and the relevant `docs/` files in the same change. Key docs: `docs/cor3-ws-events.md` (WS frames), `docs/security.md` (tokens), and `docs/architecture/cor3-helper-2.0-feature-inventory-and-tech-debt.md` (feature history — add a new dated Part, keep old Parts as history). Update version anchors when bumping the version. Do not silently let docs drift from code.
 
 ## Architecture
 
@@ -64,3 +69,4 @@ Background context composition and per-domain modules:
 - build passes
 - behavior parity is checked for any replaced feature
 - docs/ADR updated for cross-cutting changes
+- `AGENTS.md` and affected `docs/` files updated (see Documentation sync rule)

@@ -1,6 +1,6 @@
 # COR3 WS / mailbox / stash protocol notes
 
-Last updated: 2026-11-15 (v2 bridge/storage); game captures 2026-11-03
+Last updated: 2026-11-21 (v2.3.1: drone-build quest frames, active refresh, shared-socket room note); game captures 2026-11-03
 Source captures: `cor3-ws-export_1.json` … `cor3-ws-export_5.json` (headers contain the recorded player actions).
 
 > **Security note:** the capture files are local-only and are ignored by git
@@ -21,13 +21,15 @@ Game events use Socket.IO v5 / Engine.IO 4 framing; binary payloads are msgpack-
 42["<eventName>",{"event":{"name":"<eventName>","action":"<action>"},"data":{...},"requestId":"..."}]
 ```
 
-- `eventName`: top-level namespace (`mail`, `stash`, `expeditions`, `drone-missions`, `gameplay`, …).
+- `eventName`: top-level namespace (`mail`, `stash`, `expeditions`, `drone-missions`, `drone-build`, `gameplay`, …).
 - `event.action`: action inside that namespace.
 - `data`: response payload (absent/`null` on errors).
 - `error`: `{ "message": "..." }` on failures.
 - `requestId`: present on responses; useful for correlating commands.
 
 Server pushes (e.g. `mail update.state`) use the same frame without a request.
+
+> **Shared-socket room rule:** the helper's MAIN-world hub proxies the game's **own** WebSocket; it does not open a separate socket. `join-room` is idempotent and safe to re-assert, but `leave-room` on a namespace the game is using evicts the shared socket while the game still believes it is joined — the game then gets `not-joined` on its next command. Force-leave is only safe for rooms the helper owns (`mail`, `stash`, `specialists`). See §5.1.
 
 ---
 
@@ -404,6 +406,24 @@ Transient errors are detected by keyword matching (English and Chinese) and must
 
 ---
 
+## 5.1 Drone build quest (`drone-build`) — Wings of Mars
+
+Distinct from `drone-missions` (flying expeditions): `drone-build` is the 15-step quest that **constructs** the drone. Both are passively captured by `GameSocketHub` and normalized into a Zod-validated snapshot by `contracts/drone-build.ts`.
+
+| Action | Direction | Notes |
+|---|---|---|
+| `get.page` | request/response | Current step, `workshopChoice`, current subtasks, variant (`BUY`/`BARTER`) and item `itemConfigId`s |
+| `list.history` | request/response | 15-step skeleton: step number, English `title`, Chinese `note`, status (`ACTIVE`/`COMPLETED`), completed subtask count and `subtaskKey`s |
+
+Observed facts:
+
+- The game `join-room`s to `drone-build` before these responses appear. The helper therefore uses an idempotent `join-room` in `refreshDroneBuild()` — **never** `leave-room` (see the shared-socket rule in §1). This was the cause of the game-side `not-joined` error.
+- `droneBuild.view` tries an **active refresh** first (`V2_DRONE_BUILD_REFRESH` → `game.droneBuildRefresh` → `get.page` + `list.history`), then the passive in-memory cache, then the persisted snapshot (`v2.droneBuild.snapshot`). Diagnostics expose source `live|persisted|none`, whether each frame was captured, and the game-reported completed-step count.
+- Payloads tolerate extra game fields (`description`, `imageUrl`, `kind`, `barter`, `requestId`); the contract unwraps `{ event, data }` envelopes and uses Zod `.passthrough()`.
+- The drone's **vitality** (durability + battery capacity) comes from `drone-missions get.options` (`DroneState.drone`, `maxDurability`, `maxBattery`). A drone reporting both capacities means the build quest is complete and the Wings of Mars tab is auto-hidden; a live `drone-build` snapshot means it is in progress and the tab is revealed.
+
+---
+
 ## 6. Extension bridge (v2)
 
 ### 6.1 Page world ↔ content
@@ -421,7 +441,8 @@ Tab commands use the versioned `v2-tab` envelope from `contracts/tab.ts`.
 
 - Request: `{ protocol: "v2-tab", version: 2, requestId, type, payload }`.
 - Response: `{ protocol: "v2-tab", version: 2, requestId, response }`, where `response` is the command result (`{ ok, value | error }` or a raw game result).
-- Payload schemas live in `contracts/tab-commands.ts`.
+- Payload schemas live in `contracts/tab-commands.ts`; every `V2_*` command the content script dispatches must be registered there or it is rejected as `INVALID_TAB_COMMAND` (a past omission of `V2_DRONE_BUILD_VIEW` / `V2_DRONE_BUILD_REFRESH` silently broke drone-build retrieval).
+- Drone-build commands: `V2_DRONE_BUILD_VIEW` (cached snapshot) and `V2_DRONE_BUILD_REFRESH` (active `get.page` + `list.history`), both empty-payload, relayed to `game.droneBuildView` / `game.droneBuildRefresh` in the page world.
 - Content notices use the same envelope and are parsed at the background boundary:
   - `V2_GAME_READY` — per-tab readiness snapshot.
   - `V2_MARKET_CACHE` — raw market snapshot for cache warming.
@@ -453,6 +474,7 @@ All persistent state uses `chrome.storage.local`; transient session logs use `ch
 | `v2.automationState` | local | Per-automation run state, leases and locks |
 | `v2.dailyOpsCache` | local | Daily ops cache |
 | `v2.discovery.progress` | local | Resumable network discovery progress |
+| `v2.droneBuild.snapshot` | local | Last normalized drone-build quest snapshot (source `live`/`persisted`/`none`, stored time) for the Wings of Mars tracker |
 | `v2.droneDataCache` | local | Drone config/data cache |
 | `v2.expeditionConfigCache` | local | Expedition config cache |
 | `v2.featureAvailability` | local | Feature availability probes |
@@ -463,6 +485,10 @@ All persistent state uses `chrome.storage.local`; transient session logs use `ch
 | `v2.sessionLogs` | session | Redacted session log ring buffer (24 h retention) |
 
 ## 8. Error classification
+
+### 8.0 `not-joined` (room membership)
+
+`not-joined` is a **server-side** rejection: a command was sent to a namespace the socket is not joined to. Because the helper and game share one WebSocket, the common cause is the helper force-leaving a room the game relies on (notably `drone-build`). Fix: re-assert with an idempotent `join-room` and never force-leave a shared namespace. Only helper-owned rooms (`mail`, `stash`, `specialists`) may be force-left to recover from stale tracking.
 
 ### 8.1 Transient / busy
 
