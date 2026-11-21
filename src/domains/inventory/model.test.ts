@@ -120,4 +120,29 @@ describe('inventory batch selling', () => {
         expect(plan.eligible.map((entry) => entry.itemId)).toEqual(['plain']);
         expect(plan.protected).toEqual([]);
     });
+
+    it('skips excluded names case-insensitively', () => {
+        const plan = planInventoryBatchSell({
+            items: [
+                sellable('milk', 'COMMON', { name: 'Artificial milk' }),
+                sellable('other', 'RARE', { name: 'Artificial Milk' }),
+                sellable('scrap', 'COMMON', { name: 'Scrap' }),
+            ],
+        }, { tiers: ['COMMON', 'RARE'], tag: 'any', excludeNames: ['artificial milk'] });
+        expect(plan.eligible.map((entry) => entry.itemId)).toEqual(['scrap']);
+        expect(plan.protected).toEqual([]);
+    });
+
+    it('allows craftable items and excludes milk when explicitly requested', () => {
+        const plan = planInventoryBatchSell({
+            items: [
+                sellable('milk', 'COMMON', { name: 'Artificial milk' }),
+                sellable('plain', 'COMMON', { name: 'Scrap' }),
+                sellable('craft', 'RARE', { name: 'Cable', canCraft: true }),
+                sellable('epic', 'EPIC', { name: 'Rare Chip' }),
+            ],
+        }, { tiers: ['COMMON', 'RARE'], tag: 'any', excludeNames: ['Artificial milk'], allowCraft: true });
+        expect(plan.eligible.map((entry) => entry.itemId)).toEqual(['plain', 'craft']);
+        expect(plan.protected.map((entry) => entry.itemId)).toEqual([]);
+    });
 });

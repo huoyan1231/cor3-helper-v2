@@ -6,7 +6,7 @@ import { DEFAULT_WORKSPACE_VIEW, WORKSPACE_VIEW_KEY, workspaceViewStateSchema, t
 import { networkMapSummarySchema } from '../../application/network/summary.js';
 import type { BridgeClient } from '../bridge/bridge-client.js';
 import { UpdateChecker } from '../update/update-checker.js';
-import type { AutoDailyStatus, AutoDroneStatus, AutoExpeditionStatus, AutoFinishRunResult, AutoFinishStatus, AutoJobsSnapshot, AutoJobsStatus, AutoMailStatus, BackgroundEvent, CachedMarketView, DailyHackResult, DebugLogLine, DismissFailedSummary, DroneAutoResult, InventoryFilterResult, InventoryItemSellResult, InventoryPreviewResult, InventorySortResult, InventoryView, JobAllMarketsResult, JobHistoryEntry, JobMarketSyncResult, JobQueueResult, JobQueueState, LoadoutApplyResult, LoadoutView, MailClaimResult, MarketOptionsView, ActivityState, NetworkDiagnostics, NetworkServerSummary, OverviewState, PopupPortal, ValuableReport, ValuableRunState, ValuableSaleResult, ValuableSearchResult } from '../../application/popup/portal.js';
+import type { AutoDailyStatus, AutoDroneStatus, AutoExpeditionStatus, AutoFinishRunResult, AutoFinishStatus, AutoJobsSnapshot, AutoJobsStatus, AutoMailStatus, BackgroundEvent, CachedMarketView, DailyHackResult, DebugLogLine, DismissFailedSummary, DroneAutoResult, InventoryFilterOptions, InventoryFilterResult, InventoryItemSellResult, InventoryPreviewResult, InventorySortResult, InventoryView, JobAllMarketsResult, JobHistoryEntry, JobMarketSyncResult, JobQueueResult, JobQueueState, LoadoutApplyResult, LoadoutView, MailClaimResult, MarketOptionsView, ActivityState, NetworkDiagnostics, NetworkServerSummary, OverviewState, PopupPortal, ValuableReport, ValuableRunState, ValuableSaleResult, ValuableSearchResult } from '../../application/popup/portal.js';
 import type { NetworkOperationQueueStatus } from '../../application/network/operation-queue.js';
 import { gameReadinessSchema } from '../../application/game/readiness.js';
 import type { JobOffer } from '../../domains/jobs/model.js';
@@ -976,12 +976,12 @@ export class ChromePopupPortal implements PopupPortal {
     }
 
 
-    previewInventoryFilter(tiers: readonly string[], tag: 'any' | 'none' | 'craft'): Promise<{ ok: true; value: InventoryPreviewResult } | { ok: false; error: { code: string; message: string } }> {
-        return this.client.request('inventory.previewFilter', { tiers, tag }, inventoryPreviewSchema, 30000) as Promise<{ ok: true; value: InventoryPreviewResult } | { ok: false; error: { code: string; message: string } }>;
+    previewInventoryFilter(tiers: readonly string[], tag: 'any' | 'none' | 'craft', options?: InventoryFilterOptions): Promise<{ ok: true; value: InventoryPreviewResult } | { ok: false; error: { code: string; message: string } }> {
+        return this.client.request('inventory.previewFilter', { tiers, tag, ...options }, inventoryPreviewSchema, 30000) as Promise<{ ok: true; value: InventoryPreviewResult } | { ok: false; error: { code: string; message: string } }>;
     }
 
-    sellInventoryFilter(tiers: readonly string[], tag: 'any' | 'none' | 'craft'): Promise<{ ok: true; value: InventoryFilterResult } | { ok: false; error: { code: string; message: string } }> {
-        return this.client.request('inventory.sellFilter', { tiers, tag }, inventoryFilterSchema, 300000) as Promise<{ ok: true; value: InventoryFilterResult } | { ok: false; error: { code: string; message: string } }>;
+    sellInventoryFilter(tiers: readonly string[], tag: 'any' | 'none' | 'craft', options?: InventoryFilterOptions): Promise<{ ok: true; value: InventoryFilterResult } | { ok: false; error: { code: string; message: string } }> {
+        return this.client.request('inventory.sellFilter', { tiers, tag, ...options }, inventoryFilterSchema, 300000) as Promise<{ ok: true; value: InventoryFilterResult } | { ok: false; error: { code: string; message: string } }>;
     }
 
     sellInventoryItem(itemId: string, quantity?: number): Promise<{ ok: true; value: InventoryItemSellResult } | { ok: false; error: { code: string; message: string } }> {

@@ -13,6 +13,10 @@ import type { InventorySellTag, InventorySellTier } from '../../pages/InventoryP
  * Warehouse inventory, specialists and bulk selling (H8 phase 7).
  */
 
+/** Game item name kept out of the one-click "sell everything" action. */
+export const SELL_EXCLUDED_ITEM_NAME = 'Artificial milk';
+const SELL_ALL_TIERS: readonly InventorySellTier[] = ['COMMON', 'RARE'];
+
 export interface InventoryState {
     readonly inventory: InventorySummary | null;
     readonly inventoryItems: readonly InventoryItemView[];
@@ -35,6 +39,8 @@ export interface InventoryState {
     readonly changeSellTier: (tier: InventorySellTier) => void;
     readonly changeSellTag: (tag: InventorySellTag) => void;
     readonly sellInventoryFilter: () => Promise<void>;
+    readonly sellAllExceptMilk: () => Promise<void>;
+    readonly sellAllExceptMilkConfirm: boolean;
     readonly sellInventoryItem: (itemId: string) => Promise<void>;
     readonly purchaseSpecialist: (purchase: SpecialistPurchase) => Promise<void>;
     readonly sortInventory: (mode: 'smart' | 'compact') => Promise<void>;
@@ -47,6 +53,7 @@ export function useInventory(portal: PopupPortal, tt: TranslateSource): Inventor
     const [specialists, setSpecialists] = useState<SpecialistState | null>(null);
     const [specialistError, setSpecialistError] = useState<string | null>(null);
     const [sellConfirm, setSellConfirm] = useState(false);
+    const [sellAllExceptMilkConfirm, setSellAllExceptMilkConfirm] = useState(false);
     const [sellingItemId, setSellingItemId] = useState<string | null>(null);
     const [inventoryStatus, setInventoryStatus] = useState('Inventory not loaded');
     const [inventoryBusy, setInventoryBusy] = useState(false);
@@ -150,6 +157,41 @@ export function useInventory(portal: PopupPortal, tt: TranslateSource): Inventor
         setInventoryBusy(false);
     }, [portal, sellTier, sellTag, sellPreview, sellConfirm, loadInventory, tt]);
 
+    const sellAllExceptMilk = useCallback(async () => {
+        if (inventoryBusy) return;
+        const options = { excludeNames: [SELL_EXCLUDED_ITEM_NAME], allowCraft: true };
+        if (!sellAllExceptMilkConfirm) {
+            setInventoryBusy(true);
+            const preview = await portal.previewInventoryFilter([...SELL_ALL_TIERS], 'any', options);
+            setInventoryBusy(false);
+            if (!preview.ok) {
+                setInventoryStatus(preview.error.message);
+                return;
+            }
+            if (preview.value.stacks === 0) {
+                setInventoryStatus(tt('No sellable items match the selected filters'));
+                return;
+            }
+            setSellAllExceptMilkConfirm(true);
+            setInventoryStatus(tt('Click again to sell {count} item(s) except {name}. Items above RARE are kept.', {
+                count: preview.value.quantity,
+                name: SELL_EXCLUDED_ITEM_NAME,
+            }));
+            return;
+        }
+        setSellAllExceptMilkConfirm(false);
+        setInventoryBusy(true);
+        setInventoryStatus(tt('Selling all items except {name}...', { name: SELL_EXCLUDED_ITEM_NAME }));
+        const response = await portal.sellInventoryFilter([...SELL_ALL_TIERS], 'any', options);
+        if (response.ok) {
+            setInventoryStatus(`${tt('Sold {stacks} stack(s), {quantity} item(s)', { stacks: response.value.soldStacks, quantity: response.value.soldQuantity })}: ${response.value.sellValue} cr${response.value.protectedStacks > 0 ? tt(' · {count} protected item(s) kept', { count: response.value.protectedStacks }) : ''}${response.value.failed.length > 0 ? tt(' · {count} failed', { count: response.value.failed.length }) : ''}${response.value.mailClaimed ? tt(' · mail claimed {count}', { count: response.value.mailClaimed }) : ''}`);
+            await loadInventory();
+        } else {
+            setInventoryStatus(response.error.message);
+        }
+        setInventoryBusy(false);
+    }, [portal, inventoryBusy, sellAllExceptMilkConfirm, loadInventory, tt]);
+
     const sellInventoryItem = useCallback(async (itemId: string) => {
         if (sellingItemId !== null) return;
         setSellingItemId(itemId);
@@ -217,6 +259,8 @@ export function useInventory(portal: PopupPortal, tt: TranslateSource): Inventor
         changeSellTier,
         changeSellTag,
         sellInventoryFilter,
+        sellAllExceptMilk,
+        sellAllExceptMilkConfirm,
         sellInventoryItem,
         purchaseSpecialist,
         sortInventory,

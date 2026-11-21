@@ -4,8 +4,8 @@ import { err, ok } from '../../kernel/result.js';
 import {
     inventorySellProtection,
     planInventoryBatchSell,
+    type InventoryBatchSellFilter,
     type InventoryBatchSellPlan,
-    type InventoryBatchSellTag,
 } from '../../domains/inventory/model.js';
 import type { InventoryRuntimePort } from './sorter.js';
 
@@ -37,10 +37,10 @@ export class InventoryFilterSellService {
         private readonly sellJitterMs = 0,
     ) {}
 
-    async previewFilter(tiers: readonly string[], tag: InventoryBatchSellTag): Promise<Result<FilterPreview, { readonly code: string; readonly message: string }>> {
+    async previewFilter(filter: InventoryBatchSellFilter): Promise<Result<FilterPreview, { readonly code: string; readonly message: string }>> {
         const stash = await this.runtime.getStash();
         if (!stash.ok) return err(stash.error);
-        const plan = planInventoryBatchSell(stash.value, { tiers, tag });
+        const plan = planInventoryBatchSell(stash.value, filter);
         return ok({
             stacks: plan.eligible.length,
             quantity: plan.eligible.reduce((sum, entry) => sum + entry.quantity, 0),
@@ -53,14 +53,14 @@ export class InventoryFilterSellService {
     }
 
     /**
-     * Sells only items that pass the safe-sale plan. Craftable items and items
-     * above RARE are never sent to the server, even when the tier filter
-     * includes them.
+     * Sells only items that pass the safe-sale plan. Items above RARE are
+     * never sent to the server. Craftable items are skipped unless the filter
+     * explicitly opts in with `allowCraft`.
      */
-    async sellByFilter(tiers: readonly string[], tag: InventoryBatchSellTag): Promise<Result<FilterSellSummary, { readonly code: string; readonly message: string }>> {
+    async sellByFilter(filter: InventoryBatchSellFilter): Promise<Result<FilterSellSummary, { readonly code: string; readonly message: string }>> {
         const stash = await this.runtime.getStash();
         if (!stash.ok) return err(stash.error);
-        const plan = planInventoryBatchSell(stash.value, { tiers, tag });
+        const plan = planInventoryBatchSell(stash.value, filter);
         let soldStacks = 0;
         let soldQuantity = 0;
         let sellValue = 0;

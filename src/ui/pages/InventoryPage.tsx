@@ -43,6 +43,8 @@ export interface InventoryPageProps {
     readonly sellPreview: InventoryPreviewResult | null;
     readonly onSellFilter: () => void | Promise<void>;
     readonly sellConfirm: boolean;
+    readonly onSellAllExceptMilk: () => void | Promise<void>;
+    readonly sellAllExceptMilkConfirm: boolean;
     readonly autoMail: AutoMailStatus | null;
     readonly autoMailBusy: boolean;
     readonly onToggleAutoMail: () => void | Promise<void>;
@@ -120,6 +122,8 @@ export function InventoryPage({
     sellPreview,
     onSellFilter,
     sellConfirm,
+    onSellAllExceptMilk,
+    sellAllExceptMilkConfirm,
     autoMail,
     autoMailBusy,
     onToggleAutoMail,
@@ -293,6 +297,16 @@ export function InventoryPage({
                         onClick={() => void onSellFilter()}
                     >
                         {sellConfirm ? tr('Confirm sell {count}', { count: sellPreview?.stacks ?? 0 }) : tr('Sell')}
+                    </button>
+                    <button
+                        type="button"
+                        class="v2-stash-sell-button"
+                        disabled={busy}
+                        onClick={() => void onSellAllExceptMilk()}
+                    >
+                        {sellAllExceptMilkConfirm
+                            ? tr('Confirm sell all except Artificial milk')
+                            : tr('Sell all except Artificial milk')}
                     </button>
                 </div>
             </details>

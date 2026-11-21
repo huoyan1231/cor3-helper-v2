@@ -35,6 +35,8 @@ function mapInventoryItemView(item: import('../../../domains/inventory/model.js'
 const inventoryBatchSellSchema = z.object({
     tiers: z.array(z.string().min(1)).max(8).default([]),
     tag: z.enum(['any', 'none', 'craft']).default('any'),
+    excludeNames: z.array(z.string().min(1)).max(16).optional(),
+    allowCraft: z.boolean().optional(),
 }).strict();
 
 const inventorySortSchema = z.object({ mode: z.enum(['smart', 'compact']).default('smart') }).strict();
@@ -63,19 +65,18 @@ export function registerInventoryHandlers(server: CoreRuntime['server'], deps: I
             sortingTableItems: stash.value.sortingTable?.items?.length ?? 0,
         });
     });
-    server.register('inventory.previewFilter', inventoryBatchSellSchema, async ({ tiers, tag }) => {
-        const result = await game.inventoryFilterSell.previewFilter(tiers, tag);
+    server.register('inventory.previewFilter', inventoryBatchSellSchema, async (filter) => {
+        const result = await game.inventoryFilterSell.previewFilter(filter);
         return result.ok ? ok(result.value) : { ok: false, error: { code: result.error.code, message: result.error.message } };
     });
-    server.register('inventory.sellFilter', inventoryBatchSellSchema, async ({ tiers, tag }) => {
-        const result = await game.inventoryFilterSell.sellByFilter(tiers, tag);
+    server.register('inventory.sellFilter', inventoryBatchSellSchema, async (filter) => {
+        const result = await game.inventoryFilterSell.sellByFilter(filter);
         if (!result.ok) {
-            core.logger.warn('inventory', 'Filtered sell failed', { code: result.error.code, message: result.error.message, tiers, tag });
+            core.logger.warn('inventory', 'Filtered sell failed', { code: result.error.code, message: result.error.message, filter });
             return { ok: false, error: { code: result.error.code, message: result.error.message } };
         }
         core.logger.info('inventory', 'Filtered sell completed', {
-            tiers,
-            tag,
+            ...filter,
             soldStacks: result.value.soldStacks,
             soldQuantity: result.value.soldQuantity,
             sellValue: result.value.sellValue,

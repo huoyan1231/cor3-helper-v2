@@ -61,6 +61,12 @@ Background context composition and per-domain modules:
 - `src/contexts/background/automation/` (automation coordinators)
 - `src/contexts/background/composition/` (runtime wiring)
 
+Inventory bulk sell:
+
+- `PopupPortal.previewInventoryFilter()` / `sellInventoryFilter()` accept optional `excludeNames` and `allowCraft` options passed through the `inventory.previewFilter` / `inventory.sellFilter` bridge commands.
+- The Game → Inventory "Sell all except Artificial milk" action uses `tiers: ['COMMON', 'RARE']`, `tag: 'any'`, `excludeNames: ['Artificial milk']`, `allowCraft: true`.
+- `planInventoryBatchSell()` remains the single safety gate: items above RARE, non-sellable items and zero-price items are always reported as protected.
+
 ## Definition of done
 
 - typecheck passes

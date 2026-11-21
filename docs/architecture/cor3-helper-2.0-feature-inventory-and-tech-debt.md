@@ -5,7 +5,7 @@
 - **Method:** static source review of popup, content scripts, MAIN-world hooks, background scheduler, bridge contracts, tests, build/release config, and architecture docs
 - **Status legend for v1 → v2:** `Implemented` = equivalent user capability exists; `Partial` = core exists but visible scope/behavior differs; `Missing` = no counterpart found; `Unknown` = cannot confirm without runtime QA
 - **Caveat:** this is not a runtime parity sign-off. The 2.0 release line is complete; the displayed version is now the plain `<version>` (no `-salta` suffix, no local build counter), while release tags and artifact names still use `<version>-salta`. Historical sections retain their original development labels.
-- **Last verified:** 2026-11-21 against `2.3.1` (Part 47 records the v2.3.x drone-tab work; older Parts keep their original version labels)
+- **Last verified:** 2026-11-21 against `2.4.0` (Part 47 records the v2.3.x drone-tab work; Part 49 records the v2.4.0 inventory bulk-sell addition; older Parts keep their original version labels)
 - **Current verification:** `npm run typecheck`, `npm run lint`, `npm test` and `npm run build` all pass.
 
 ## Current completion snapshot (`2.0.6`)
@@ -29,7 +29,7 @@ Reading the numbers:
 - Most **Partial** rows are narrower UI scope (per-market refresh, market lot tables, debug-console filters, timers), not missing automation.
 - Most **Missing** rows are v1 presentation/polish features: 10-theme system, pinned timers, market item INFO popup, Valuable Seller result tables, game-version notices and settings sync.
 - The remaining engineering risk is concentrated in **H4** (static catalog artifact), **H10** (background/content/portal and UI tests), **M7** (unused settings) and **O-016** (settings sync). Part 6 records the loadout/decryption fixes; Part 7 records the dev.230 hardening pass; Part 8 records the dev.231 release pipeline.
-- **Update check (current):** reads a single `update.json` from `raw.githubusercontent.com/huoyan1231/cor3-helper-v2/refs/heads/v2`, compares its integer `versionCode` against the locally injected `cor3Fork.versionCode`, and uses `versionName` only for display. The only update-related host permission is that raw path; the former jsDelivr, GitHub raw, and `api.github.com` permissions were removed. See Part 44.
+- **Update check (current):** reads a single `update.json` from `raw.githubusercontent.com/huoyan1231/cor3-helper-v2/refs/heads/v2` and compares `versionName` as a semantic version via `isNewerVersion()`. The remote integer `versionCode` is schema-only and ignored; the local `cor3Fork.versionCode` is an internal per-commit counter. The only update-related host permission is that raw path. See Parts 44 and 48.
 
 ---
 
@@ -1192,3 +1192,14 @@ Follow-up to Part 46. Version labels below are release tags; the tab itself was 
 - **Fix:** `UpdateChecker.check()` now takes only `currentVersionName` and decides with `isNewerVersion(remote.versionName, currentVersionName)`. `src/kernel/version.ts` adds pure `parseVersionCore()` (splits `major.minor.patch`, ignores `-salta`/`+build` suffixes, returns null on malformed input) and `isNewerVersion()` (strict numeric comparison, fails closed on invalid input). The remote `versionCode` is still required by the `update.json` schema for file compatibility but is intentionally ignored by the comparison.
 - **Callers:** `chrome-popup-portal.ts` keeps its direct-check path but passes only `versionInfo().versionName` (the `__COR3_VERSION_CODE__` local read and `toVersionCode` import were removed); the background `system.updateCheck` handler passes only `deps.core.appVersion()`. `appVersionCode()` remains in `core.ts` as an internal detail only.
 - **Rule change:** AGENTS.md Version code rule now states the counter is internal and explicitly not used for update detection. Regression tests cover "higher remote versionCode alone does not prompt" and "higher remote versionName prompts even with lower versionCode".
+
+---
+
+# Part 49 — One-click inventory sale except Artificial milk (v2.4.0)
+
+A new **Sell all except Artificial milk** button in Game → Inventory → Batch sell sells every `COMMON`/`RARE` stack by name except the game item `Artificial milk`.
+
+- **Domain filter**: `InventoryBatchSellFilter` gains optional `excludeNames` (case-insensitive exact-name skip) and `allowCraft` (defaults to `tag === 'craft'`). `planInventoryBatchSell()` applies both; protection above RARE / non-sellable / zero-price is unchanged. Two-click confirmation flow is owned by `useInventory`, reusing the existing preview → confirm → sell pattern.
+- **Bridge contract**: `inventory.previewFilter` / `inventory.sellFilter` requests accept the two optional fields via Zod (`.strict()`), and `PopupPortal.previewInventoryFilter()` / `sellInventoryFilter()` forward them as `options`. The action passes `tiers: ['COMMON', 'RARE']`, `tag: 'any'`, `excludeNames: ['Artificial milk']`, `allowCraft: true` so craftable low-tier stacks are included as the request specified.
+- **UI**: `InventoryPage` renders the button beneath the existing filtered Sell button; it is disabled while any inventory action runs and switches to a confirm label on first click. `GamePanel` wires `sellAllExceptMilk` / `sellAllExceptMilkConfirm` through `InventoryState`. Chinese strings added to `src/ui/i18n-messages.ts`.
+- **Tests**: `src/domains/inventory/model.test.ts` now covers case-insensitive name exclusion and the combined `excludeNames + allowCraft` plan. TypeScript, oxlint, Vitest and the production build all pass.

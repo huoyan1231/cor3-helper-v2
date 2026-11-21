@@ -464,6 +464,10 @@ export interface InventoryBatchSellFilter {
     /** Empty means every tier. Tiers above RARE are still protected. */
     readonly tiers: readonly string[];
     readonly tag: InventoryBatchSellTag;
+    /** Item names to skip, matched case-insensitively by exact name. */
+    readonly excludeNames?: readonly string[] | undefined;
+    /** Overrides craftable protection. Defaults to `tag === 'craft'`. */
+    readonly allowCraft?: boolean | undefined;
 }
 
 function batchTagMatches(item: InventoryItem, tag: InventoryBatchSellTag): boolean {
@@ -473,13 +477,14 @@ function batchTagMatches(item: InventoryItem, tag: InventoryBatchSellTag): boole
 }
 
 /**
- * Builds a safe bulk-sale plan. Craftable items and anything rarer than RARE
- * are always filtered out and reported separately so the UI can ask the user
- * to sell those by hand. This protects valuable items even if the user picks a
- * broad tier filter.
+ * Builds a safe bulk-sale plan. Items above RARE and non-sellable items are
+ * always reported as protected. Craftable items are protected unless the
+ * filter opts in via `allowCraft` (the default is `tag === 'craft'`).
  */
 export function planInventoryBatchSell(stash: InventoryStash, filter: InventoryBatchSellFilter): InventoryBatchSellPlan {
     const tiers = new Set(filter.tiers.map((tier) => tier.toUpperCase()));
+    const excludeNames = new Set((filter.excludeNames ?? []).map((name) => name.trim().toLowerCase()));
+    const allowCraft = filter.allowCraft ?? (filter.tag === 'craft');
     const eligible: InventoryFilterSell[] = [];
     const protectedItems: InventoryBatchSellProtected[] = [];
     for (const item of stash.items) {
@@ -487,9 +492,11 @@ export function planInventoryBatchSell(stash: InventoryStash, filter: InventoryB
         const tier = String(item.tier ?? 'COMMON').toUpperCase();
         if (tiers.size > 0 && !tiers.has(tier)) continue;
         if (!batchTagMatches(item, filter.tag)) continue;
+        const name = item.name ?? item.id;
+        if (excludeNames.has(name.trim().toLowerCase())) continue;
         const quantity = item.quantity ?? 1;
         const value = (item.sellPrice ?? 0) * quantity;
-        const reason = inventorySellProtection(item, filter.tag === 'craft');
+        const reason = inventorySellProtection(item, allowCraft);
         if (reason !== null) {
             protectedItems.push({
                 itemId: item.id,

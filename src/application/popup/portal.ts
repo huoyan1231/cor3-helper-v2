@@ -291,6 +291,11 @@ export interface InventoryPreviewResult {
     readonly protected: readonly InventoryProtectedItemView[];
 }
 
+export interface InventoryFilterOptions {
+    readonly excludeNames?: readonly string[] | undefined;
+    readonly allowCraft?: boolean | undefined;
+}
+
 export interface InventoryFilterResult {
     readonly soldStacks: number;
     readonly soldQuantity: number;
@@ -564,8 +569,8 @@ export interface PopupPortal {
     specialistView(): Promise<BridgeResult<SpecialistState>>;
     purchaseSpecialist(purchase: SpecialistPurchase): Promise<BridgeResult<void>>;
     sortInventory(mode: 'smart' | 'compact'): Promise<BridgeResult<InventorySortResult>>;
-    sellInventoryFilter(tiers: readonly string[], tag: 'any' | 'none' | 'craft'): Promise<BridgeResult<InventoryFilterResult>>;
-    previewInventoryFilter(tiers: readonly string[], tag: 'any' | 'none' | 'craft'): Promise<BridgeResult<InventoryPreviewResult>>;
+    sellInventoryFilter(tiers: readonly string[], tag: 'any' | 'none' | 'craft', options?: InventoryFilterOptions): Promise<BridgeResult<InventoryFilterResult>>;
+    previewInventoryFilter(tiers: readonly string[], tag: 'any' | 'none' | 'craft', options?: InventoryFilterOptions): Promise<BridgeResult<InventoryPreviewResult>>;
     sellInventoryItem(itemId: string, quantity?: number): Promise<BridgeResult<InventoryItemSellResult>>;
     diagnostics(): Promise<BridgeResult<Record<string, unknown>>>;
     overviewState(): Promise<BridgeResult<OverviewState>>;
