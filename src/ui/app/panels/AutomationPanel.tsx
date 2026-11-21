@@ -145,6 +145,7 @@ export function AutomationPanel({
                 canceling={valuable.valuableCanceling}
                 onSearch={() => valuable.startValuableOperation('search')}
                 onSell={() => valuable.startValuableOperation('sell')}
+                onForceMaintenance={() => valuable.startValuableOperation('maintenance')}
                 onCancel={valuable.cancelValuableOperation}
                 expanded={panelOpen['valuable-seller'] ?? false}
                 onOpenChange={(open) => settings.updatePanelOpen('valuable-seller', open)}

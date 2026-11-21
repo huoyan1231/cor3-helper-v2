@@ -23,6 +23,10 @@ export function registerValuableHandlers(server: CoreRuntime['server'], deps: Va
         const result = await automation.valuable.runSell(request);
         return result.ok ? ok(result.value) : result;
     });
+    server.register('valuable.forceMaintenance', valuableRunSchema, async (request) => {
+        const result = await automation.valuable.runMaintenance(request);
+        return result.ok ? ok(result.value) : result;
+    });
     server.register('valuable.cancel', z.object({ runId: z.string().min(1) }).strict(), async ({ runId }) => {
         automation.valuable.cancel(runId);
         return ok(undefined);

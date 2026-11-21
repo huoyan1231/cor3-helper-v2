@@ -7,7 +7,7 @@ import { networkMapSummarySchema } from '../../application/network/summary.js';
 import type { BridgeClient } from '../bridge/bridge-client.js';
 import { UpdateChecker } from '../update/update-checker.js';
 import { toVersionCode } from '../../kernel/version.js';
-import type { AutoDailyStatus, AutoDroneStatus, AutoExpeditionStatus, AutoFinishRunResult, AutoFinishStatus, AutoJobsSnapshot, AutoJobsStatus, AutoMailStatus, BackgroundEvent, CachedMarketView, DailyHackResult, DebugLogLine, DismissFailedSummary, DroneAutoResult, InventoryFilterOptions, InventoryFilterResult, InventoryItemSellResult, InventoryPreviewResult, InventorySortResult, InventoryView, JobAllMarketsResult, JobHistoryEntry, JobMarketSyncResult, JobQueueResult, JobQueueState, LoadoutApplyResult, LoadoutView, MailClaimResult, MarketOptionsView, ActivityState, NetworkDiagnostics, NetworkServerSummary, OverviewState, PopupPortal, ValuableReport, ValuableRunState, ValuableSaleResult, ValuableSearchResult } from '../../application/popup/portal.js';
+import type { AutoDailyStatus, AutoDroneStatus, AutoExpeditionStatus, AutoFinishRunResult, AutoFinishStatus, AutoJobsSnapshot, AutoJobsStatus, AutoMailStatus, BackgroundEvent, CachedMarketView, DailyHackResult, DebugLogLine, DismissFailedSummary, DroneAutoResult, InventoryFilterOptions, InventoryFilterResult, InventoryItemSellResult, InventoryPreviewResult, InventorySortResult, InventoryView, JobAllMarketsResult, JobHistoryEntry, JobMarketSyncResult, JobQueueResult, JobQueueState, LoadoutApplyResult, LoadoutView, MailClaimResult, MarketOptionsView, ActivityState, MaintenanceForceSummary, NetworkDiagnostics, NetworkServerSummary, OverviewState, PopupPortal, ValuableReport, ValuableRunState, ValuableSaleResult, ValuableSearchResult } from '../../application/popup/portal.js';
 import type { NetworkOperationQueueStatus } from '../../application/network/operation-queue.js';
 import { gameReadinessSchema } from '../../application/game/readiness.js';
 import type { JobOffer } from '../../domains/jobs/model.js';
@@ -559,11 +559,31 @@ const valuableProgressSchema = z.object({
     downloadedLogs: z.number().int().nonnegative(),
     soldItems: z.number().int().nonnegative(),
 }).strict();
+const maintenanceForceProgressSchema = z.object({
+    phase: z.enum(['prepare', 'searching', 'server-done', 'done']),
+    target: z.string(),
+    index: z.number().int().nonnegative(),
+    total: z.number().int().nonnegative(),
+    attempts: z.number().int().nonnegative(),
+}).strict();
+const maintenanceTargetSchema = z.object({
+    id: z.string(),
+    name: z.string(),
+    typeName: z.string().nullable(),
+    timeUntil: z.string(),
+    distance: z.number(),
+}).strict();
+const maintenanceForceSummarySchema = z.object({
+    stopped: z.boolean(),
+    targets: z.array(maintenanceTargetSchema),
+    forced: z.array(z.string()),
+    failed: z.array(valuableFailureSchema),
+}).strict();
 const valuableRunStateSchema = z.object({
     runId: z.string(),
-    operation: z.enum(['search', 'sell']),
+    operation: z.enum(['search', 'sell', 'maintenance']),
     status: z.enum(['running', 'done', 'cancelled', 'error']),
-    progress: valuableProgressSchema.nullable(),
+    progress: z.union([valuableProgressSchema, maintenanceForceProgressSchema]).nullable(),
     error: z.string().nullable(),
     updatedAt: z.number(),
 }).strict();
@@ -1140,6 +1160,10 @@ export class ChromePopupPortal implements PopupPortal {
 
     sellValuable(runId: string): Promise<{ ok: true; value: ValuableSaleResult } | { ok: false; error: { code: string; message: string } }> {
         return this.client.request('valuable.sell', { runId }, valuableSaleResultSchema, 1_800_000) as Promise<{ ok: true; value: ValuableSaleResult } | { ok: false; error: { code: string; message: string } }>;
+    }
+
+    forceMaintenance(runId: string): Promise<{ ok: true; value: MaintenanceForceSummary } | { ok: false; error: { code: string; message: string } }> {
+        return this.client.request('valuable.forceMaintenance', { runId }, maintenanceForceSummarySchema, 1_800_000) as Promise<{ ok: true; value: MaintenanceForceSummary } | { ok: false; error: { code: string; message: string } }>;
     }
 
     cancelValuable(runId: string): Promise<{ ok: true; value: void } | { ok: false; error: { code: string; message: string } }> {

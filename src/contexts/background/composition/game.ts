@@ -12,7 +12,7 @@ import { MailService } from '../../../application/mail/service.js';
 import { ExpeditionService } from '../../../application/expeditions/service.js';
 import { DroneService } from '../../../application/drone/service.js';
 import { DroneAutoService } from '../../../application/drone/auto.js';
-import { ValuableSellerService } from '../../../application/valuable/seller.js';
+import { ValuableSellerService, type ValuablePreSearchHook } from '../../../application/valuable/seller.js';
 import { DismissFailedJobsService } from '../../../application/auto-job/dismiss.js';
 import { SystemClock } from '../../../kernel/clock.js';
 import { asServerId } from '../../../kernel/ids.js';
@@ -70,6 +70,7 @@ export interface GameRuntime {
     readonly minigames: ChromeTabMinigameAdapter;
     readonly valuableAdapter: ChromeTabValuableActionAdapter;
     readonly valuableSeller: ValuableSellerService;
+    readonly ensureValuableSearchLoadout: ValuablePreSearchHook;
     readonly gameReadinessAdapter: ChromeTabGameReadinessAdapter;
 }
 
@@ -120,35 +121,36 @@ export function createGameRuntime(core: CoreRuntime): GameRuntime {
     const routeExecutor = new RouteExecutor(endpointCommands, serverAccess, endpointLeases, new SystemClock(), endpointMutex);
     const valuableAdapter = new ChromeTabValuableActionAdapter(tabs);
     let lastSearchLoadout: { readonly key: string; readonly revision: number; readonly at: number } | null = null;
+    const ensureValuableSearchLoadout: ValuablePreSearchHook = async (serverId, serverTypeName) => {
+        const target = serverTypeName ?? serverId;
+        const key = `SEARCH|${target}|0|best`;
+        if (lastSearchLoadout?.key === key
+            && lastSearchLoadout.revision === loadout.revision()
+            && Date.now() - lastSearchLoadout.at < 30_000) {
+            return ok(undefined);
+        }
+        const result = await loadout.ensure({ ability: 'SEARCH', target, requiredPower: 0 });
+        if (result.ok) {
+            lastSearchLoadout = { key, revision: loadout.revision(), at: Date.now() };
+        } else {
+            lastSearchLoadout = null;
+            // v1 kept scanning with the current loadout when no matching
+            // SEARCH software was owned. Skipping the server would hide
+            // valuable files that the equipped loadout can still reveal.
+            logger.warn('valuable', `SEARCH loadout unavailable for ${target}; continuing with the current loadout`, {
+                code: result.error.code,
+                message: result.error.message,
+            });
+        }
+        return ok(undefined);
+    };
     const valuableSeller = new ValuableSellerService(
         snapshots,
         routeExecutor,
         valuableAdapter,
         valuableAdapter,
         new SystemClock(),
-        async (serverId, serverTypeName) => {
-            const target = serverTypeName ?? serverId;
-            const key = `SEARCH|${target}|0|best`;
-            if (lastSearchLoadout?.key === key
-                && lastSearchLoadout.revision === loadout.revision()
-                && Date.now() - lastSearchLoadout.at < 30_000) {
-                return ok(undefined);
-            }
-            const result = await loadout.ensure({ ability: 'SEARCH', target, requiredPower: 0 });
-            if (result.ok) {
-                lastSearchLoadout = { key, revision: loadout.revision(), at: Date.now() };
-            } else {
-                lastSearchLoadout = null;
-                // v1 kept scanning with the current loadout when no matching
-                // SEARCH software was owned. Skipping the server would hide
-                // valuable files that the equipped loadout can still reveal.
-                logger.warn('valuable', `SEARCH loadout unavailable for ${target}; continuing with the current loadout`, {
-                    code: result.error.code,
-                    message: result.error.message,
-                });
-            }
-            return ok(undefined);
-        },
+        ensureValuableSearchLoadout,
         undefined,
         {
             ensureAccess: (serverId, context) => serverAccess.ensureAccess(asServerId(serverId), context),
@@ -189,6 +191,7 @@ export function createGameRuntime(core: CoreRuntime): GameRuntime {
         minigames,
         valuableAdapter,
         valuableSeller,
+        ensureValuableSearchLoadout,
         gameReadinessAdapter,
     };
 }

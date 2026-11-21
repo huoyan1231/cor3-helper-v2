@@ -12,6 +12,7 @@ import { JobRouting } from '../automation/job-routing.js';
 import { JobPreflight } from '../automation/job-preflight.js';
 import { JobMarketSync } from '../automation/job-market-sync.js';
 import { ValuableCoordinator } from '../automation/valuable.js';
+import { MaintenanceForceService } from '../../../application/valuable/maintenance.js';
 import { AutoRefreshCoordinator } from '../automation/auto-refresh.js';
 import { AutoJobsCoordinator } from '../automation/auto-jobs.js';
 import { AutoFinishCoordinator } from '../automation/auto-finish.js';
@@ -88,8 +89,15 @@ export function createAutomationRuntime(core: CoreRuntime, game: GameRuntime): A
         humanDelay,
     });
 
+    const maintenanceForce = new MaintenanceForceService({
+        snapshots: game.snapshots,
+        servers: game.valuableAdapter,
+        beforeSearch: game.ensureValuableSearchLoadout,
+    });
+
     const valuable = new ValuableCoordinator({
         seller: game.valuableSeller,
+        maintenanceForce,
         state: stores.automationState,
         networkOps,
         events,

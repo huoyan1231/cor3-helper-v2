@@ -3,16 +3,18 @@ import type { Result } from '../../../kernel/result.js';
 import type { AutomationStateStore } from '../../../infrastructure/storage/automation-state-store.js';
 import type { NetworkOperationQueue } from '../../../application/network/operation-queue.js';
 import type { ValuableProgress, ValuableSaleSummary, ValuableSearchSummary, ValuableSellerService } from '../../../application/valuable/seller.js';
+import type { ValuableOperation, ValuableRunState as ValuableRunView } from '../../../application/popup/portal.js';
+import type { MaintenanceForceProgress, MaintenanceForceService, MaintenanceForceSummary } from '../../../application/valuable/maintenance.js';
 import type { EventPublisher, RunLogSink } from '../../../application/automation/ports.js';
 
-export type ValuableOperation = 'search' | 'sell';
+export type { ValuableOperation } from '../../../application/popup/portal.js';
 export type ValuableRunStatus = 'running' | 'done' | 'cancelled' | 'error';
 
 export interface ValuableRunState {
     readonly runId: string;
     readonly operation: ValuableOperation;
     status: ValuableRunStatus;
-    progress: ValuableProgress | null;
+    progress: ValuableProgress | MaintenanceForceProgress | null;
     error: string | null;
     updatedAt: number;
 }
@@ -34,6 +36,7 @@ export interface ValuableRunRequest {
 
 export interface ValuableDeps {
     readonly seller: ValuableSellerService;
+    readonly maintenanceForce: MaintenanceForceService;
     readonly state: AutomationStateStore;
     readonly networkOps: NetworkOperationQueue;
     readonly events: EventPublisher;
@@ -44,7 +47,7 @@ function numberFromPayload(value: unknown, fallback = 0): number {
     return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
-function runView(state: ValuableRunState) {
+function runView(state: ValuableRunState): ValuableRunView {
     return {
         runId: state.runId,
         operation: state.operation,
@@ -135,6 +138,38 @@ export class ValuableCoordinator {
         }
     }
 
+    async runMaintenance(request: ValuableRunRequest): Promise<Result<MaintenanceForceSummary, { readonly code: string; readonly message: string }>> {
+        const begun = this.begin(request, 'maintenance');
+        if ('ok' in begun) return begun;
+        const state = begun;
+        this.deps.runLogs.add(request.runId, 'info', 'valuable-seller', 'Forcing maintenance on upcoming servers via valuable searches');
+        try {
+            const queued = await this.deps.networkOps.enqueue({ owner: request.owner, reason: 'valuable-maintenance-force', priority: 60 }, async () => this.deps.maintenanceForce.force({
+                shouldStop: () => this.cancelled.has(request.runId),
+                onProgress: (progress) => {
+                    state.progress = progress;
+                    state.updatedAt = Date.now();
+                    this.deps.events.publish('valuable.progress', { runId: request.runId, progress });
+                },
+            }));
+            if (!queued.ok) {
+                state.status = 'error';
+                state.error = queued.error.message;
+                state.updatedAt = Date.now();
+                this.deps.runLogs.add(request.runId, 'error', 'valuable-seller', `Force maintenance failed: ${queued.error.message}`);
+                return { ok: false, error: { code: queued.error.code, message: queued.error.message } };
+            }
+            const summary = queued.value as MaintenanceForceSummary;
+            state.status = summary.stopped ? 'cancelled' : 'done';
+            state.updatedAt = Date.now();
+            this.deps.runLogs.add(request.runId, 'info', 'valuable-seller', `Force maintenance finished: ${summary.forced.length} forced, ${summary.failed.length} failed${summary.stopped ? ' (stopped)' : ''}`);
+            return { ok: true, value: summary };
+        } finally {
+            this.cancelled.delete(request.runId);
+            if (this.activeRunId === request.runId) this.activeRunId = null;
+        }
+    }
+
     cancel(runId: string): void {
         if (this.runs.get(runId)?.status === 'running') this.cancelled.add(runId);
     }
@@ -154,7 +189,7 @@ export class ValuableCoordinator {
         };
     }
 
-    activity(): { readonly operation: ValuableOperation; readonly progress: ValuableProgress | null } | null {
+    activity(): { readonly operation: ValuableOperation; readonly progress: ValuableProgress | MaintenanceForceProgress | null } | null {
         if (!this.activeRunId) return null;
         const state = this.runs.get(this.activeRunId);
         if (!state || state.status !== 'running') return null;

@@ -1,22 +1,23 @@
-import type { ValuableProgress, ValuableReport, ValuableRunState } from '../../../application/popup/portal.js';
+import type { MaintenanceForceProgress, ValuableOperation, ValuableProgress, ValuableReport, ValuableRunState } from '../../../application/popup/portal.js';
 import { AutomationCard } from '../../components/AutomationCard.js';
 import { useT, type TranslateSource } from '../../i18n-context.js';
 
 export interface ValuableSellerCardProps {
     readonly runId: string | null;
-    readonly operation: 'search' | 'sell' | null;
+    readonly operation: ValuableOperation | null;
     readonly status: string;
-    readonly progress: ValuableProgress | null;
+    readonly progress: ValuableProgress | MaintenanceForceProgress | null;
     readonly report: ValuableReport | null;
     readonly canceling: boolean;
     readonly onSearch: () => void | Promise<void>;
     readonly onSell: () => void | Promise<void>;
+    readonly onForceMaintenance: () => void | Promise<void>;
     readonly onCancel: () => void | Promise<void>;
     readonly expanded: boolean;
     readonly onOpenChange: (open: boolean) => void;
 }
 
-function phaseLabel(progress: ValuableProgress, tr: TranslateSource): string {
+function phaseLabel(progress: ValuableProgress | MaintenanceForceProgress, tr: TranslateSource): string {
     switch (progress.phase) {
         case 'server':
             return tr('Checking server');
@@ -26,6 +27,14 @@ function phaseLabel(progress: ValuableProgress, tr: TranslateSource): string {
             return tr('Checking market');
         case 'sell':
             return tr('Selling item');
+        case 'prepare':
+            return tr('Preparing SEARCH loadout');
+        case 'searching':
+            return tr('Forcing maintenance');
+        case 'server-done':
+            return tr('Maintenance started');
+        case 'done':
+            return tr('Done');
     }
 }
 
@@ -37,6 +46,7 @@ function formatReportTime(value: number | null, tr: TranslateSource): string {
 function defaultStatus(report: ValuableReport | null, operation: ValuableRunState['operation'] | null, tr: TranslateSource): string {
     if (operation === 'search') return tr('Searching all servers...');
     if (operation === 'sell') return tr('Selling downloaded valuables...');
+    if (operation === 'maintenance') return tr('Forcing maintenance on upcoming servers...');
     if (!report) return tr('Loading valuable report...');
     if (report.unsoldItems > 0) {
         return tr('Ready · {count} downloaded item(s) waiting to be sold.', { count: report.unsoldItems });
@@ -59,6 +69,7 @@ export function ValuableSellerCard({
     canceling,
     onSearch,
     onSell,
+    onForceMaintenance,
     onCancel,
     expanded,
     onOpenChange,
@@ -67,11 +78,12 @@ export function ValuableSellerCard({
     const running = runId !== null;
     const searchRunning = running && operation === 'search';
     const sellRunning = running && operation === 'sell';
+    const maintenanceRunning = running && operation === 'maintenance';
 
     return (
         <AutomationCard
             title={tr('Valuable Search & Sale')}
-            description={tr('Search every hackable server with the strongest owned SEARCH loadout, download valuable files, then sell them market by market.')}
+            description={`${tr('Search every hackable server with the strongest owned SEARCH loadout, download valuable files, then sell them market by market.')} ${tr('Repeated valuable searches can also force an upcoming server into maintenance.')}`}
             alwaysAvailable
             expanded={expanded}
             onOpenChange={onOpenChange}
@@ -84,7 +96,7 @@ export function ValuableSellerCard({
                     <p class="v2-muted v2-valuable-status">{status && status !== 'Idle' ? tr(status) : defaultStatus(report, operation, tr)}</p>
                     {progress ? (
                         <p class="v2-muted v2-valuable-progress">
-                            {phaseLabel(progress, tr)}: {progress.target} ({progress.index}/{progress.total})
+                            {phaseLabel(progress, tr)}{progress.target ? `: ${progress.target}` : ''} ({progress.index}/{progress.total}){'attempts' in progress && progress.attempts > 0 ? ` · ${progress.attempts}×` : ''}
                         </p>
                     ) : null}
                     <ul class="v2-valuable-report">
@@ -145,6 +157,24 @@ export function ValuableSellerCard({
                         onClick={() => void onSell()}
                     >
                         {tr('Sell downloads')}
+                    </button>
+                )}
+                {maintenanceRunning ? (
+                    <button
+                        type="button"
+                        class="v2-danger"
+                        disabled={canceling}
+                        onClick={() => void onCancel()}
+                    >
+                        {canceling ? tr('Cancelling…') : tr('Cancel force')}
+                    </button>
+                ) : (
+                    <button
+                        type="button"
+                        disabled={running}
+                        onClick={() => void onForceMaintenance()}
+                    >
+                        {tr('Force maintenance')}
                     </button>
                 )}
             </div>

@@ -73,6 +73,12 @@ Wings of Mars tracker:
 - `useDroneMissionTracker()` is composed once in `SidePanelApp`, not inside `DroneMissionPanel`, so its WS snapshot survives tab switches. `DroneMissionPanel` is a pure display component that receives the tracker plus inventory status via props.
 - `planMissionSurplusSell()` (domain) builds the "sell surplus" plan from the mission catalog, effective progress and live stash: keep the required quantity of each mission item (itemConfigId first, then name/aliases), sell the surplus plus every other COMMON/RARE sellable stack. Done/skipped groups reserve nothing. The page shows a confirm modal and executes via `portal.sellInventoryItem()` per stack.
 
+Force maintenance (v1 parity, inside Valuable Search & Sale):
+
+- `planMaintenanceTargets()` selects upcoming-maintenance servers (`!active && !endsAt && timeUntil`), furthest-first by route length. `maintenanceStarted()` treats either `active` or a future `endsAt` as started (v1 used `maintenanceEndsAt`).
+- `MaintenanceForceService.force()` (application) reuses the SEARCH loadout hook and repeatedly calls `file.search-valuable` via `server.searchFiles()`; after each search it force-refreshes `NetworkSnapshotService.get(true)` (a live `get.map`) to confirm maintenance. Bounded by 50 attempts/server with cancellable progress; browser-free and port-driven.
+- `valuable.forceMaintenance` is a bridge command sharing `valuableRunSchema`; `ValuableCoordinator.runMaintenance()` runs it through `networkOps`, publishes `valuable.progress` and logs to run logs. `ValuableRunState` now covers `operation: 'search' | 'sell' | 'maintenance'` and a union of the search/sale and maintenance progress shapes; `PopupPortal.forceMaintenance()` exposes it to `useValuable` / `ValuableSellerCard`.
+
 ## Definition of done
 
 - typecheck passes

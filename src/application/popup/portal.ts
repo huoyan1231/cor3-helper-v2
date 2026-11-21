@@ -17,8 +17,10 @@ import type { ExpeditionOverview } from '../../domains/expeditions/model.js';
 
 import type { DroneState } from '../../domains/drone/model.js';
 import type { LoadoutView } from '../loadout/view.js';
+import type { MaintenanceForceProgress, MaintenanceForceSummary } from '../valuable/maintenance.js';
 
 export type { LoadoutView } from '../loadout/view.js';
+export type { MaintenanceForceProgress, MaintenanceForceSummary, MaintenanceTarget } from '../valuable/maintenance.js';
 
 import type { AutoFinishFailure, AutoFinishLastRun, AutoFinishMarketResult, AutoFinishRunResult } from '../../contracts/auto-finish.js';
 import type { AutoJobsSnapshot } from '../../contracts/auto-jobs.js';
@@ -420,11 +422,13 @@ export interface ValuableReport {
     readonly active: ValuableRunState | null;
 }
 
+export type ValuableOperation = 'search' | 'sell' | 'maintenance';
+
 export interface ValuableRunState {
     readonly runId: string;
-    readonly operation: 'search' | 'sell';
+    readonly operation: ValuableOperation;
     readonly status: 'running' | 'done' | 'cancelled' | 'error';
-    readonly progress: ValuableProgress | null;
+    readonly progress: ValuableProgress | MaintenanceForceProgress | null;
     readonly error: string | null;
     readonly updatedAt: number;
 }
@@ -590,6 +594,7 @@ export interface PopupPortal {
     networkServers(): Promise<BridgeResult<readonly NetworkServerSummary[]>>;
     searchValuable(runId: string): Promise<BridgeResult<ValuableSearchResult>>;
     sellValuable(runId: string): Promise<BridgeResult<ValuableSaleResult>>;
+    forceMaintenance(runId: string): Promise<BridgeResult<MaintenanceForceSummary>>;
     cancelValuable(runId: string): Promise<BridgeResult<void>>;
     valuableProgress(runId: string): Promise<BridgeResult<ValuableRunState | null>>;
     valuableReport(): Promise<BridgeResult<ValuableReport>>;

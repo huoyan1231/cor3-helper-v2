@@ -114,6 +114,7 @@ const EXPECTED_BRIDGE_TYPES = [
     'system.ping',
     'system.updateCheck',
     'valuable.cancel',
+    'valuable.forceMaintenance',
     'valuable.progress',
     'valuable.report',
     'valuable.search',

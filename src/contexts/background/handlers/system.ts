@@ -65,15 +65,16 @@ function buildActivityState(deps: SystemHandlerDeps) {
     }
     const valuable = automation.valuable.activity();
     if (valuable) {
+        const maintenance = valuable.operation === 'maintenance';
         return {
             key: 'valuable-seller' as const,
-            label: valuable.operation === 'search' ? 'Valuable Search' : 'Valuable Sale',
+            label: valuable.operation === 'search' ? 'Valuable Search' : maintenance ? 'Force Maintenance' : 'Valuable Sale',
             detail: valuable.progress
                 ? `${valuable.progress.phase} (${valuable.progress.index}/${valuable.progress.total})`
-                : valuable.operation === 'search' ? 'Searching valuable files' : 'Selling valuable files',
+                : valuable.operation === 'search' ? 'Searching valuable files' : maintenance ? 'Forcing server maintenance' : 'Selling valuable files',
             running: true,
             progress: valuable.progress
-                ? { index: valuable.progress.index, total: valuable.progress.total, label: valuable.operation === 'search' ? 'Servers' : 'Market items' }
+                ? { index: valuable.progress.index, total: valuable.progress.total, label: valuable.operation === 'search' ? 'Servers' : maintenance ? 'Upcoming servers' : 'Market items' }
                 : null,
         };
     }

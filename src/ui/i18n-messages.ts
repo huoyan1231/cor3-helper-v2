@@ -145,6 +145,16 @@ export const ZH_MESSAGES: Readonly<Record<string, string>> = {
     'Cancel sale': '取消出售',
     'Search all servers': '搜索所有服务器',
     'Sell downloads': '出售已下载物品',
+    'Repeated valuable searches can also force an upcoming server into maintenance.': '反复搜索有价值物品也可以强制使即将维护的服务器进入维护状态。',
+    'Force maintenance': '强制触发维护',
+    'Cancel force': '取消强制',
+    'Forcing maintenance on upcoming servers...': '正在对即将维护的服务器强制触发维护...',
+    'Force maintenance cancelled: {count} server(s) forced': '强制维护已取消：已触发 {count} 台服务器',
+    'Forced maintenance on {count} server(s)': '已强制 {count} 台服务器进入维护状态',
+    'Preparing SEARCH loadout': '准备 SEARCH 配置',
+    'Forcing maintenance': '正在强制触发维护',
+    'Maintenance started': '维护已开始',
+    'Done': '完成',
 
     // Auto Expedition
     'Auto Expedition': '自动远征',
