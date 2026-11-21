@@ -25,22 +25,32 @@ const edit = (file, transform) => {
 };
 
 let current = '(unknown)';
+let nextVersionCode = 0;
 edit('package.json', (t) => {
     current = t.match(/"version"\s*:\s*"([^"]+)"/)?.[1] ?? current;
     t = t.replace(/"version"\s*:\s*"[^"]+"/, `"version": "${next}"`);
-    return t.replace(/("versionCode"\s*:\s*)(\d+)/, (_, key, n) => `${key}${Number(n) + 1}`);
+    return t.replace(/("versionCode"\s*:\s*)(\d+)/, (_, key, n) => {
+        nextVersionCode = Number(n) + 1;
+        return `${key}${nextVersionCode}`;
+    });
 });
 edit('manifest.json', (t) => t.replace(/"version"\s*:\s*"[^"]+"/, `"version": "${next}"`));
 let rootVersions = 0;
 edit('package-lock.json', (t) => t.replace(/"version"\s*:\s*"[^"]+"/g,
     (match) => (++rootVersions <= 2 ? `"version": "${next}"` : match)));
+// The remote baseline is bumped together with the release so a published
+// versionCode matches the build installed from that release.
+edit('update.json', (t) => {
+    t = t.replace(/("versionName"\s*:\s*)"[^"]*"/, `$1"${next}"`);
+    return t.replace(/("versionCode"\s*:\s*)\d+/, `$1${nextVersionCode}`);
+});
 
-console.log(`${current} -> ${next} (versionCode +1)`);
+console.log(`${current} -> ${next} (versionCode ${nextVersionCode - 1} -> ${nextVersionCode})`);
 // On Windows npm is npm.cmd and execFileSync does not resolve it without a
 // shell. git.exe resolves directly on all platforms, so only npm needs this.
 const npmShell = process.platform === 'win32';
 execFileSync('npm', ['run', 'build'], { stdio: 'inherit', shell: npmShell });
-execFileSync('git', ['add', 'package.json', 'manifest.json', 'package-lock.json'], { stdio: 'inherit' });
+execFileSync('git', ['add', 'package.json', 'manifest.json', 'package-lock.json', 'update.json'], { stdio: 'inherit' });
 execFileSync('git', ['commit', '-m', `chore: bump version to ${next}`], { stdio: 'inherit' });
 execFileSync('git', ['tag', '-a', tag, '-m', tag], { stdio: 'inherit' });
 console.log(`${tag} created at HEAD`);

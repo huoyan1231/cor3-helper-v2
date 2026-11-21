@@ -1,15 +1,15 @@
 import { z } from 'zod';
 import type { Result } from '../../kernel/result.js';
 import { err, ok } from '../../kernel/result.js';
-import { isNewerVersion } from '../../kernel/version.js';
+import { toVersionCode } from '../../kernel/version.js';
 
 /**
  * Update check against the single `update.json` published on the fork's v2
  * branch. The remote file carries a display version (`versionName`) and an
- * integer `versionCode`. Only `versionName` is compared as a semantic version:
- * the local `versionCode` is a per-commit build counter and must not create a
- * false update prompt. The remote integer is still required for file
- * compatibility but is intentionally ignored by the comparison.
+ * integer `versionCode`. `updateAvailable` is decided by integer `versionCode`:
+ * `bump.mjs` mirrors both fields into `update.json` on every release, so a
+ * remote code above the local code means a newer build was published. Ordinary
+ * post-release commits raise only the local code, which never falsely prompts.
  */
 const DEFAULT_URL = 'https://raw.githubusercontent.com/huoyan1231/cor3-helper-v2/refs/heads/v2/update.json';
 const DEFAULT_RELEASE_URL = 'https://github.com/huoyan1231/cor3-helper-v2/releases/latest';
@@ -60,6 +60,7 @@ export class UpdateChecker {
 
     async check(
         currentVersionName: string,
+        currentVersionCode: string | number | null | undefined,
     ): Promise<Result<UpdateCheckResult, { readonly code: string; readonly message: string }>> {
         const controller = this.timeoutMs > 0 ? new AbortController() : null;
         const timer = controller ? setTimeout(() => controller.abort(), this.timeoutMs) : null;
@@ -79,7 +80,7 @@ export class UpdateChecker {
             return ok({
                 current: currentVersionName,
                 latest: remote.versionName,
-                updateAvailable: isNewerVersion(remote.versionName, currentVersionName),
+                updateAvailable: remote.versionCode > toVersionCode(currentVersionCode),
                 releaseUrl: remote.releaseUrl ?? this.releaseUrl,
                 checkedAt: this.now(),
                 source: this.url,

@@ -5,7 +5,7 @@
 - **Method:** static source review of popup, content scripts, MAIN-world hooks, background scheduler, bridge contracts, tests, build/release config, and architecture docs
 - **Status legend for v1 → v2:** `Implemented` = equivalent user capability exists; `Partial` = core exists but visible scope/behavior differs; `Missing` = no counterpart found; `Unknown` = cannot confirm without runtime QA
 - **Caveat:** this is not a runtime parity sign-off. The 2.0 release line is complete; the displayed version is now the plain `<version>` (no `-salta` suffix, no local build counter), while release tags and artifact names still use `<version>-salta`. Historical sections retain their original development labels.
-- **Last verified:** 2026-11-21 against `2.4.0` (Part 47 records the v2.3.x drone-tab work; Part 49 records the v2.4.0 inventory bulk-sell addition; Part 50 records the tracker tab-switch fix; Part 51 records the per-item quantity modal; Part 52 records the mission-surplus sale; Part 53 records the full-test bug-fix pass; older Parts keep their original version labels)
+- **Last verified:** 2026-11-21 against `2.4.0` (Part 47 records the v2.3.x drone-tab work; Part 49 records the v2.4.0 inventory bulk-sell addition; Part 50 records the tracker tab-switch fix; Part 51 records the per-item quantity modal; Part 52 records the mission-surplus sale; Part 53 records the full-test bug-fix pass; Part 54 records the versionCode-based update detection restore; older Parts keep their original version labels)
 - **Current verification:** `npm run typecheck`, `npm run lint`, `npm test` and `npm run build` all pass.
 
 ## Current completion snapshot (`2.0.6`)
@@ -29,7 +29,7 @@ Reading the numbers:
 - Most **Partial** rows are narrower UI scope (per-market refresh, market lot tables, debug-console filters, timers), not missing automation.
 - Most **Missing** rows are v1 presentation/polish features: 10-theme system, pinned timers, market item INFO popup, Valuable Seller result tables, game-version notices and settings sync.
 - The remaining engineering risk is concentrated in **H4** (static catalog artifact), **H10** (background/content/portal and UI tests), **M7** (unused settings) and **O-016** (settings sync). Part 6 records the loadout/decryption fixes; Part 7 records the dev.230 hardening pass; Part 8 records the dev.231 release pipeline.
-- **Update check (current):** reads a single `update.json` from `raw.githubusercontent.com/huoyan1231/cor3-helper-v2/refs/heads/v2` and compares `versionName` as a semantic version via `isNewerVersion()`. The remote integer `versionCode` is schema-only and ignored; the local `cor3Fork.versionCode` is an internal per-commit counter. The only update-related host permission is that raw path. See Parts 44 and 48.
+- **Update check (current):** reads a single `update.json` from `raw.githubusercontent.com/huoyan1231/cor3-helper-v2/refs/heads/v2` and compares `versionCode` integers — an update is available only when the remote code is strictly greater than the injected local `__COR3_VERSION_CODE__`. `versionName` is display-only. `bump.mjs` mirrors the bumped `versionName` and `versionCode` into `update.json` in the same commit, so the remote baseline tracks releases while ordinary post-release commits (which only raise the local counter) never create a false prompt. The only update-related host permission is that raw path. See Parts 44, 48 and 54.
 
 ---
 
@@ -1241,3 +1241,12 @@ A full verification run (typecheck, Vitest, oxlint, build) plus a review of the 
 - **Redundant sell-surplus confirm state machine:** removed the internal toggle; the confirmation `Modal` is now the single confirmation step. `sellSurplus()` executes directly, closing the modal on confirm and blocking close while selling. Success/failure are split into separate `status` / `error` fields so the result is no longer rendered with the error style.
 - **Surplus matching could sell needed items:** `planMissionSurplusSell()` now accumulates aliases from every requirement sharing a key and uses two-phase assignment (exact itemConfigId stacks first, then name/alias stacks only to cover a shortfall). Previously a static "id matched" flag could skip alias stacks entirely when id stacks were insufficient. Added tests for shortfall coverage and multi-alias accumulation (587 tests total).
 - **Verification:** typecheck, 587 Vitest tests, oxlint and production build all pass.
+
+---
+
+# Part 54 — Restore versionCode-based update detection + bump syncs update.json (v2.4.1)
+
+- **Decision reversal (supersedes Part 48):** `update.json` was never edited by ordinary commits, so a versionCode-based check does not produce the false prompts Part 48 worried about. Update detection is restored to integer comparison: `UpdateChecker.check(currentVersionName, currentVersionCode)` prompts only when `remote.versionCode > toVersionCode(localCode)`. `versionName` remains display-only. The semantic-version helpers `parseVersionCore()` / `isNewerVersion()` and their tests were removed from `src/kernel/version.ts`.
+- **Callers:** the popup direct-check passes `toVersionCode(__COR3_VERSION_CODE__)`; the background `system.updateCheck` handler passes `deps.core.appVersionCode()`. Both version sources are normalized through `toVersionCode()`.
+- **Release baseline:** `bump.mjs` now mirrors the post-bump `versionName` and `versionCode` into `update.json` and includes it in the bump commit/tag. The current baseline was synced to the existing `v2.4.1` tag values (`2.4.1` / `317`). Ordinary post-release commits raise only the local counter, leaving the remote baseline unchanged — no false prompt.
+- **Tests:** `update-checker.test.ts` rewritten around versionCode (remote higher prompts, equal/lower does not, name-only change does not, invalid local code normalizes to 0). AGENTS.md Version code rule and this inventory's current-state summary updated. TypeScript, oxlint, Vitest and the production build pass.

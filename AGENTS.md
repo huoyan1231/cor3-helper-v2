@@ -36,9 +36,9 @@ npm run bump -- 2.4.0   # one-shot: bump version+versionCode, build, commit, tag
 
 ### Version code rule
 
-Every commit bumps `package.json` → `cor3Fork.versionCode` by 1 (e.g. 301 → 302). This is an internal build counter injected by `build.js` as `__COR3_VERSION_CODE__`; it must increase monotonically with each commit. It is **not** used for update detection — `UpdateChecker` compares `versionName` as a semantic version so per-commit counter changes cannot create false update prompts. Do **not** bump `update.json` by hand — that file is the remote release baseline published to GitHub raw. This rule is independent of semantic version bumps (`package.json.version` / `manifest.json` / `package-lock.json`) and tagging.
+Every commit bumps `package.json` → `cor3Fork.versionCode` by 1 (e.g. 301 → 302). This counter is injected by `build.js` as `__COR3_VERSION_CODE__` and is the **single source of truth for update detection**: `UpdateChecker` prompts only when the remote `update.json` `versionCode` is strictly greater than the local one. Ordinary post-release commits raise only the local counter, so a stale remote baseline cannot create a false update prompt. Do **not** edit `update.json` by hand — it is the remote release baseline published to GitHub raw and is kept in sync only by `bump.mjs`. This rule is independent of semantic version bumps (`package.json.version` / `manifest.json` / `package-lock.json`) and tagging.
 
-For a version bump, run `npm run bump -- <x.y.z>` (script `bump.mjs`): it updates all version fields plus versionCode, builds, commits and creates the annotated tag in one shot. Avoid doing these steps by hand.
+For a version bump, run `npm run bump -- <x.y.z>` (script `bump.mjs`): it updates all version fields plus versionCode, mirrors `versionName` and the new versionCode into `update.json`, builds, commits and creates the annotated tag in one shot. Avoid doing these steps by hand.
 
 ### Documentation sync rule
 
