@@ -67,6 +67,10 @@ Inventory bulk sell:
 - The Game → Inventory "Sell all except Artificial milk" action uses `tiers: ['COMMON', 'RARE']`, `tag: 'any'`, `excludeNames: ['Artificial milk']`, `allowCraft: true`.
 - `planInventoryBatchSell()` remains the single safety gate: items above RARE, non-sellable items and zero-price items are always reported as protected.
 
+Wings of Mars tracker:
+
+- `useDroneMissionTracker()` is composed once in `SidePanelApp`, not inside `DroneMissionPanel`, so its WS snapshot survives tab switches. `DroneMissionPanel` is a pure display component that receives the tracker plus inventory status via props.
+
 ## Definition of done
 
 - typecheck passes

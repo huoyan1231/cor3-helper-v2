@@ -5,7 +5,7 @@
 - **Method:** static source review of popup, content scripts, MAIN-world hooks, background scheduler, bridge contracts, tests, build/release config, and architecture docs
 - **Status legend for v1 → v2:** `Implemented` = equivalent user capability exists; `Partial` = core exists but visible scope/behavior differs; `Missing` = no counterpart found; `Unknown` = cannot confirm without runtime QA
 - **Caveat:** this is not a runtime parity sign-off. The 2.0 release line is complete; the displayed version is now the plain `<version>` (no `-salta` suffix, no local build counter), while release tags and artifact names still use `<version>-salta`. Historical sections retain their original development labels.
-- **Last verified:** 2026-11-21 against `2.4.0` (Part 47 records the v2.3.x drone-tab work; Part 49 records the v2.4.0 inventory bulk-sell addition; older Parts keep their original version labels)
+- **Last verified:** 2026-11-21 against `2.4.0` (Part 47 records the v2.3.x drone-tab work; Part 49 records the v2.4.0 inventory bulk-sell addition; Part 50 records the tracker tab-switch fix; older Parts keep their original version labels)
 - **Current verification:** `npm run typecheck`, `npm run lint`, `npm test` and `npm run build` all pass.
 
 ## Current completion snapshot (`2.0.6`)
@@ -1203,3 +1203,11 @@ A new **Sell all except Artificial milk** button in Game → Inventory → Batch
 - **Bridge contract**: `inventory.previewFilter` / `inventory.sellFilter` requests accept the two optional fields via Zod (`.strict()`), and `PopupPortal.previewInventoryFilter()` / `sellInventoryFilter()` forward them as `options`. The action passes `tiers: ['COMMON', 'RARE']`, `tag: 'any'`, `excludeNames: ['Artificial milk']`, `allowCraft: true` so craftable low-tier stacks are included as the request specified.
 - **UI**: `InventoryPage` renders the button beneath the existing filtered Sell button; it is disabled while any inventory action runs and switches to a confirm label on first click. `GamePanel` wires `sellAllExceptMilk` / `sellAllExceptMilkConfirm` through `InventoryState`. Chinese strings added to `src/ui/i18n-messages.ts`.
 - **Tests**: `src/domains/inventory/model.test.ts` now covers case-insensitive name exclusion and the combined `excludeNames + allowCraft` plan. TypeScript, oxlint, Vitest and the production build all pass.
+
+---
+
+# Part 50 — Wings of Mars tracker state survives tab switches (v2.4.0)
+
+- **Problem:** `useDroneMissionTracker()` was called inside `DroneMissionPanel`, which only mounts while `activePage === 'droneMission'`. Its `wsView` (the `droneBuildView()` WS snapshot) was component-local state, so switching to another tab unmounted the panel and discarded it; returning re-ran the mount `useEffect` and had to re-fetch the snapshot. Manual checkbox progress was unaffected because it lives in persisted settings.
+- **Fix:** the tracker is now composed once in `SidePanelApp` (next to `useInventory`) alongside the other domain hooks, so the snapshot is held for the popup/session lifetime and is not re-fetched on every tab visit. `DroneMissionPanel` became a pure display component receiving `tracker` plus inventory status/feedback props; it no longer imports `PopupPortal` or any hook. `SidePanelApp` passes the shared `droneMission` tracker into the panel.
+- **Scope:** no bridge contract, domain logic or persisted shape changed; only UI composition. TypeScript, oxlint, Vitest and the production build pass.

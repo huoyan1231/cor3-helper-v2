@@ -1,23 +1,20 @@
-import type { PopupPortal } from '../../../application/popup/portal.js';
 import { DroneMissionPage } from '../../pages/DroneMissionPage.js';
-import { useDroneMissionTracker } from '../hooks/useDroneMissionTracker.js';
-import type { InventoryState } from '../hooks/useInventory.js';
-import type { SettingsState } from '../hooks/useSettings.js';
+import type { DroneMissionTrackerState } from '../hooks/useDroneMissionTracker.js';
 
 export interface DroneMissionPanelProps {
-    readonly portal: PopupPortal;
-    readonly settings: SettingsState;
-    readonly inventory: InventoryState;
+    readonly tracker: DroneMissionTrackerState;
+    readonly inventoryStatus: string;
+    readonly inventoryBusy: boolean;
+    readonly onRefreshInventory: () => void;
 }
 
-export function DroneMissionPanel({ portal, settings, inventory }: DroneMissionPanelProps) {
-    const tracker = useDroneMissionTracker(portal, settings, inventory.inventoryItems);
+export function DroneMissionPanel({ tracker, inventoryStatus, inventoryBusy, onRefreshInventory }: DroneMissionPanelProps) {
     return (
         <DroneMissionPage
             tracker={tracker}
-            inventoryStatus={inventory.inventoryStatus}
-            inventoryBusy={inventory.inventoryBusy}
-            onRefreshInventory={() => void inventory.loadInventory()}
+            inventoryStatus={inventoryStatus}
+            inventoryBusy={inventoryBusy}
+            onRefreshInventory={onRefreshInventory}
         />
     );
 }

@@ -7,6 +7,7 @@ import { useAutoJobs } from './hooks/useAutoJobs.js';
 import { useDaily } from './hooks/useDaily.js';
 import { useDebugLogs } from './hooks/useDebugLogs.js';
 import { useDrone } from './hooks/useDrone.js';
+import { useDroneMissionTracker } from './hooks/useDroneMissionTracker.js';
 import { useExpeditions } from './hooks/useExpeditions.js';
 import { useGameStatus } from './hooks/useGameStatus.js';
 import { useInventory } from './hooks/useInventory.js';
@@ -93,6 +94,9 @@ export function SidePanelApp({
         updatePanelOpen: settings.updatePanelOpen,
     });
     const inventory = useInventory(portal, settings.tt);
+    // Kept at the composition root so the WS snapshot survives tab switches;
+    // the DroneMissionPanel only renders while its tab is active.
+    const droneMission = useDroneMissionTracker(portal, settings, inventory.inventoryItems);
     const mail = useMail(portal, {
         tt: settings.tt,
         setInventoryStatus: inventory.setInventoryStatus,
@@ -266,7 +270,12 @@ export function SidePanelApp({
                 ) : null}
 
                 {activePage === 'droneMission' ? (
-                    <DroneMissionPanel portal={portal} settings={settings} inventory={inventory} />
+                    <DroneMissionPanel
+                        tracker={droneMission}
+                        inventoryStatus={inventory.inventoryStatus}
+                        inventoryBusy={inventory.inventoryBusy}
+                        onRefreshInventory={() => void inventory.loadInventory()}
+                    />
                 ) : null}
 
                 {activePage === 'progress' ? (
