@@ -96,7 +96,7 @@ export function SidePanelApp({
     const inventory = useInventory(portal, settings.tt);
     // Kept at the composition root so the WS snapshot survives tab switches;
     // the DroneMissionPanel only renders while its tab is active.
-    const droneMission = useDroneMissionTracker(portal, settings, inventory.inventoryItems);
+    const droneMission = useDroneMissionTracker(portal, settings, inventory.inventoryItems, inventory.loadInventory);
     const mail = useMail(portal, {
         tt: settings.tt,
         setInventoryStatus: inventory.setInventoryStatus,

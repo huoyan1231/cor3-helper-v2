@@ -66,6 +66,13 @@ export interface BuildViewModelOptions {
     readonly snapshot?: DroneBuildSnapshot | null;
 }
 
+/** The progress the page actually renders (WS-driven when available). */
+export function effectiveMissionProgress(options: BuildViewModelOptions): MissionProgress {
+    const snapshot = options.view?.snapshot ?? options.snapshot ?? null;
+    const wsProgress = progressFromDroneBuild(snapshot, DRONE_MISSION_STEPS);
+    return shouldPreferWsProgress(snapshot) && wsProgress ? wsProgress : options.manualProgress;
+}
+
 export function buildDroneMissionViewModel(
     inventoryItems: readonly InventoryItemView[],
     options: BuildViewModelOptions | MissionProgress,
@@ -76,9 +83,9 @@ export function buildDroneMissionViewModel(
         : { manualProgress: options };
     const view = opts.view ?? null;
     const snapshot = view?.snapshot ?? opts.snapshot ?? null;
+    const progress = effectiveMissionProgress(opts);
     const wsProgress = progressFromDroneBuild(snapshot, DRONE_MISSION_STEPS);
     const automatic = shouldPreferWsProgress(snapshot) && wsProgress !== null;
-    const progress = automatic && wsProgress ? wsProgress : opts.manualProgress;
     const result = computeDroneMission(
         toInventoryQuantities(inventoryItems),
         progress,

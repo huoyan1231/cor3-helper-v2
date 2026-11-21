@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import { useT, type TranslateSource } from '../i18n-context.js';
+import { Modal } from '../components/Modal.js';
 import type { DroneMissionTrackerState } from '../app/hooks/useDroneMissionTracker.js';
 import type { MissionStepView, MissionWsStatus } from '../../domains/drone-mission/index.js';
 
@@ -146,7 +147,20 @@ function StepCard({
 export function DroneMissionPage({ tracker, inventoryStatus, inventoryBusy, onRefreshInventory }: DroneMissionPageProps) {
     const tr = useT();
     const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+    const [sellSurplusOpen, setSellSurplusOpen] = useState(false);
     const { summary, shortages, steps, ws, diagnostics } = tracker.viewModel;
+    const openSellSurplus = () => {
+        if (!tracker.sellSurplusConfirm) tracker.requestSellSurplus();
+        setSellSurplusOpen(true);
+    };
+    const closeSellSurplus = () => {
+        if (tracker.sellSurplusConfirm) tracker.requestSellSurplus();
+        setSellSurplusOpen(false);
+    };
+    const confirmSellSurplus = () => {
+        void tracker.sellSurplus();
+        setSellSurplusOpen(false);
+    };
     const percent = summary.totalSteps === 0 ? 0 : Math.round((summary.completedSteps / summary.totalSteps) * 100);
     const sourceLabel = diagnostics.source === 'live'
         ? tr('live WS')
@@ -171,6 +185,14 @@ export function DroneMissionPage({ tracker, inventoryStatus, inventoryBusy, onRe
                         </button>
                         <button type="button" class="v2-dm-refresh" disabled={inventoryBusy || tracker.busy} onClick={onRefreshInventory}>
                             {inventoryBusy ? tr('Refreshing...') : tr('Refresh stash')}
+                        </button>
+                        <button
+                            type="button"
+                            class="v2-dm-refresh v2-dm-sell-surplus"
+                            disabled={inventoryBusy || tracker.busy || tracker.sellingSurplus || tracker.surplusPlan.entries.length === 0}
+                            onClick={openSellSurplus}
+                        >
+                            {tracker.sellingSurplus ? tr('Selling surplus...') : tr('Sell surplus items')}
                         </button>
                     </div>
                 </div>
@@ -260,6 +282,32 @@ export function DroneMissionPage({ tracker, inventoryStatus, inventoryBusy, onRe
                 <p class="v2-muted">{tr('Progress is saved locally. A future update may read progress from game WS data automatically.')}</p>
                 <button type="button" disabled={tracker.busy} onClick={() => void tracker.clear()}>{tr('Clear progress')}</button>
             </footer>
+
+            <Modal open={sellSurplusOpen} title={tr('Sell surplus items')} onClose={closeSellSurplus}>
+                <div class="v2-dm-surplus-modal">
+                    <p>
+                        {tr('Keep required items; sell the rest. Only COMMON and RARE items are sold.')}
+                    </p>
+                    <p class="v2-muted">
+                        {tr('Kept item kinds: {count}', { count: tracker.surplusPlan.keptKinds })}
+                        {' · '}
+                        {tr('Surplus: {quantity} item(s) · {value} cr', { quantity: tracker.surplusPlan.totalQuantity, value: tracker.surplusPlan.totalValue.toLocaleString() })}
+                    </p>
+                    <div class="v2-dm-surplus-list">
+                        {tracker.surplusPlan.entries.map((entry) => (
+                            <div key={entry.itemId} class="v2-dm-surplus-row">
+                                <span class="v2-dm-item-name" title={entry.name}>{entry.name}</span>
+                                <span>×{entry.quantity}</span>
+                                <span>{entry.sellValue.toLocaleString()} cr</span>
+                            </div>
+                        ))}
+                    </div>
+                    <div class="v2-actions">
+                        <button type="button" disabled={tracker.sellingSurplus} onClick={closeSellSurplus}>{tr('Cancel')}</button>
+                        <button type="button" disabled={tracker.sellingSurplus} onClick={confirmSellSurplus}>{tr('Confirm')}</button>
+                    </div>
+                </div>
+            </Modal>
         </div>
     );
 }
