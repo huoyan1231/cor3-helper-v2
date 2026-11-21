@@ -160,6 +160,10 @@ export const ZH_MESSAGES: Readonly<Record<string, string>> = {
     'UPCOMING': '即将维护',
     'IN MAINTENANCE': '维护中',
     'Force selected!': '强制选中项！',
+    'Force maintenance on selected servers': '强制维护选择服务器',
+    'Select all upcoming': '全选即将维护',
+    'Confirm force maintenance': '确认强制维护',
+    'The selected servers will be forced into maintenance by repeated valuable searches. This cannot be undone.': '将通过对选中的服务器反复搜索有价值物品来强制触发维护，此操作无法撤销。',
     'Forcing maintenance on selected servers...': '正在对选中的服务器强制触发维护...',
     'now': '现在',
 

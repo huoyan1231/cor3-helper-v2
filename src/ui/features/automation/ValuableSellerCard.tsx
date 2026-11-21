@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import type { MaintenanceForceProgress, MaintenanceTarget, ValuableOperation, ValuableProgress, ValuableReport, ValuableRunState } from '../../../application/popup/portal.js';
 import { AutomationCard } from '../../components/AutomationCard.js';
+import { Modal } from '../../components/Modal.js';
 import { useT, type TranslateSource } from '../../i18n-context.js';
 
 export interface ValuableSellerCardProps {
@@ -13,7 +14,6 @@ export interface ValuableSellerCardProps {
     readonly maintenanceTargets: readonly MaintenanceTarget[];
     readonly onSearch: () => void | Promise<void>;
     readonly onSell: () => void | Promise<void>;
-    readonly onForceMaintenance: () => void | Promise<void>;
     readonly onForceSelected: (serverIds: readonly string[]) => void | Promise<void>;
     readonly onCancel: () => void | Promise<void>;
     readonly expanded: boolean;
@@ -85,7 +85,6 @@ export function ValuableSellerCard({
     maintenanceTargets,
     onSearch,
     onSell,
-    onForceMaintenance,
     onForceSelected,
     onCancel,
     expanded,
@@ -94,6 +93,8 @@ export function ValuableSellerCard({
     const tr = useT();
     const [selectedIds, setSelectedIds] = useState<readonly string[]>([]);
     const [now, setNow] = useState(() => Date.now());
+    const [confirmForceOpen, setConfirmForceOpen] = useState(false);
+    const selectAllRef = useRef<HTMLInputElement>(null);
     const running = runId !== null;
     const searchRunning = running && operation === 'search';
     const sellRunning = running && operation === 'sell';
@@ -104,13 +105,37 @@ export function ValuableSellerCard({
         return () => clearInterval(timer);
     }, []);
 
+    const selectableIds = maintenanceTargets
+        .filter((target) => !target.active && !target.endsAt)
+        .map((target) => target.id);
+    const selectedTargets = maintenanceTargets.filter((target) => selectedIds.includes(target.id));
+    const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selectedIds.includes(id));
+    const someSelected = selectedIds.length > 0 && !allSelected;
+
     useEffect(() => {
         const selectable = new Set(maintenanceTargets.filter((target) => !target.active && !target.endsAt).map((target) => target.id));
         setSelectedIds((current) => current.filter((id) => selectable.has(id)));
     }, [maintenanceTargets]);
 
+    useEffect(() => {
+        if (selectAllRef.current) selectAllRef.current.indeterminate = someSelected;
+    }, [someSelected]);
+
+    useEffect(() => {
+        if (running) setConfirmForceOpen(false);
+    }, [running]);
+
     const toggleTarget = (id: string): void => {
         setSelectedIds((current) => current.includes(id) ? current.filter((entry) => entry !== id) : [...current, id]);
+    };
+
+    const toggleAll = (): void => {
+        setSelectedIds(allSelected ? [] : selectableIds);
+    };
+
+    const confirmForce = (): void => {
+        setConfirmForceOpen(false);
+        void onForceSelected(selectedIds);
     };
 
     return (
@@ -164,6 +189,16 @@ export function ValuableSellerCard({
                         <p class="v2-muted">{tr('No upcoming or active maintenance found. Run server search first.')}</p>
                     ) : (
                         <>
+                            <label class="v2-maint-select-all">
+                                <input
+                                    ref={selectAllRef}
+                                    type="checkbox"
+                                    checked={allSelected}
+                                    disabled={running || selectableIds.length === 0}
+                                    onChange={toggleAll}
+                                />
+                                <span>{tr('Select all upcoming')} ({selectedIds.length}/{selectableIds.length})</span>
+                            </label>
                             <div class="v2-maint-list">
                                 {maintenanceTargets.map((target) => {
                                     const inMaintenance = target.active || Boolean(target.endsAt);
@@ -188,9 +223,9 @@ export function ValuableSellerCard({
                                 <button
                                     type="button"
                                     disabled={running || selectedIds.length === 0}
-                                    onClick={() => void onForceSelected(selectedIds)}
+                                    onClick={() => setConfirmForceOpen(true)}
                                 >
-                                    {tr('Force selected!')} ({selectedIds.length})
+                                    {tr('Force maintenance on selected servers')} ({selectedIds.length})
                                 </button>
                             </div>
                         </>
@@ -244,17 +279,26 @@ export function ValuableSellerCard({
                     >
                         {canceling ? tr('Cancelling…') : tr('Cancel force')}
                     </button>
-                ) : (
-                    <button
-                        type="button"
-                        disabled={running}
-                        onClick={() => void onForceMaintenance()}
-                    >
-                        {tr('Force maintenance')}
-                    </button>
-                )}
+                ) : null}
             </div>
 
+            <Modal open={confirmForceOpen} title={tr('Confirm force maintenance')} onClose={() => setConfirmForceOpen(false)}>
+                <div class="v2-maint-confirm">
+                    <p>{tr('The selected servers will be forced into maintenance by repeated valuable searches. This cannot be undone.')}</p>
+                    <div class="v2-maint-confirm-list">
+                        {selectedTargets.map((target) => (
+                            <div key={target.id} class="v2-maint-confirm-row">
+                                <span>{target.name}</span>
+                                <span class="v2-muted">{formatCountdown(target.timeUntil ?? target.endsAt, now, tr)}</span>
+                            </div>
+                        ))}
+                    </div>
+                    <div class="v2-actions">
+                        <button type="button" onClick={() => setConfirmForceOpen(false)}>{tr('Cancel')}</button>
+                        <button type="button" class="v2-danger" onClick={confirmForce}>{tr('Confirm')}</button>
+                    </div>
+                </div>
+            </Modal>
         </AutomationCard>
     );
 }

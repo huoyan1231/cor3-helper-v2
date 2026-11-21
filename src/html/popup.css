@@ -786,6 +786,12 @@ button.v2-icon-button:hover { color: var(--v2-accent); border-color: var(--v2-ac
 .v2-maint-status.is-upcoming { background: rgba(229, 181, 103, .16); color: #e5b567; }
 .v2-maint-status.is-active { background: rgba(229, 101, 101, .16); color: #ff8a8a; }
 .v2-maint-actions { display: grid; grid-template-columns: 1fr; margin-top: 8px; }
+.v2-maint-select-all { display: flex; align-items: center; gap: 6px; padding: 5px 6px; margin-bottom: 4px; border: 1px solid var(--v2-border); border-radius: 6px; color: var(--v2-text); font-size: 10px; cursor: pointer; }
+.v2-maint-select-all input[type="checkbox"] { width: 13px; height: 13px; margin: 0; accent-color: var(--v2-accent); }
+.v2-maint-select-all input[type="checkbox"]:disabled { cursor: default; opacity: .45; }
+.v2-maint-confirm p { margin: 0 0 8px; color: var(--v2-muted); font-size: 11px; }
+.v2-maint-confirm-list { display: grid; gap: 4px; max-height: 200px; overflow-y: auto; }
+.v2-maint-confirm-row { display: flex; justify-content: space-between; gap: 8px; padding: 5px 6px; border: 1px solid var(--v2-border); border-radius: 6px; font-size: 10px; }
 
 
 /* Drone status bars (shared stage cards live above) */

@@ -1271,3 +1271,13 @@ A full verification run (typecheck, Vitest, oxlint, build) plus a review of the 
 - **Application (`src/application/valuable/maintenance.ts`):** `MaintenanceForceService.listTargets()` force-refreshes the map and returns the candidates. `MaintenanceForceControl.selectedIds` narrows `force()` to explicit ids; empty/undefined keeps the force-all-upcoming path.
 - **Bridge and UI:** new `valuable.maintenanceTargets` command exposes candidates; `valuable.forceMaintenance` now accepts optional `serverIds` (max 32) via `valuableMaintenanceSchema`. `PopupPortal.maintenanceTargets()` and `forceMaintenance(runId, serverIds?)` feed `useValuable`, which polls candidates on the automation page and refreshes them after a run. `ValuableSellerCard` renders checkbox rows with a 1 s countdown; already-in-maintenance rows are shown but disabled, matching v1. Styles `.v2-maint-*` added to `src/html/popup.css`; i18n Chinese messages added for all new strings.
 - **Tests:** domain tests cover candidate listing/order and selected-id resolution; an application test confirms only selected servers are searched. typecheck, 595 Vitest tests, oxlint and production build pass.
+
+---
+
+# Part 57 — Refine maintenance selection UI: confirm, select-all, no one-click button
+
+- **UI-only change:** removed the standalone one-click `Force maintenance` button from `ValuableSellerCard`'s action row; only the running-state `Cancel force` button remains there. Maintenance is now exclusively started from the candidate list.
+- **Renamed and confirmed:** `Force selected!` became `Force maintenance on selected servers` (Chinese: 强制维护选择服务器). Clicking it opens a shared `Modal` that lists every chosen server with its countdown and requires an explicit `Confirm` (or `Cancel`); the modal is dismissed automatically if a run starts. No bridge/domain contract changed.
+- **Select-all:** the candidate list gained a `Select all upcoming` checkbox that selects/deselects every selectable (upcoming) server and shows an indeterminate state for partial selection. Already-in-maintenance rows stay disabled and excluded. Styles `.v2-maint-select-all` / `.v2-maint-confirm-*` added to `src/html/popup.css`; new i18n Chinese messages added.
+- **Backward compatibility:** `valuable.forceMaintenance` still accepts an empty `serverIds`, which keeps the force-all-upcoming path in `MaintenanceForceService` intact even though the UI no longer exposes it.
+- **Verification:** typecheck, oxlint, 595 Vitest tests and production build pass.
