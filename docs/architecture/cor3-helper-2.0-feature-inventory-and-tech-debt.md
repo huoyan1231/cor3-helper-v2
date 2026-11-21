@@ -5,7 +5,7 @@
 - **Method:** static source review of popup, content scripts, MAIN-world hooks, background scheduler, bridge contracts, tests, build/release config, and architecture docs
 - **Status legend for v1 → v2:** `Implemented` = equivalent user capability exists; `Partial` = core exists but visible scope/behavior differs; `Missing` = no counterpart found; `Unknown` = cannot confirm without runtime QA
 - **Caveat:** this is not a runtime parity sign-off. The 2.0 release line is complete; the displayed version is now the plain `<version>` (no `-salta` suffix, no local build counter), while release tags and artifact names still use `<version>-salta`. Historical sections retain their original development labels.
-- **Last verified:** 2026-11-21 against `2.4.0` (Part 47 records the v2.3.x drone-tab work; Part 49 records the v2.4.0 inventory bulk-sell addition; Part 50 records the tracker tab-switch fix; older Parts keep their original version labels)
+- **Last verified:** 2026-11-21 against `2.4.0` (Part 47 records the v2.3.x drone-tab work; Part 49 records the v2.4.0 inventory bulk-sell addition; Part 50 records the tracker tab-switch fix; Part 51 records the per-item quantity modal; older Parts keep their original version labels)
 - **Current verification:** `npm run typecheck`, `npm run lint`, `npm test` and `npm run build` all pass.
 
 ## Current completion snapshot (`2.0.6`)
@@ -1211,3 +1211,12 @@ A new **Sell all except Artificial milk** button in Game → Inventory → Batch
 - **Problem:** `useDroneMissionTracker()` was called inside `DroneMissionPanel`, which only mounts while `activePage === 'droneMission'`. Its `wsView` (the `droneBuildView()` WS snapshot) was component-local state, so switching to another tab unmounted the panel and discarded it; returning re-ran the mount `useEffect` and had to re-fetch the snapshot. Manual checkbox progress was unaffected because it lives in persisted settings.
 - **Fix:** the tracker is now composed once in `SidePanelApp` (next to `useInventory`) alongside the other domain hooks, so the snapshot is held for the popup/session lifetime and is not re-fetched on every tab visit. `DroneMissionPanel` became a pure display component receiving `tracker` plus inventory status/feedback props; it no longer imports `PopupPortal` or any hook. `SidePanelApp` passes the shared `droneMission` tracker into the panel.
 - **Scope:** no bridge contract, domain logic or persisted shape changed; only UI composition. TypeScript, oxlint, Vitest and the production build pass.
+
+---
+
+# Part 51 — Per-item quantity modal with sell-all-same shortcut (v2.4.0)
+
+- **Investigation:** before this change the per-item quick **Sell** overlay called `sellInventoryItem(itemId, 1)` — a fixed single item, no way to pick a count or sell every stack of the same item at once. The bridge (`portal.sellInventoryItem(itemId, quantity?)`) and `InventoryItemSellService` already support a quantity, so the gap was UI-only.
+- **UI:** clicking the quick Sell overlay now opens a `Modal` (`v2-stash-sell-modal`) showing item name, tier, unit price and total available count. A number input accepts 1..group-total (clamped), an estimated income is shown, and a **Sell all same items (N)** button fills the full group count. `InventoryGroup` now keeps every matching stack (`items[]`) rather than only the first, so one group can span multiple physical stacks of the same `itemConfigId`.
+- **Action:** `useInventory.sellInventoryItem()` now takes `(stacks, quantity, groupKey)`, walks the group's stacks in order calling `portal.sellInventoryItem()` per stack until the requested quantity is fulfilled, and aggregates sold quantity/value plus any failure. The status message summarizes the sale; `sellingGroupKey` replaces the old `sellingItemId` so all overlays of the selling group show "Selling…" and concurrent sales are blocked.
+- **Scope:** no bridge contract, Zod schema or domain logic changed — the quantity path uses the existing `inventory.sellItem` command. Chinese strings added to `src/ui/i18n-messages.ts`; styles under `.v2-stash-sell-modal`. TypeScript, oxlint, Vitest and the production build pass.

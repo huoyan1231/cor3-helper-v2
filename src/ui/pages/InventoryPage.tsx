@@ -3,6 +3,7 @@ import type { AutoMailStatus, InventoryItemView, InventoryPreviewResult, Invento
 import type { SpecialistPurchase, SpecialistState } from '../../domains/specialists/model.js';
 import { formatRemaining } from '../format.js';
 import { InfoTip } from '../components/InfoTip.js';
+import { Modal } from '../components/Modal.js';
 import { useT, type TranslateSource } from '../i18n-context.js';
 
 const SELL_TIERS = [
@@ -18,9 +19,10 @@ const TIER_ORDER: Record<string, number> = { QUEST: 0, LEGENDARY: 1, EPIC: 2, SU
 export type InventorySellTier = typeof SELL_TIERS[number]['value'];
 export type InventorySellTag = typeof SELL_TAGS[number]['value'];
 
-interface InventoryGroup {
+export interface InventoryGroup {
     readonly key: string;
     readonly item: InventoryItemView;
+    readonly items: readonly InventoryItemView[];
     readonly quantity: number;
 }
 
@@ -34,8 +36,8 @@ export interface InventoryPageProps {
     readonly items: readonly InventoryItemView[];
     readonly inventoryFilter: string;
     readonly onInventoryFilterChange: (value: string) => void;
-    readonly onSellItem: (id: string) => void | Promise<void>;
-    readonly sellingItemId: string | null;
+    readonly onSellItem: (stacks: readonly InventoryItemView[], quantity: number, groupKey: string) => void | Promise<void>;
+    readonly sellingGroupKey: string | null;
     readonly sellTier: InventorySellTier;
     readonly onSellTierChange: (tier: InventorySellTier) => void;
     readonly sellTag: InventorySellTag;
@@ -90,12 +92,14 @@ function groupItems(items: readonly InventoryItemView[]): InventoryGroup[] {
         if (existing) {
             groups.set(key, {
                 ...existing,
+                items: [...existing.items, item],
                 quantity: existing.quantity + item.quantity,
             });
         } else {
             groups.set(key, {
                 key,
                 item,
+                items: [item],
                 quantity: item.quantity,
             });
         }
@@ -114,7 +118,7 @@ export function InventoryPage({
     inventoryFilter,
     onInventoryFilterChange,
     onSellItem,
-    sellingItemId,
+    sellingGroupKey,
     sellTier,
     onSellTierChange,
     sellTag,
@@ -143,6 +147,8 @@ export function InventoryPage({
     const [visibleLimit, setVisibleLimit] = useState(200);
     const [sortConfirm, setSortConfirm] = useState<'smart' | 'compact' | null>(null);
     const [confirmSpecialist, setConfirmSpecialist] = useState<string | null>(null);
+    const [sellGroup, setSellGroup] = useState<InventoryGroup | null>(null);
+    const [sellQuantity, setSellQuantity] = useState(1);
     const autoMailEnabled = autoMail?.enabled ?? false;
     const autoMailLast = autoMail?.last ?? null;
     const totalValue = items.reduce((sum, item) => sum + (item.canSell ? item.sellPrice * item.quantity : 0), 0);
@@ -448,11 +454,11 @@ export function InventoryPage({
                                 {sellable ? (
                                     <button
                                         type="button"
-                                        class={`v2-stash-row-sell-overlay${sellingItemId === item.id ? ' is-selling' : ''}`}
-                                        disabled={busy || sellingItemId !== null}
-                                        onClick={() => void onSellItem(item.id)}
+                                        class={`v2-stash-row-sell-overlay${sellingGroupKey === group.key ? ' is-selling' : ''}`}
+                                        disabled={busy || sellingGroupKey !== null}
+                                        onClick={() => { setSellGroup(group); setSellQuantity(1); }}
                                     >
-                                        {sellingItemId === item.id ? tr('Selling…') : tr('Sell')}
+                                        {sellingGroupKey === group.key ? tr('Selling…') : tr('Sell')}
                                     </button>
                                 ) : null}
                             </div>
@@ -486,6 +492,57 @@ export function InventoryPage({
                     {tr('Show more ({count} remaining)', { count: filteredGroups.length - visibleLimit })}
                 </button>
             ) : null}
+
+            <Modal open={sellGroup !== null} title={tr('Sell item')} onClose={() => setSellGroup(null)}>
+                {sellGroup ? (
+                    <div class="v2-stash-sell-modal">
+                        <p><strong>{sellGroup.item.name}</strong> · {tr(sellGroup.item.tier)}</p>
+                        <p class="v2-muted">
+                            {tr('Price each: {value} cr', { value: sellGroup.item.sellPrice.toLocaleString() })}
+                            {' · '}
+                            {tr('Available: {count}', { count: sellGroup.quantity })}
+                        </p>
+                        <label class="v2-field">
+                            <span>{tr('Quantity')}</span>
+                            <input
+                                class="v2-wide-input"
+                                type="number"
+                                min="1"
+                                max={sellGroup.quantity}
+                                step="1"
+                                value={sellQuantity}
+                                onInput={(event) => {
+                                    const parsed = Number((event.currentTarget as HTMLInputElement).value);
+                                    setSellQuantity(Number.isFinite(parsed) ? Math.max(1, Math.min(Math.floor(parsed), sellGroup.quantity)) : 1);
+                                }}
+                            />
+                        </label>
+                        <div class="v2-actions">
+                            <button type="button" onClick={() => setSellQuantity(sellGroup.quantity)}>
+                                {tr('Sell all same items ({count})', { count: sellGroup.quantity })}
+                            </button>
+                        </div>
+                        <p class="v2-muted">
+                            {tr('Estimated income: {value} cr', { value: (sellGroup.item.sellPrice * sellQuantity).toLocaleString() })}
+                        </p>
+                        <div class="v2-actions">
+                            <button type="button" disabled={busy || sellingGroupKey !== null} onClick={() => setSellGroup(null)}>{tr('Cancel')}</button>
+                            <button
+                                type="button"
+                                class="v2-stash-sell-button"
+                                disabled={busy || sellingGroupKey !== null || sellQuantity < 1}
+                                onClick={() => {
+                                    const group = sellGroup;
+                                    setSellGroup(null);
+                                    void onSellItem(group.items, sellQuantity, group.key);
+                                }}
+                            >
+                                {tr('Sell {count}', { count: sellQuantity })}
+                            </button>
+                        </div>
+                    </div>
+                ) : null}
+            </Modal>
         </div>
     );
 }

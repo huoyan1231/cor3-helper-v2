@@ -34,14 +34,14 @@ export interface InventoryState {
     readonly sellTag: InventorySellTag;
     readonly sellPreview: InventoryPreviewResult | null;
     readonly sellConfirm: boolean;
-    readonly sellingItemId: string | null;
+    readonly sellingGroupKey: string | null;
     readonly loadInventory: () => Promise<void>;
     readonly changeSellTier: (tier: InventorySellTier) => void;
     readonly changeSellTag: (tag: InventorySellTag) => void;
     readonly sellInventoryFilter: () => Promise<void>;
     readonly sellAllExceptMilk: () => Promise<void>;
     readonly sellAllExceptMilkConfirm: boolean;
-    readonly sellInventoryItem: (itemId: string) => Promise<void>;
+    readonly sellInventoryItem: (stacks: readonly InventoryItemView[], quantity: number, groupKey: string) => Promise<void>;
     readonly purchaseSpecialist: (purchase: SpecialistPurchase) => Promise<void>;
     readonly sortInventory: (mode: 'smart' | 'compact') => Promise<void>;
 }
@@ -54,7 +54,7 @@ export function useInventory(portal: PopupPortal, tt: TranslateSource): Inventor
     const [specialistError, setSpecialistError] = useState<string | null>(null);
     const [sellConfirm, setSellConfirm] = useState(false);
     const [sellAllExceptMilkConfirm, setSellAllExceptMilkConfirm] = useState(false);
-    const [sellingItemId, setSellingItemId] = useState<string | null>(null);
+    const [sellingGroupKey, setSellingGroupKey] = useState<string | null>(null);
     const [inventoryStatus, setInventoryStatus] = useState('Inventory not loaded');
     const [inventoryBusy, setInventoryBusy] = useState(false);
     const [inventorySorting, setInventorySorting] = useState(false);
@@ -192,16 +192,32 @@ export function useInventory(portal: PopupPortal, tt: TranslateSource): Inventor
         setInventoryBusy(false);
     }, [portal, inventoryBusy, sellAllExceptMilkConfirm, loadInventory, tt]);
 
-    const sellInventoryItem = useCallback(async (itemId: string) => {
-        if (sellingItemId !== null) return;
-        setSellingItemId(itemId);
-        const response = await portal.sellInventoryItem(itemId, 1);
-        setInventoryStatus(response.ok
-            ? tt('Sold {quantity} × {name} for {value} credits', { quantity: response.value.quantity, name: response.value.name, value: response.value.sellValue })
-            : response.error.message);
-        setSellingItemId(null);
-        if (response.ok) await loadInventory();
-    }, [portal, sellingItemId, loadInventory, tt]);
+    const sellInventoryItem = useCallback(async (stacks: readonly InventoryItemView[], quantity: number, groupKey: string) => {
+        if (sellingGroupKey !== null) return;
+        setSellingGroupKey(groupKey);
+        let remaining = quantity;
+        let soldQuantity = 0;
+        let soldValue = 0;
+        let lastName = '';
+        let failure: string | null = null;
+        for (const stack of stacks) {
+            if (remaining <= 0) break;
+            const response = await portal.sellInventoryItem(stack.id, Math.min(remaining, stack.quantity));
+            if (!response.ok) {
+                failure = response.error.message;
+                break;
+            }
+            remaining -= response.value.quantity;
+            soldQuantity += response.value.quantity;
+            soldValue += response.value.sellValue;
+            lastName = response.value.name;
+        }
+        setSellingGroupKey(null);
+        setInventoryStatus(soldQuantity > 0
+            ? `${tt('Sold {quantity} × {name} for {value} credits', { quantity: soldQuantity, name: lastName, value: soldValue })}${failure ? ` · ${failure}` : ''}`
+            : failure ?? tt('No items were sold'));
+        if (soldQuantity > 0) await loadInventory();
+    }, [portal, sellingGroupKey, loadInventory, tt]);
 
     const purchaseSpecialist = useCallback(async (purchase: SpecialistPurchase) => {
         setSpecialistBusy(true);
@@ -254,7 +270,7 @@ export function useInventory(portal: PopupPortal, tt: TranslateSource): Inventor
         sellTag,
         sellPreview,
         sellConfirm,
-        sellingItemId,
+        sellingGroupKey,
         loadInventory,
         changeSellTier,
         changeSellTag,

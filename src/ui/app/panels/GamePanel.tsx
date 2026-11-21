@@ -67,7 +67,7 @@ export function GamePanel({ portal, inventory, loadout, mail, settings, now }: G
                     inventoryFilter={inventory.inventoryFilter}
                     onInventoryFilterChange={inventory.setInventoryFilter}
                     onSellItem={inventory.sellInventoryItem}
-                    sellingItemId={inventory.sellingItemId}
+                    sellingGroupKey={inventory.sellingGroupKey}
                     sellTier={inventory.sellTier}
                     onSellTierChange={inventory.changeSellTier}
                     sellTag={inventory.sellTag}
