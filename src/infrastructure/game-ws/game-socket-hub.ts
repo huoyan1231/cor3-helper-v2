@@ -791,13 +791,12 @@ export class GameSocketHub {
      * Returns the updated snapshot (or the previously captured one on failure).
      */
     async refreshDroneBuild(timeoutMs = 10000): Promise<DroneBuildSnapshotView | null> {
-        // The game joins the `drone-build` room before it emits get.page and
-        // list.history. When the helper injects after that join, its own
-        // commands never reach the room and the server stays silent. Force a
-        // rejoin first, same as getStash()/specialistAction(getState), so a
-        // stale room tracking state cannot suppress the responses below.
-        this.leaveRoom('drone-build', true);
-        await new Promise((resolve) => window.setTimeout(resolve, 300));
+        // The helper and the game share the same WebSocket. Never force-leave a
+        // room here: a leave-room frame evicts the shared socket from
+        // `drone-build` on the server, but the game client still believes it is
+        // joined, so its next command is rejected with "not-joined". join-room
+        // is idempotent, so re-assert membership without kicking the socket out
+        // first (unlike getStash()/getMail(), which own their rooms).
         const joined = this.joinRoom('drone-build');
         if (!joined.ok) {
             // No token or no socket: keep whatever passive capture already has
