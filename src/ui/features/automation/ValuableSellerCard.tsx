@@ -1,4 +1,5 @@
-import type { MaintenanceForceProgress, ValuableOperation, ValuableProgress, ValuableReport, ValuableRunState } from '../../../application/popup/portal.js';
+import { useEffect, useState } from 'preact/hooks';
+import type { MaintenanceForceProgress, MaintenanceTarget, ValuableOperation, ValuableProgress, ValuableReport, ValuableRunState } from '../../../application/popup/portal.js';
 import { AutomationCard } from '../../components/AutomationCard.js';
 import { useT, type TranslateSource } from '../../i18n-context.js';
 
@@ -9,9 +10,11 @@ export interface ValuableSellerCardProps {
     readonly progress: ValuableProgress | MaintenanceForceProgress | null;
     readonly report: ValuableReport | null;
     readonly canceling: boolean;
+    readonly maintenanceTargets: readonly MaintenanceTarget[];
     readonly onSearch: () => void | Promise<void>;
     readonly onSell: () => void | Promise<void>;
     readonly onForceMaintenance: () => void | Promise<void>;
+    readonly onForceSelected: (serverIds: readonly string[]) => void | Promise<void>;
     readonly onCancel: () => void | Promise<void>;
     readonly expanded: boolean;
     readonly onOpenChange: (open: boolean) => void;
@@ -43,6 +46,18 @@ function formatReportTime(value: number | null, tr: TranslateSource): string {
     return new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
+function formatCountdown(target: string | null, now: number, tr: TranslateSource): string {
+    if (!target) return tr('never');
+    const parsed = new Date(target).getTime();
+    if (!Number.isFinite(parsed)) return target;
+    const diff = parsed - now;
+    if (diff <= 0) return tr('now');
+    const hours = Math.floor(diff / 3_600_000);
+    const minutes = Math.floor((diff % 3_600_000) / 60_000);
+    const seconds = Math.floor((diff % 60_000) / 1000);
+    return `${hours > 0 ? `${hours}h ` : ''}${minutes}m ${seconds}s`;
+}
+
 function defaultStatus(report: ValuableReport | null, operation: ValuableRunState['operation'] | null, tr: TranslateSource): string {
     if (operation === 'search') return tr('Searching all servers...');
     if (operation === 'sell') return tr('Selling downloaded valuables...');
@@ -67,18 +82,36 @@ export function ValuableSellerCard({
     progress,
     report,
     canceling,
+    maintenanceTargets,
     onSearch,
     onSell,
     onForceMaintenance,
+    onForceSelected,
     onCancel,
     expanded,
     onOpenChange,
 }: ValuableSellerCardProps) {
     const tr = useT();
+    const [selectedIds, setSelectedIds] = useState<readonly string[]>([]);
+    const [now, setNow] = useState(() => Date.now());
     const running = runId !== null;
     const searchRunning = running && operation === 'search';
     const sellRunning = running && operation === 'sell';
     const maintenanceRunning = running && operation === 'maintenance';
+
+    useEffect(() => {
+        const timer = setInterval(() => setNow(Date.now()), 1000);
+        return () => clearInterval(timer);
+    }, []);
+
+    useEffect(() => {
+        const selectable = new Set(maintenanceTargets.filter((target) => !target.active && !target.endsAt).map((target) => target.id));
+        setSelectedIds((current) => current.filter((id) => selectable.has(id)));
+    }, [maintenanceTargets]);
+
+    const toggleTarget = (id: string): void => {
+        setSelectedIds((current) => current.includes(id) ? current.filter((entry) => entry !== id) : [...current, id]);
+    };
 
     return (
         <AutomationCard
@@ -119,6 +152,49 @@ export function ValuableSellerCard({
                             <span>{Math.round(report?.credits ?? 0).toLocaleString()} cr · ⭐ {Math.round(report?.reputation ?? 0)}</span>
                         </li>
                     </ul>
+                </div>
+            </details>
+
+            <details class="v2-debug-console v2-status-console">
+                <summary class="v2-status-toggle">
+                    <span class="v2-status-title">{tr('Maintenance candidates')}</span>
+                </summary>
+                <div class="v2-status-body">
+                    {maintenanceTargets.length === 0 ? (
+                        <p class="v2-muted">{tr('No upcoming or active maintenance found. Run server search first.')}</p>
+                    ) : (
+                        <>
+                            <div class="v2-maint-list">
+                                {maintenanceTargets.map((target) => {
+                                    const inMaintenance = target.active || Boolean(target.endsAt);
+                                    return (
+                                        <label class="v2-maint-row" key={target.id}>
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedIds.includes(target.id)}
+                                                disabled={inMaintenance || running}
+                                                onChange={() => toggleTarget(target.id)}
+                                            />
+                                            <span class="v2-maint-name">{target.name}</span>
+                                            <span class="v2-maint-timer">{formatCountdown(target.timeUntil ?? target.endsAt, now, tr)}</span>
+                                            <span class={inMaintenance ? 'v2-maint-status is-active' : 'v2-maint-status is-upcoming'}>
+                                                {inMaintenance ? tr('IN MAINTENANCE') : tr('UPCOMING')}
+                                            </span>
+                                        </label>
+                                    );
+                                })}
+                            </div>
+                            <div class="v2-maint-actions">
+                                <button
+                                    type="button"
+                                    disabled={running || selectedIds.length === 0}
+                                    onClick={() => void onForceSelected(selectedIds)}
+                                >
+                                    {tr('Force selected!')} ({selectedIds.length})
+                                </button>
+                            </div>
+                        </>
+                    )}
                 </div>
             </details>
 

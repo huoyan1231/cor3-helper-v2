@@ -88,6 +88,31 @@ describe('MaintenanceForceService', () => {
         expect(searches).toBe(3);
     });
 
+    it('forces only explicitly selected servers', async () => {
+        const snap = snapshot([
+            server('home', { maintenance: { active: false, endsAt: null, timeUntil: null } }),
+            server('first'),
+            server('second'),
+        ]);
+        const searches: string[] = [];
+        const service = new MaintenanceForceService({
+            snapshots: { get: async () => ({ ok: true, value: snap }) },
+            servers: {
+                searchFiles: async (id) => {
+                    searches.push(id);
+                    return { ok: true, value: { found: [] } };
+                },
+            },
+        });
+        const result = await service.force({ selectedIds: ['first'], maxAttempts: 1, sleep: async () => {} });
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+            expect(result.value.targets.map((target) => target.id)).toEqual(['first']);
+            expect(result.value.failed).toHaveLength(1);
+        }
+        expect(searches).toEqual(['first']);
+    });
+
     it('honors shouldStop and skips the beforeSearch hook failure', async () => {
         const snap = snapshot([
             server('home', { maintenance: { active: false, endsAt: null, timeUntil: null } }),

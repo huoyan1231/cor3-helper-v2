@@ -1,10 +1,10 @@
 import { JOB_MARKETS } from '../../../domains/jobs/markets.js';
-import type { Result } from '../../../kernel/result.js';
+import { ok, type Result } from '../../../kernel/result.js';
 import type { AutomationStateStore } from '../../../infrastructure/storage/automation-state-store.js';
 import type { NetworkOperationQueue } from '../../../application/network/operation-queue.js';
 import type { ValuableProgress, ValuableSaleSummary, ValuableSearchSummary, ValuableSellerService } from '../../../application/valuable/seller.js';
 import type { ValuableOperation, ValuableRunState as ValuableRunView } from '../../../application/popup/portal.js';
-import type { MaintenanceForceProgress, MaintenanceForceService, MaintenanceForceSummary } from '../../../application/valuable/maintenance.js';
+import type { MaintenanceForceProgress, MaintenanceForceService, MaintenanceForceSummary, MaintenanceTarget } from '../../../application/valuable/maintenance.js';
 import type { EventPublisher, RunLogSink } from '../../../application/automation/ports.js';
 
 export type { ValuableOperation } from '../../../application/popup/portal.js';
@@ -32,6 +32,8 @@ export interface ValuableStats {
 export interface ValuableRunRequest {
     readonly runId: string;
     readonly owner: string;
+    /** Optional explicit server ids for manual maintenance selection. */
+    readonly serverIds?: readonly string[] | undefined;
 }
 
 export interface ValuableDeps {
@@ -145,6 +147,7 @@ export class ValuableCoordinator {
         this.deps.runLogs.add(request.runId, 'info', 'valuable-seller', 'Forcing maintenance on upcoming servers via valuable searches');
         try {
             const queued = await this.deps.networkOps.enqueue({ owner: request.owner, reason: 'valuable-maintenance-force', priority: 60 }, async () => this.deps.maintenanceForce.force({
+                ...(request.serverIds && request.serverIds.length > 0 ? { selectedIds: request.serverIds } : {}),
                 shouldStop: () => this.cancelled.has(request.runId),
                 onProgress: (progress) => {
                     state.progress = progress;
@@ -168,6 +171,11 @@ export class ValuableCoordinator {
             this.cancelled.delete(request.runId);
             if (this.activeRunId === request.runId) this.activeRunId = null;
         }
+    }
+
+    async maintenanceTargets(): Promise<Result<readonly MaintenanceTarget[], { readonly code: string; readonly message: string }>> {
+        const result = await this.deps.maintenanceForce.listTargets();
+        return result.ok ? ok(result.value) : result;
     }
 
     cancel(runId: string): void {

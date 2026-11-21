@@ -1,4 +1,4 @@
-import { maintenanceStarted, planMaintenanceTargets, type MaintenanceTarget } from '../../domains/valuable/maintenance.js';
+import { listMaintenanceCandidates, maintenanceStarted, planMaintenanceTargets, planSelectedMaintenanceTargets, type MaintenanceTarget } from '../../domains/valuable/maintenance.js';
 export type { MaintenanceTarget } from '../../domains/valuable/maintenance.js';
 import type { Result } from '../../kernel/result.js';
 import { ok } from '../../kernel/result.js';
@@ -36,6 +36,8 @@ export interface MaintenanceForceSummary {
 export interface MaintenanceForceControl {
     readonly shouldStop?: () => boolean;
     readonly onProgress?: (progress: MaintenanceForceProgress) => void;
+    /** Explicit server ids from the maintenance tab; empty/undefined forces all upcoming servers. */
+    readonly selectedIds?: readonly string[];
     readonly maxAttempts?: number;
     readonly attemptDelayMs?: number;
     readonly serverDelayMs?: number;
@@ -66,6 +68,13 @@ export class MaintenanceForceService {
         this.clock = deps.clock ?? new SystemClock();
     }
 
+    /** Candidate servers for the manual selection tab (upcoming + already in maintenance). */
+    async listTargets(): Promise<Result<readonly MaintenanceTarget[], GameError>> {
+        const snapshot = await this.deps.snapshots.get(true);
+        if (!snapshot.ok) return { ok: false, error: snapshot.error };
+        return ok(listMaintenanceCandidates(snapshot.value));
+    }
+
     async force(control: MaintenanceForceControl = {}): Promise<Result<MaintenanceForceSummary, GameError>> {
         const sleep = control.sleep ?? defaultSleep;
         const maxAttempts = control.maxAttempts ?? DEFAULT_MAINTENANCE_MAX_ATTEMPTS;
@@ -74,7 +83,9 @@ export class MaintenanceForceService {
 
         const initial = await this.deps.snapshots.get(true);
         if (!initial.ok) return { ok: false, error: initial.error };
-        const targets = planMaintenanceTargets(initial.value);
+        const targets = control.selectedIds && control.selectedIds.length > 0
+            ? planSelectedMaintenanceTargets(initial.value, control.selectedIds)
+            : planMaintenanceTargets(initial.value);
         const forced: string[] = [];
         const failed: { target: string; message: string }[] = [];
         let stopped = false;

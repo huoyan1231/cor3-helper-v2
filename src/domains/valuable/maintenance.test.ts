@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { asServerId } from '../../kernel/ids.js';
 import type { NetworkServer, NetworkSnapshot } from '../network/model.js';
-import { maintenanceStarted, planMaintenanceTargets } from './maintenance.js';
+import { listMaintenanceCandidates, maintenanceStarted, planMaintenanceTargets, planSelectedMaintenanceTargets } from './maintenance.js';
 
 function server(id: string, overrides: Partial<NetworkServer> = {}): NetworkServer {
     return {
@@ -73,5 +73,34 @@ describe('maintenanceStarted', () => {
 
     it('accepts a future maintenanceEndsAt even before isInMaintenance flips', () => {
         expect(maintenanceStarted({ ...server('s'), maintenance: { active: false, endsAt: '2026-11-22T00:00:00Z', timeUntil: null } }, Date.parse('2026-11-21T23:00:00Z'))).toBe(true);
+    });
+});
+
+describe('manual selection', () => {
+    it('lists both upcoming and active servers with active first', () => {
+        const result = listMaintenanceCandidates(snapshot([
+            server('home'),
+            server('upcoming', { maintenance: { active: false, endsAt: null, timeUntil: '2026-11-21T00:02:00Z' } }),
+            server('active', { maintenance: { active: true, endsAt: '2026-11-21T00:10:00Z', timeUntil: null } }),
+            server('unknown'),
+        ]));
+        expect(result.map((target) => target.id)).toEqual(['active', 'upcoming']);
+        expect(result[0]?.active).toBe(true);
+        expect(result[0]?.endsAt).toBe('2026-11-21T00:10:00Z');
+        expect(result[1]?.timeUntil).toBe('2026-11-21T00:02:00Z');
+    });
+
+    it('forces only the selected ids, furthest first', () => {
+        const result = planSelectedMaintenanceTargets(snapshot([
+            server('home'),
+            server('near', { maintenance: { active: false, endsAt: null, timeUntil: '00:01:00' } }),
+            server('far', { maintenance: { active: false, endsAt: null, timeUntil: '00:03:00' } }),
+            server('skip', { maintenance: { active: false, endsAt: null, timeUntil: '00:05:00' } }),
+        ]), ['near', 'far']);
+        expect(result.map((target) => target.id)).toEqual(['far', 'near']);
+    });
+
+    it('returns no targets for an empty selection', () => {
+        expect(planSelectedMaintenanceTargets(snapshot([server('home')]), [])).toEqual([]);
     });
 });

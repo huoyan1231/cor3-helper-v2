@@ -13,6 +13,10 @@ const valuableRunSchema = z.object({
     owner: z.string().min(1).default('valuable-seller'),
 }).strict();
 
+const valuableMaintenanceSchema = valuableRunSchema.extend({
+    serverIds: z.array(z.string().min(1)).max(32).optional(),
+});
+
 export function registerValuableHandlers(server: CoreRuntime['server'], deps: ValuableHandlerDeps): void {
     const { automation } = deps;
     server.register('valuable.search', valuableRunSchema, async (request) => {
@@ -23,8 +27,12 @@ export function registerValuableHandlers(server: CoreRuntime['server'], deps: Va
         const result = await automation.valuable.runSell(request);
         return result.ok ? ok(result.value) : result;
     });
-    server.register('valuable.forceMaintenance', valuableRunSchema, async (request) => {
+    server.register('valuable.forceMaintenance', valuableMaintenanceSchema, async (request) => {
         const result = await automation.valuable.runMaintenance(request);
+        return result.ok ? ok(result.value) : result;
+    });
+    server.register('valuable.maintenanceTargets', z.object({}).strict(), async () => {
+        const result = await automation.valuable.maintenanceTargets();
         return result.ok ? ok(result.value) : result;
     });
     server.register('valuable.cancel', z.object({ runId: z.string().min(1) }).strict(), async ({ runId }) => {

@@ -155,6 +155,13 @@ export const ZH_MESSAGES: Readonly<Record<string, string>> = {
     'Forcing maintenance': '正在强制触发维护',
     'Maintenance started': '维护已开始',
     'Done': '完成',
+    'Maintenance candidates': '维护候选服务器',
+    'No upcoming or active maintenance found. Run server search first.': '未发现即将或正在维护的服务器。请先执行服务器搜索。',
+    'UPCOMING': '即将维护',
+    'IN MAINTENANCE': '维护中',
+    'Force selected!': '强制选中项！',
+    'Forcing maintenance on selected servers...': '正在对选中的服务器强制触发维护...',
+    'now': '现在',
 
     // Auto Expedition
     'Auto Expedition': '自动远征',

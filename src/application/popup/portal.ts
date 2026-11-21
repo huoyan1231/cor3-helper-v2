@@ -17,7 +17,7 @@ import type { ExpeditionOverview } from '../../domains/expeditions/model.js';
 
 import type { DroneState } from '../../domains/drone/model.js';
 import type { LoadoutView } from '../loadout/view.js';
-import type { MaintenanceForceProgress, MaintenanceForceSummary } from '../valuable/maintenance.js';
+import type { MaintenanceForceProgress, MaintenanceForceSummary, MaintenanceTarget } from '../valuable/maintenance.js';
 
 export type { LoadoutView } from '../loadout/view.js';
 export type { MaintenanceForceProgress, MaintenanceForceSummary, MaintenanceTarget } from '../valuable/maintenance.js';
@@ -594,7 +594,8 @@ export interface PopupPortal {
     networkServers(): Promise<BridgeResult<readonly NetworkServerSummary[]>>;
     searchValuable(runId: string): Promise<BridgeResult<ValuableSearchResult>>;
     sellValuable(runId: string): Promise<BridgeResult<ValuableSaleResult>>;
-    forceMaintenance(runId: string): Promise<BridgeResult<MaintenanceForceSummary>>;
+    forceMaintenance(runId: string, serverIds?: readonly string[]): Promise<BridgeResult<MaintenanceForceSummary>>;
+    maintenanceTargets(): Promise<BridgeResult<readonly MaintenanceTarget[]>>;
     cancelValuable(runId: string): Promise<BridgeResult<void>>;
     valuableProgress(runId: string): Promise<BridgeResult<ValuableRunState | null>>;
     valuableReport(): Promise<BridgeResult<ValuableReport>>;

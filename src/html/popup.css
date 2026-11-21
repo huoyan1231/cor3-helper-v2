@@ -776,6 +776,16 @@ button.v2-icon-button:hover { color: var(--v2-accent); border-color: var(--v2-ac
 .v2-stash-rows::-webkit-scrollbar-thumb { background: #35516b; border-radius: 3px; }
 .v2-stash-rows::-webkit-scrollbar-thumb:hover { background: var(--v2-muted); }
 .v2-valuable-actions { margin-top: 10px; padding: 10px 10px 0; border-top: 1px solid var(--v2-border); }
+.v2-maint-list { display: grid; gap: 4px; max-height: 180px; overflow-y: auto; scrollbar-width: thin; }
+.v2-maint-row { display: grid; grid-template-columns: 16px minmax(0, 1fr) 74px 66px; align-items: center; gap: 6px; padding: 5px 6px; border: 1px solid var(--v2-border); border-radius: 6px; color: var(--v2-muted); font-size: 10px; cursor: pointer; }
+.v2-maint-row input[type="checkbox"] { width: 13px; height: 13px; margin: 0; accent-color: var(--v2-accent); }
+.v2-maint-row input[type="checkbox"]:disabled { cursor: default; opacity: .45; }
+.v2-maint-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--v2-text); }
+.v2-maint-timer { font-variant-numeric: tabular-nums; text-align: right; }
+.v2-maint-status { padding: 2px 4px; border-radius: 4px; font-size: 8px; font-weight: 700; text-align: center; }
+.v2-maint-status.is-upcoming { background: rgba(229, 181, 103, .16); color: #e5b567; }
+.v2-maint-status.is-active { background: rgba(229, 101, 101, .16); color: #ff8a8a; }
+.v2-maint-actions { display: grid; grid-template-columns: 1fr; margin-top: 8px; }
 
 
 /* Drone status bars (shared stage cards live above) */

@@ -7,7 +7,7 @@ import { networkMapSummarySchema } from '../../application/network/summary.js';
 import type { BridgeClient } from '../bridge/bridge-client.js';
 import { UpdateChecker } from '../update/update-checker.js';
 import { toVersionCode } from '../../kernel/version.js';
-import type { AutoDailyStatus, AutoDroneStatus, AutoExpeditionStatus, AutoFinishRunResult, AutoFinishStatus, AutoJobsSnapshot, AutoJobsStatus, AutoMailStatus, BackgroundEvent, CachedMarketView, DailyHackResult, DebugLogLine, DismissFailedSummary, DroneAutoResult, InventoryFilterOptions, InventoryFilterResult, InventoryItemSellResult, InventoryPreviewResult, InventorySortResult, InventoryView, JobAllMarketsResult, JobHistoryEntry, JobMarketSyncResult, JobQueueResult, JobQueueState, LoadoutApplyResult, LoadoutView, MailClaimResult, MarketOptionsView, ActivityState, MaintenanceForceSummary, NetworkDiagnostics, NetworkServerSummary, OverviewState, PopupPortal, ValuableReport, ValuableRunState, ValuableSaleResult, ValuableSearchResult } from '../../application/popup/portal.js';
+import type { AutoDailyStatus, AutoDroneStatus, AutoExpeditionStatus, AutoFinishRunResult, AutoFinishStatus, AutoJobsSnapshot, AutoJobsStatus, AutoMailStatus, BackgroundEvent, CachedMarketView, DailyHackResult, DebugLogLine, DismissFailedSummary, DroneAutoResult, InventoryFilterOptions, InventoryFilterResult, InventoryItemSellResult, InventoryPreviewResult, InventorySortResult, InventoryView, JobAllMarketsResult, JobHistoryEntry, JobMarketSyncResult, JobQueueResult, JobQueueState, LoadoutApplyResult, LoadoutView, MailClaimResult, MarketOptionsView, ActivityState, MaintenanceForceSummary, MaintenanceTarget, NetworkDiagnostics, NetworkServerSummary, OverviewState, PopupPortal, ValuableReport, ValuableRunState, ValuableSaleResult, ValuableSearchResult } from '../../application/popup/portal.js';
 import type { NetworkOperationQueueStatus } from '../../application/network/operation-queue.js';
 import { gameReadinessSchema } from '../../application/game/readiness.js';
 import type { JobOffer } from '../../domains/jobs/model.js';
@@ -570,7 +570,9 @@ const maintenanceTargetSchema = z.object({
     id: z.string(),
     name: z.string(),
     typeName: z.string().nullable(),
-    timeUntil: z.string(),
+    timeUntil: z.string().nullable(),
+    endsAt: z.string().nullable(),
+    active: z.boolean(),
     distance: z.number(),
 }).strict();
 const maintenanceForceSummarySchema = z.object({
@@ -1162,8 +1164,13 @@ export class ChromePopupPortal implements PopupPortal {
         return this.client.request('valuable.sell', { runId }, valuableSaleResultSchema, 1_800_000) as Promise<{ ok: true; value: ValuableSaleResult } | { ok: false; error: { code: string; message: string } }>;
     }
 
-    forceMaintenance(runId: string): Promise<{ ok: true; value: MaintenanceForceSummary } | { ok: false; error: { code: string; message: string } }> {
-        return this.client.request('valuable.forceMaintenance', { runId }, maintenanceForceSummarySchema, 1_800_000) as Promise<{ ok: true; value: MaintenanceForceSummary } | { ok: false; error: { code: string; message: string } }>;
+    forceMaintenance(runId: string, serverIds?: readonly string[]): Promise<{ ok: true; value: MaintenanceForceSummary } | { ok: false; error: { code: string; message: string } }> {
+        const payload = serverIds && serverIds.length > 0 ? { runId, serverIds } : { runId };
+        return this.client.request('valuable.forceMaintenance', payload, maintenanceForceSummarySchema, 1_800_000) as Promise<{ ok: true; value: MaintenanceForceSummary } | { ok: false; error: { code: string; message: string } }>;
+    }
+
+    maintenanceTargets(): Promise<{ ok: true; value: readonly MaintenanceTarget[] } | { ok: false; error: { code: string; message: string } }> {
+        return this.client.request('valuable.maintenanceTargets', {}, z.array(maintenanceTargetSchema), 15000) as Promise<{ ok: true; value: readonly MaintenanceTarget[] } | { ok: false; error: { code: string; message: string } }>;
     }
 
     cancelValuable(runId: string): Promise<{ ok: true; value: void } | { ok: false; error: { code: string; message: string } }> {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
-import type { MaintenanceForceProgress, PopupPortal, ValuableOperation, ValuableProgress, ValuableReport } from '../../../application/popup/portal.js';
+import type { MaintenanceForceProgress, MaintenanceTarget, PopupPortal, ValuableOperation, ValuableProgress, ValuableReport } from '../../../application/popup/portal.js';
 import type { TranslateSource } from '../../i18n-context.js';
 import type { PopupPage } from '../AppShell.js';
 import { usePolling } from './usePolling.js';
@@ -21,8 +21,10 @@ export interface ValuableState {
     readonly valuableOperation: ValuableOperation | null;
     readonly valuableCanceling: boolean;
     readonly valuableProgress: ValuableProgress | MaintenanceForceProgress | null;
+    readonly maintenanceTargets: readonly MaintenanceTarget[];
     readonly loadValuableReport: () => Promise<void>;
-    readonly startValuableOperation: (operation: ValuableOperation) => Promise<void>;
+    readonly loadMaintenanceTargets: () => Promise<void>;
+    readonly startValuableOperation: (operation: ValuableOperation, serverIds?: readonly string[]) => Promise<void>;
     readonly cancelValuableOperation: () => Promise<void>;
 }
 
@@ -34,6 +36,7 @@ export function useValuable(portal: PopupPortal, deps: ValuableDeps): ValuableSt
     const [valuableOperation, setValuableOperation] = useState<ValuableOperation | null>(null);
     const [valuableCanceling, setValuableCanceling] = useState(false);
     const [valuableProgress, setValuableProgress] = useState<ValuableProgress | MaintenanceForceProgress | null>(null);
+    const [maintenanceTargets, setMaintenanceTargets] = useState<readonly MaintenanceTarget[]>([]);
     const valuableStartLock = useRef(false);
 
     const loadValuableReport = useCallback(async () => {
@@ -58,11 +61,20 @@ export function useValuable(portal: PopupPortal, deps: ValuableDeps): ValuableSt
         }
     }, [portal, reportDetail, tt]);
 
+    const loadMaintenanceTargets = useCallback(async () => {
+        const response = await portal.maintenanceTargets();
+        if (response.ok) setMaintenanceTargets(response.value);
+    }, [portal]);
+
     useEffect(() => {
         void loadValuableReport();
     }, [loadValuableReport]);
 
-    const startValuableOperation = useCallback(async (operation: ValuableOperation) => {
+    useEffect(() => {
+        void loadMaintenanceTargets();
+    }, [loadMaintenanceTargets]);
+
+    const startValuableOperation = useCallback(async (operation: ValuableOperation, serverIds?: readonly string[]) => {
         if (valuableRunId !== null || valuableStartLock.current) return;
         valuableStartLock.current = true;
         const runId = crypto.randomUUID();
@@ -74,7 +86,9 @@ export function useValuable(portal: PopupPortal, deps: ValuableDeps): ValuableSt
             ? tt('Searching all servers...')
             : operation === 'sell'
                 ? tt('Selling downloaded valuables...')
-                : tt('Forcing maintenance on upcoming servers...'));
+                : serverIds && serverIds.length > 0
+                    ? tt('Forcing maintenance on selected servers...')
+                    : tt('Forcing maintenance on upcoming servers...'));
         try {
             if (operation === 'search') {
                 const response = await portal.searchValuable(runId);
@@ -99,7 +113,7 @@ export function useValuable(portal: PopupPortal, deps: ValuableDeps): ValuableSt
                     ? `${tt('Sale cancelled after {items} item(s) for {credits} credits', { items: value.soldItems, credits: Math.round(value.credits).toLocaleString() })}${failures}`
                     : `${tt('Sold {items} item(s) for {credits} credits and ⭐ {reputation}', { items: value.soldItems, credits: Math.round(value.credits).toLocaleString(), reputation: Math.round(value.reputation) })}${failures}`);
             } else {
-                const response = await portal.forceMaintenance(runId);
+                const response = await portal.forceMaintenance(runId, serverIds);
                 if (!response.ok) {
                     setValuableStatus(response.error.message);
                     return;
@@ -119,8 +133,9 @@ export function useValuable(portal: PopupPortal, deps: ValuableDeps): ValuableSt
             setValuableProgress(null);
             setValuableCanceling(false);
             await loadValuableReport();
+            await loadMaintenanceTargets();
         }
-    }, [portal, valuableRunId, loadValuableReport, tt]);
+    }, [portal, valuableRunId, loadValuableReport, loadMaintenanceTargets, tt]);
 
     const cancelValuableOperation = useCallback(async () => {
         if (valuableRunId === null || valuableCanceling) return;
@@ -151,6 +166,7 @@ export function useValuable(portal: PopupPortal, deps: ValuableDeps): ValuableSt
 
     usePolling(pollValuableProgress, 1000, { enabled: valuableRunId !== null });
     usePolling(loadValuableReport, 5000, { enabled: activePage === 'automation' });
+    usePolling(loadMaintenanceTargets, 10000, { enabled: activePage === 'automation' });
 
     return {
         valuableStatus,
@@ -159,7 +175,9 @@ export function useValuable(portal: PopupPortal, deps: ValuableDeps): ValuableSt
         valuableOperation,
         valuableCanceling,
         valuableProgress,
+        maintenanceTargets,
         loadValuableReport,
+        loadMaintenanceTargets,
         startValuableOperation,
         cancelValuableOperation,
     };

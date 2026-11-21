@@ -115,6 +115,7 @@ const EXPECTED_BRIDGE_TYPES = [
     'system.updateCheck',
     'valuable.cancel',
     'valuable.forceMaintenance',
+    'valuable.maintenanceTargets',
     'valuable.progress',
     'valuable.report',
     'valuable.search',
