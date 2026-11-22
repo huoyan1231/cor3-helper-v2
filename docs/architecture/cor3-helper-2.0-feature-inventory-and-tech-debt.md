@@ -1299,3 +1299,11 @@ A full verification run (typecheck, Vitest, oxlint, build) plus a review of the 
 - **Root cause:** `droneBuild.view` always tried `V2_DRONE_BUILD_REFRESH` → `V2_DRONE_BUILD_VIEW` against the game tab before reading `DroneBuildSnapshotStore`. A slow game response delayed the persisted fallback, so the tracker opened empty.
 - **Fix:** `droneBuild.view` now accepts an optional `cachedOnly` flag. When true it returns only the persisted snapshot (`source: 'persisted' | 'none'`) with no game round-trip. `useDroneMissionTracker` mounts with a two-phase load: `cachedOnly=true` paints the saved snapshot first, then a normal call refreshes from the game. The page's manual refresh button still uses the full path, and ordinary callers keep the existing live → passive → persisted order.
 - **No contract change:** `DroneBuildView` shape and `droneBuild.view` command name are unchanged; the payload gained one optional boolean. New handler tests assert the cached path never calls the game tab and returns `persisted` / `none`. typecheck, oxlint, Vitest and production build pass.
+
+---
+
+# Part 60 — Auto Expedition: pause on credit failures, keep switch responsive during load
+
+- **Auto-disable removed for transient failures:** `ExpeditionCycle.disable()` permanently wrote `autoExpeditionEnabled: false` on three temporary conditions — reward payout failure, credits below `mercMinCredits`, and launch failure due to insufficient credits. These now call `ExpeditionCycle.pauseAndRetry()`, which stores `phase: 'waiting'` with a `nextActionAt` and schedules `AUTO_EXPEDITION_RETRY_ALARM`, leaving the user's enable switch untouched. `expedition-launch.ts` takes a `scheduleRetry(delayMs)` callback instead of `disable(reason)`. Only explicit user action, Helper Mode, or a missing `mercAutoSelectEnabled` dependency still disables automation.
+- **Switch no longer locked during view load:** `usePolling` runs `loadExpeditions()` immediately on panel open, and that loader set `expeditionBusy`, which was wired to the switch's `disabled` prop through `mercBusy`. The loader now sets a separate `expeditionLoading` state; `AutoExpeditionCard` uses it only for the active-expedition refresh button. The switch remains disabled only while a toggle is in progress or the run is `running`.
+- **Verification:** typecheck, oxlint, Vitest and production build pass.

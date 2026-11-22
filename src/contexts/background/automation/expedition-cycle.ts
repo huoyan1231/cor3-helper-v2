@@ -157,9 +157,9 @@ export class ExpeditionCycle {
                         launched: false,
                         error: creditFailure.message,
                         paid,
-                        message: 'Payment failed: insufficient credits',
+                        message: 'Auto Expedition paused: reward payment failed with insufficient credits',
                     };
-                    await this.disable('reward payment failed with insufficient credits');
+                    await this.pauseAndRetry(AUTO_EXPEDITION_ACTIVE_RETRY_MS, creditFailure.message);
                     return;
                 }
                 if (payout.value.ready > payout.value.opened) {
@@ -266,9 +266,9 @@ export class ExpeditionCycle {
                         launched: false,
                         error: `Credits ${credits.toLocaleString()} below threshold ${current.mercMinCredits.toLocaleString()}`,
                         paid,
-                        message: 'Auto Expedition disabled: credits below threshold',
+                        message: 'Auto Expedition paused: credits below threshold',
                     };
-                    await this.disable('credits below threshold');
+                    await this.pauseAndRetry(AUTO_EXPEDITION_ACTIVE_RETRY_MS, this.state.last.error);
                     this.deps.events.publish('expeditions.auto.done', this.state.last);
                     return;
                 }
@@ -353,7 +353,7 @@ export class ExpeditionCycle {
                 paid,
                 selected,
                 scheduleMaintenanceRetry: (alarm) => this.scheduleMaintenanceRetry(alarm),
-                disable: (reason) => this.disable(reason),
+                scheduleRetry: (delayMs) => this.pauseAndRetry(delayMs, this.state.last?.error ?? null),
             });
         } finally {
             this.state.running = false;
@@ -369,6 +369,18 @@ export class ExpeditionCycle {
         if (cached) return cached.view.credits;
         const fresh = await this.deps.marketSync.fetchOptionsView(marketId);
         return fresh.ok ? fresh.value.credits : null;
+    }
+
+    /** Pause the current cycle and retry later without touching the user's enable switch. */
+    private async pauseAndRetry(delayMs: number, error: string | null): Promise<void> {
+        const until = this.deps.clock.now() + delayMs;
+        await this.deps.state.set('auto-expedition', {
+            phase: 'waiting',
+            nextActionAt: until,
+            lastError: error,
+            payload: { last: this.state.last },
+        });
+        this.deps.scheduler.create(AUTO_EXPEDITION_RETRY_ALARM, { when: until });
     }
 
     private async scheduleMaintenanceRetry(alarmName: string): Promise<void> {

@@ -18,6 +18,7 @@ export interface AutoExpeditionCardProps {
     readonly expeditions: ExpeditionOverview | null;
     readonly drone: DroneState | null;
     readonly mercBusy: boolean;
+    readonly mercLoading: boolean;
     readonly droneBusy: boolean;
     readonly expanded: boolean;
     readonly onOpenChange: (open: boolean) => void;
@@ -148,6 +149,7 @@ export function AutoExpeditionCard({
     expeditions,
     drone,
     mercBusy,
+    mercLoading,
     droneBusy,
     expanded,
     onOpenChange,
@@ -261,7 +263,7 @@ export function AutoExpeditionCard({
                             <strong>{tr('Active Expedition')}</strong>
                             <span class="v2-expedition-active-actions">
                                 {mercStatus?.dataStale ? <span class="v2-tag v2-tag-warn">{tr('stale')}</span> : null}
-                                <RefreshButton label={tr('Refresh active expedition')} disabled={mercBusy} onClick={onLoadMerc} />
+                                <RefreshButton label={tr('Refresh active expedition')} disabled={mercBusy || mercLoading} onClick={onLoadMerc} />
                             </span>
                         </div>
                         <div class="v2-expedition-stage-list">

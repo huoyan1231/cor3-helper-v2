@@ -23,7 +23,8 @@ export interface ExpeditionLaunchContext {
     readonly paid: number;
     readonly selected: SelectedMercenary;
     scheduleMaintenanceRetry(alarm: string): Promise<void>;
-    disable(reason: string): Promise<void>;
+    /** Pause this cycle and retry later instead of permanently disabling automation. */
+    scheduleRetry(delayMs: number): Promise<void>;
 }
 
 async function waitForPreparation(state: ExpeditionRunState, preparation: ExpeditionPreparation, timeoutMs: number): Promise<boolean> {
@@ -241,7 +242,7 @@ export async function launchExpedition(ctx: ExpeditionLaunchContext): Promise<vo
             marketKey: profileKey,
         };
         deps.logger.warn('auto-expedition', 'Expedition launch failed', { mercenary: selected.mercenary.name, message: launched.error.message });
-        if (creditFailure) await ctx.disable('expedition launch failed with insufficient credits');
+        if (creditFailure) await ctx.scheduleRetry(AUTO_EXPEDITION_ACTIVE_RETRY_MS);
         else if (/maintenance|unreachable|no route|ROUTE_FAILED/i.test(launched.error.message)) {
             await ctx.scheduleMaintenanceRetry(AUTO_EXPEDITION_RETRY_ALARM);
         }

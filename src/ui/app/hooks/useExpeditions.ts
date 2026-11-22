@@ -21,6 +21,7 @@ export interface ExpeditionsDeps {
 export interface ExpeditionsState {
     readonly expeditions: ExpeditionOverview | null;
     readonly expeditionBusy: boolean;
+    readonly expeditionLoading: boolean;
     readonly autoExpedition: AutoExpeditionStatus | null;
     readonly loadExpeditions: () => Promise<void>;
     readonly loadAutoExpedition: () => Promise<void>;
@@ -33,18 +34,19 @@ export function useExpeditions(portal: PopupPortal, deps: ExpeditionsDeps): Expe
     const { activePage, expeditionPanelOpen, reportDetail, reloadSettings, setSettings, loadAutoDrone } = deps;
     const [expeditions, setExpeditions] = useState<ExpeditionOverview | null>(null);
     const [expeditionBusy, setExpeditionBusy] = useState(false);
+    const [expeditionLoading, setExpeditionLoading] = useState(false);
     const [autoExpedition, setAutoExpedition] = useState<AutoExpeditionStatus | null>(null);
     const [autoExpeditionInterval, setAutoExpeditionInterval] = useState(30);
 
     const loadExpeditions = useCallback(async () => {
-        setExpeditionBusy(true);
+        setExpeditionLoading(true);
         const response = await portal.expeditionView();
         if (response.ok) {
             setExpeditions(response.value);
         } else {
             reportDetail(response.error.message);
         }
-        setExpeditionBusy(false);
+        setExpeditionLoading(false);
     }, [portal, reportDetail]);
 
     const loadAutoExpedition = useCallback(async () => {
@@ -99,6 +101,7 @@ export function useExpeditions(portal: PopupPortal, deps: ExpeditionsDeps): Expe
     return {
         expeditions,
         expeditionBusy,
+        expeditionLoading,
         autoExpedition,
         loadExpeditions,
         loadAutoExpedition,

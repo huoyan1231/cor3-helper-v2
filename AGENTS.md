@@ -85,6 +85,11 @@ Daily ops state loading:
 
 - `useDaily()` loads both `autoDailyStatus` and `dailyView` on mount. `dailyView` reads the persisted `v2.dailyOpsCache` first, so the Auto Daily "Today" card and Overview timers show the saved claimed/unclaimed state immediately instead of flashing "unclaimed" until a later poll. The 15 s poll runs on the automation and overview pages regardless of the Auto Daily switch, since `daily` is an independent view model.
 
+Auto Expedition resilience:
+
+- Transient credit failures (reward payout, threshold check, launch) pause the cycle with a retry alarm via `ExpeditionCycle.pauseAndRetry()`; they no longer write `autoExpeditionEnabled: false`. Only explicit user/helper-mode/config changes disable the switch.
+- `useExpeditions()` keeps `expeditionLoading` (view refresh) separate from `expeditionBusy` (toggle in progress). The initial `expeditionView()` poll only disables the refresh button, never the "Auto start mercenary expedition" switch.
+
 ## Definition of done
 
 - typecheck passes
