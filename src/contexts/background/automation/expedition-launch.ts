@@ -73,6 +73,7 @@ export async function launchExpedition(ctx: ExpeditionLaunchContext): Promise<vo
         totalCost: selected.totalCost,
         riskScore: selected.riskScore,
         insurance: selected.insurance,
+        insuranceCost: selected.insuranceCost,
         locationName: profile.locationName,
     };
     state.preparation = preparation;
@@ -89,6 +90,7 @@ export async function launchExpedition(ctx: ExpeditionLaunchContext): Promise<vo
             totalCost: preparation.totalCost,
             riskScore: preparation.riskScore,
             insurance: preparation.insurance,
+            insuranceCost: preparation.insuranceCost,
             locationName: preparation.locationName,
             last: state.last,
         },

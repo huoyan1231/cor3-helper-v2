@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import type { PopupPortal } from '../../application/popup/portal.js';
 import type { AuthStatus, SettingsV1 } from '../../contracts/storage.js';
+import type { UpdateCheckResult } from '../../contracts/update-check.js';
 import { BrandHeader } from '../components/BrandHeader.js';
 import { InfoTip } from '../components/InfoTip.js';
 import { Modal } from '../components/Modal.js';
 import { ToggleSwitch } from '../components/ToggleSwitch.js';
+import { UpdateStatus } from '../components/UpdateStatus.js';
 import { RELATED_LINKS } from './fork-info.js';
 import { detectBrowserLanguage, t, type UiLanguage } from '../i18n.js';
 import { LanguageProvider } from '../i18n-context.js';
@@ -13,39 +15,61 @@ export interface WelcomeAppProps {
     readonly portal: PopupPortal;
 }
 
-type PingState = 'idle' | 'checking' | 'ok' | 'error';
-
 /**
  * Small launcher shown from the browser toolbar. The full workspace can be
  * opened in this popup, the side panel, or a detached window.
  */
 export function WelcomeApp({ portal }: WelcomeAppProps) {
-    const [ping, setPing] = useState<PingState>('idle');
     const [auth, setAuth] = useState<AuthStatus | null>(null);
     const [settings, setSettings] = useState<SettingsV1 | null>(null);
-    const [hasEndpoint, setHasEndpoint] = useState(false);
     const [message, setMessage] = useState('');
+    const [updateResult, setUpdateResult] = useState<UpdateCheckResult | null>(null);
+    const [updateStatusError, setUpdateStatusError] = useState<string | null>(null);
+    const [updateChecking, setUpdateChecking] = useState(false);
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [confirmText, setConfirmText] = useState('');
     const [confirmError, setConfirmError] = useState(false);
     const languageInitStarted = useRef(false);
+    const updateRequestId = useRef(0);
     const language: UiLanguage = settings?.uiLanguage ?? 'en';
     const helperMode = settings?.helperMode ?? false;
 
     const refresh = useCallback(async () => {
-        setPing('checking');
-        const [pingResult, authResult, settingsResult] = await Promise.all([
-            portal.ping(),
+        const updateRequest = ++updateRequestId.current;
+        const [authResult, settingsResult, updateStatusResult] = await Promise.all([
             portal.authStatus(),
             portal.getSettings(),
+            portal.updateStatus(),
         ]);
-        setPing(pingResult.ok ? 'ok' : 'error');
         if (authResult.ok) setAuth(authResult.value);
         if (settingsResult.ok) setSettings(settingsResult.value);
-        void portal.networkSummary().then((networkResult) => {
-            if (networkResult.ok) setHasEndpoint(Boolean(networkResult.value.endpoint));
-        });
+        if (updateRequest !== updateRequestId.current) return;
+        if (updateStatusResult.ok) {
+            setUpdateResult(updateStatusResult.value);
+            setUpdateStatusError(null);
+        } else {
+            setUpdateStatusError(updateStatusResult.error.message);
+        }
     }, [portal]);
+
+    const checkUpdates = useCallback(async () => {
+        if (updateChecking) return;
+        setUpdateChecking(true);
+        setUpdateStatusError(null);
+        const updateRequest = ++updateRequestId.current;
+        try {
+            const response = await portal.updateCheck();
+            if (updateRequest !== updateRequestId.current) return;
+            if (response.ok) {
+                setUpdateResult(response.value);
+                setUpdateStatusError(null);
+            } else {
+                setUpdateStatusError(response.error.message);
+            }
+        } finally {
+            setUpdateChecking(false);
+        }
+    }, [portal, updateChecking]);
 
     useEffect(() => {
         void refresh();
@@ -110,15 +134,16 @@ export function WelcomeApp({ portal }: WelcomeAppProps) {
         <LanguageProvider language={language}>
         <main class="v2-shell v2-welcome">
             <BrandHeader>
-                <span class={`v2-status v2-status-${ping === 'ok' ? 'ok' : ping === 'error' ? 'error' : ''}`} title={t(language, 'status.pingHint')}>
-                    {ping === 'ok' ? t(language, 'status.ok') : ping === 'error' ? t(language, 'status.offline') : '…'}
-                </span>
-                <span class={`v2-status ${auth?.authenticated ? 'v2-status-ok' : 'v2-status-bad'}`} title={t(language, 'status.authHint')}>
-                    {auth?.authenticated ? t(language, 'status.auth') : t(language, 'status.needsRefresh')}
-                </span>
-                <span class={`v2-status ${hasEndpoint ? 'v2-status-ok' : 'v2-status-muted'}`} title={t(language, 'status.endpointHint')}>
-                    {hasEndpoint ? t(language, 'status.endpoint') : t(language, 'status.noEndpoint')}
-                </span>
+                {!auth?.authenticated ? (
+                    <button
+                        type="button"
+                        class="v2-status v2-status-bad v2-status-action"
+                        title={t(language, 'status.authHint')}
+                        onClick={() => void refresh()}
+                    >
+                        {t(language, 'status.needsRefresh')}
+                    </button>
+                ) : null}
             </BrandHeader>
 
             <section class="v2-card">
@@ -157,6 +182,16 @@ export function WelcomeApp({ portal }: WelcomeAppProps) {
                     />
                 </div>
                 <p class="v2-muted">{helperMode ? t(language, 'helper.onHint') : t(language, 'helper.offHint')}</p>
+            </section>
+
+            <section class="v2-card">
+                <UpdateStatus
+                    language={language}
+                    result={updateResult}
+                    statusError={updateStatusError}
+                    checking={updateChecking}
+                    onCheck={checkUpdates}
+                />
             </section>
 
             <section class="v2-card">

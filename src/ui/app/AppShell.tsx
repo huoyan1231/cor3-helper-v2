@@ -38,7 +38,7 @@ export interface AppShellProps {
     readonly popupMode?: boolean;
     readonly onOpenSidePanel?: (() => void) | undefined;
     readonly onOpenWindow?: (() => void) | undefined;
-    readonly onRefreshAuth?: (() => void) | undefined;
+    readonly onRefreshAuth?: (() => void | Promise<void>) | undefined;
     readonly onPageChange: (page: PopupPage) => void;
     readonly children: ComponentChildren;
 }
@@ -71,7 +71,7 @@ export function AppShell({
                     type="button"
                     class={`v2-status v2-status-action ${authenticated ? 'v2-status-ok' : 'v2-status-bad'}`}
                     title={t(language, 'status.authHint')}
-                    onClick={onRefreshAuth}
+                    onClick={() => void onRefreshAuth?.()}
                 >
                     {authenticated ? t(language, 'status.auth') : t(language, 'status.needsRefresh')}
                 </button>

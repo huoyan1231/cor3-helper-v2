@@ -6,7 +6,8 @@ import { AutomationCard } from '../../components/AutomationCard.js';
 import { InfoTip } from '../../components/InfoTip.js';
 import { RefreshButton } from '../../components/RefreshButton.js';
 import { JobMarketList, type JobMarketView } from '../../components/JobMarketList.js';
-import { formatRemaining } from '../../format.js';
+import { formatAge, formatRemaining } from '../../format.js';
+import { countCompletionRecords } from '../../app/view-models/job-report.js';
 import { useT, type TranslateSource } from '../../i18n-context.js';
 
 export interface AutoJobsReportRow {
@@ -19,6 +20,7 @@ export interface AutoJobsReportRow {
     readonly failed: number;
     readonly expired: number;
     readonly pending: number;
+    readonly unknown?: number;
     readonly skipped?: number;
     readonly error?: string;
     readonly errorCode?: string;
@@ -62,7 +64,7 @@ export interface AutoJobsCardProps {
     readonly jobStatusById: Readonly<Record<string, string | undefined>>;
     readonly jobStatusReasonById: Readonly<Record<string, string | undefined>>;
     readonly selectedJobs: ReadonlySet<string>;
-    readonly toggleJob: (id: string) => void;
+    readonly toggleJob: (marketKey: string, jobId: string) => void;
     readonly toggleSelectMarket: (jobs: readonly JobOffer[]) => void;
     readonly cancelAutoFinish: () => void | Promise<void>;
     readonly runAutoFinishNow: () => void | Promise<void>;
@@ -132,6 +134,7 @@ export function AutoJobsCard(props: AutoJobsCardProps) {
         failed: market.failed ?? 0,
         expired: 0,
         pending: 0,
+        unknown: 0,
         ...(market.ok ? {} : { error: market.error }),
         ...(market.ok ? {} : (market.errorCode ? { errorCode: market.errorCode } : {})),
     }));
@@ -149,6 +152,13 @@ export function AutoJobsCard(props: AutoJobsCardProps) {
                 onEnable={() => void toggleAutoJobs()}
                 onDisable={() => void toggleAutoJobs()}
             >
+                <p class="v2-muted">
+                    {tr('Next refresh')} {autoJobs?.nextRefreshAt != null && Number.isFinite(autoJobs.nextRefreshAt)
+                        ? formatRemaining(new Date(autoJobs.nextRefreshAt).toISOString(), now)
+                        : '--'}
+                    {' · '}
+                    {tr('Last sync')} {autoJobs?.lastRefreshAt != null ? formatAge(now - autoJobs.lastRefreshAt) : tr('Never')}
+                </p>
                 <div class="v2-auto-complete">
                     <div class="v2-auto-complete-header">
                         <span class="v2-auto-complete-title">
@@ -287,13 +297,16 @@ export function AutoJobsCard(props: AutoJobsCardProps) {
                     </summary>
                     <div class="v2-status-body">
                     <p class={`v2-muted ${jobStatusTone(jobStatus)}`}>{tr(jobStatus)}</p>
-                    {autoJobs && (Object.keys(autoJobs.locks).length > 0 || Object.keys(autoJobs.retryAttempts).length > 0 || Object.keys(autoFinish?.completedJobs ?? {}).length > 0) ? (
+                    {autoJobs && (Object.keys(autoJobs.locks).length > 0 || Object.keys(autoJobs.retryAttempts).length > 0 || autoFinish?.completionStateStatus === 'unavailable' || Object.values(autoFinish?.completedJobsByMarket.byMarket ?? {}).some((jobs) => Object.keys(jobs).length > 0) || Object.keys(autoFinish?.legacyCompletedJobs ?? {}).length > 0) ? (
                         <p class="v2-muted">
-                            {tr('Locks: {locks} · retry budgets: {retry} · completed: {completed}', {
-                                locks: Object.keys(autoJobs.locks).length,
-                                retry: Object.keys(autoJobs.retryAttempts).length,
-                                completed: Object.keys(autoFinish?.completedJobs ?? {}).length,
-                            })}
+                            {autoFinish?.completionStateStatus === 'unavailable'
+                                ? tr('Completion state unavailable')
+                                : tr('Locks: {locks} · retry budgets: {retry} · completed: {completed} · legacy unknown: {legacy}', {
+                                    locks: Object.keys(autoJobs.locks).length,
+                                    retry: Object.keys(autoJobs.retryAttempts).length,
+                                    completed: countCompletionRecords(autoFinish?.completedJobsByMarket ?? { byMarket: {} }, autoFinish?.legacyCompletedJobs ?? {}).marketScoped,
+                                    legacy: countCompletionRecords(autoFinish?.completedJobsByMarket ?? { byMarket: {} }, autoFinish?.legacyCompletedJobs ?? {}).legacyUnknown,
+                                })}
                         </p>
                     ) : null}
                     {jobProgress ? (
@@ -313,6 +326,7 @@ export function AutoJobsCard(props: AutoJobsCardProps) {
                                     <span class="v2-item-name">{market.label}</span>
                                     <span class="v2-tag v2-tag-ok">{tr('{count} success', { count: market.success })}</span>
                                     {market.retry > 0 ? <span class="v2-tag v2-tag-warn">{tr('{count} retry', { count: market.retry })}</span> : null}
+                                    {(market.unknown ?? 0) > 0 ? <span class="v2-tag v2-tag-warn">{tr('{count} unknown', { count: market.unknown ?? 0 })}</span> : null}
                                     <span class="v2-tag v2-tag-warn">{tr('{count} pending', { count: market.pending })}</span>
                                     {(market.skipped ?? 0) > 0 ? <span class="v2-tag">{tr('{count} skipped', { count: market.skipped ?? 0 })}</span> : null}
                                     {market.expired > 0 ? <span class="v2-tag v2-tag-warn">{tr('{count} expired', { count: market.expired })}</span> : null}

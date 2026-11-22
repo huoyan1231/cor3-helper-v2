@@ -8,6 +8,7 @@ import {
     AUTO_EXPEDITION_RETRY_ALARM,
     AUTO_FINISH_RETRY_ALARM,
     AUTO_JOBS_INFO_ALARM,
+    AUTO_JOBS_INFO_REPAIR_ALARM,
     AUTO_MAIL_ALARM,
     AUTO_MAIL_RETRY_ALARM,
     AUTO_REFRESH_ALARM,
@@ -43,12 +44,24 @@ export function alarmRoutes(automation: AutomationRuntime, logger: AutomationLog
             },
         },
         {
+            id: 'auto-jobs-info-repair',
+            alarm: AUTO_JOBS_INFO_REPAIR_ALARM,
+            scope: 'auto-jobs',
+            run: async () => {
+                try {
+                    await automation.autoJobs.repairSchedule();
+                } catch (error) {
+                    logger.error('auto-jobs', 'Auto Jobs repair alarm failed', { message: errorText(error) });
+                }
+            },
+        },
+        {
             id: 'auto-finish-retry',
             alarm: AUTO_FINISH_RETRY_ALARM,
             scope: 'auto-finish',
             run: async () => {
                 try {
-                    const result = await automation.autoFinish.runExclusive('auto-finish-retry', false);
+                    const result = await automation.autoFinish.runExclusive('auto-finish-retry');
                     if (!result.ok) logger.warn('auto-finish', 'Auto Finish retry did not run', {
                         code: result.error?.code ?? 'AUTO_FINISH_FAILED',
                         message: result.error?.message ?? 'Auto Finish retry failed',

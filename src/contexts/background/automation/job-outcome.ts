@@ -18,12 +18,14 @@ export function jobFailureView(entry: AutoJobQueueFailure) {
         jobId: entry.job.id,
         name: entry.job.name,
         serverName: entry.job.serverName,
+        marketKey: entry.job.marketKey,
         code: error.detailCode ?? error.code,
         message: error.message,
         ...(error.retryable !== undefined ? { retryable: error.retryable } : {}),
         ...(error.retryAt !== undefined ? { retryAt: error.retryAt } : {}),
         ...(error.lockExpiresAt !== undefined ? { lockExpiresAt: error.lockExpiresAt } : {}),
         ...(error.stage !== undefined ? { stage: error.stage } : {}),
+        ...(error.unconfirmed === true ? { unconfirmed: true } : {}),
     };
 }
 
@@ -37,6 +39,7 @@ export function outcomeInputOf(entry: AutoJobQueueFailure) {
         ...(error.retryable !== undefined ? { retryable: error.retryable } : {}),
         ...(error.retryAt !== undefined ? { retryAt: error.retryAt } : {}),
         ...(error.lockExpiresAt !== undefined ? { lockExpiresAt: error.lockExpiresAt } : {}),
+        ...(error.unconfirmed === true ? { unconfirmed: true } : {}),
     };
 }
 
@@ -46,12 +49,14 @@ export function failureOf(entry: AutoJobQueueFailure): AutoFinishFailure {
         jobId: entry.job.id,
         name: entry.job.name,
         serverName: entry.job.serverName,
+        marketKey: entry.job.marketKey,
         code: error.detailCode ?? error.code,
         message: error.message,
         ...(error.retryable !== undefined ? { retryable: error.retryable } : {}),
         ...(error.retryAt !== undefined ? { retryAt: error.retryAt } : {}),
         ...(error.lockExpiresAt !== undefined ? { lockExpiresAt: error.lockExpiresAt } : {}),
         ...(error.stage !== undefined ? { stage: error.stage } : {}),
+        ...(error.unconfirmed === true ? { unconfirmed: true } : {}),
     };
 }
 
@@ -101,6 +106,7 @@ export class JobHistoryRecorder {
                 name: job.name,
                 type: job.type,
                 serverName: job.serverName,
+                marketKey: job.marketKey,
                 status: 'done' as const,
                 at,
             })),
@@ -109,6 +115,7 @@ export class JobHistoryRecorder {
                 name: entry.job.name,
                 type: entry.job.type,
                 serverName: entry.job.serverName,
+                marketKey: entry.job.marketKey,
                 status: 'failed' as const,
                 at,
                 error: entry.error.message,
@@ -118,6 +125,7 @@ export class JobHistoryRecorder {
                 name: entry.job.name,
                 type: entry.job.type,
                 serverName: entry.job.serverName,
+                marketKey: entry.job.marketKey,
                 status: 'retry' as const,
                 at,
                 error: entry.error.message,

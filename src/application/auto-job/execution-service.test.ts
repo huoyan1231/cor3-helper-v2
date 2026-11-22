@@ -2,12 +2,23 @@ import { describe, expect, it } from 'vitest';
 import type { JobOffer } from '../../domains/jobs/model.js';
 import { JobExecutionService } from './execution-service.js';
 import type { JobActionPort } from './job-actions.js';
+import type { JobStateRecorderPort } from './job-state-recorder.js';
+import type { MarketCompletionStorePort } from './market-completion.js';
 
 function job(type: JobOffer['type'], extra: Partial<JobOffer> = {}): JobOffer {
     return {
         id: 'job1', name: type, type, marketId: 'm', marketKey: 'home', serverId: 'server1',
         serverName: 'server', rewardCredits: 100, rewardReputation: 10, deposit: 0,
         alreadyTaken: false, canComplete: false, ...extra,
+    };
+}
+
+function handoffRecorder(resetAt: string | null = '2026-11-20T11:00:00.000Z'): JobStateRecorderPort {
+    return {
+        start: async (offer) => ({
+            key: { marketKey: offer.marketKey, jobId: offer.id, resetAt },
+            transition: async () => undefined,
+        }),
     };
 }
 
@@ -214,6 +225,7 @@ describe('JobExecutionService', () => {
             undefined,
             undefined,
             async () => undefined,
+            handoffRecorder(),
         );
         const result = await service.executeDetailed(job('File Decryption', {
             fileInfo: { id: 'upload-enc', name: 'payload.enc' },
@@ -246,6 +258,7 @@ describe('JobExecutionService', () => {
             undefined,
             undefined,
             async () => undefined,
+            handoffRecorder(),
         );
         const result = await service.executeDetailed(job('File Decryption'));
         expect(result.ok).toBe(true);
@@ -403,6 +416,211 @@ describe('JobExecutionService', () => {
         expect(fake.calls).toEqual(['take', 'decrypt-file']);
     });
 
+    it('completes after a decrypt.file timeout when the solver made the job claimable', async () => {
+        const fake = actions();
+        fake.port.decryptFile = async () => {
+            fake.calls.push('decrypt-file');
+            return { ok: false as const, error: { code: 'GAME_TIMEOUT', message: 'Timed out waiting for desktop:decrypt.file (action)' } };
+        };
+        let afterTakeCalls = 0;
+        let solverCalls = 0;
+        const service = new JobExecutionService(
+            fake.port,
+            undefined,
+            undefined,
+            {
+                solve: async () => {
+                    solverCalls += 1;
+                    return { ok: true as const, value: { kind: 'ice-wall' as const, solved: true } };
+                },
+                cancel: async () => ({ ok: true as const, value: undefined }),
+            },
+            undefined,
+            undefined,
+            async (current) => {
+                afterTakeCalls += 1;
+                return { ok: true as const, value: { status: 'fresh' as const, resetAt: '2026-11-20T11:00:00.000Z', job: { ...current, alreadyTaken: true, canComplete: afterTakeCalls > 1 } } };
+            },
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            async () => undefined,
+            handoffRecorder(),
+        );
+
+        const result = await service.executeDetailed(job('File Decryption'));
+
+        expect(result.ok).toBe(true);
+        expect(fake.calls).toEqual(['take', 'decrypt-file', 'complete']);
+        expect(solverCalls).toBe(1);
+    });
+
+    it('waits for the background solver result through a claimable job row', async () => {
+        const fake = actions();
+        fake.port.decryptFile = async () => {
+            fake.calls.push('decrypt-file');
+            return { ok: false as const, error: { code: 'GAME_TIMEOUT', message: 'Timed out waiting for desktop:decrypt.file (action)' } };
+        };
+        let refreshes = 0;
+        const service = new JobExecutionService(
+            fake.port,
+            undefined,
+            undefined,
+            {
+                solve: async () => ({ ok: true as const, value: { kind: 'none' as const, solved: false, message: 'no minigame detected' } }),
+                cancel: async () => ({ ok: true as const, value: undefined }),
+            },
+            undefined,
+            undefined,
+            async (current) => {
+                refreshes += 1;
+                return { ok: true as const, value: { status: 'fresh' as const, resetAt: '2026-11-20T11:00:00.000Z', job: { ...current, alreadyTaken: true, canComplete: refreshes >= 2 } } };
+            },
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            async () => undefined,
+            handoffRecorder(),
+        );
+
+        const result = await service.executeDetailed(job('File Decryption'));
+
+        expect(result.ok).toBe(true);
+        expect(refreshes).toBeGreaterThanOrEqual(2);
+        expect(fake.calls).toEqual(['take', 'decrypt-file', 'complete']);
+    });
+
+    it('does not complete while the solver result is still unconfirmed', async () => {
+        const fake = actions();
+        fake.port.decryptFile = async () => {
+            fake.calls.push('decrypt-file');
+            return { ok: false as const, error: { code: 'GAME_TIMEOUT', message: 'Timed out waiting for desktop:decrypt.file (action)' } };
+        };
+        const service = new JobExecutionService(
+            fake.port,
+            undefined,
+            undefined,
+            {
+                solve: async () => ({ ok: true as const, value: { kind: 'none' as const, solved: false, message: 'no minigame detected' } }),
+                cancel: async () => ({ ok: true as const, value: undefined }),
+            },
+            undefined,
+            undefined,
+            async (current) => ({ ok: true as const, value: { status: 'fresh' as const, resetAt: '2026-11-20T11:00:00.000Z', job: { ...current, alreadyTaken: true, canComplete: false } } }),
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            async () => undefined,
+            handoffRecorder(),
+            20,
+        );
+
+        const result = await service.executeDetailed(job('File Decryption'));
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+            expect(result.error.code).toBe('ACTION_FAILED');
+            expect(result.error.retryable).toBe(true);
+            expect(result.error.stage).toBe('minigame');
+        }
+        expect(fake.calls).toEqual(['take', 'decrypt-file']);
+    });
+
+    it('does not resend Complete when the response is unconfirmed', async () => {
+        const fake = actions();
+        fake.port.complete = async () => {
+            fake.calls.push('complete');
+            return { ok: false as const, error: { code: 'GAME_TIMEOUT', message: 'Timed out waiting for desktop:complete' } };
+        };
+        const service = new JobExecutionService(
+            fake.port,
+            undefined,
+            undefined,
+            {
+                solve: async () => ({ ok: true as const, value: { kind: 'ice-wall' as const, solved: true } }),
+                cancel: async () => ({ ok: true as const, value: undefined }),
+            },
+        );
+
+        const result = await service.executeDetailed(job('File Decryption'));
+
+        expect(result.ok).toBe(false);
+        expect(fake.calls.filter((call) => call === 'complete')).toHaveLength(1);
+        expect(fake.calls.filter((call) => call === 'take')).toHaveLength(1);
+        expect(fake.calls.filter((call) => call === 'decrypt-file')).toHaveLength(1);
+    });
+
+    it('does not resend Complete after a socket/message failure', async () => {
+        const fake = actions();
+        fake.port.complete = async () => {
+            fake.calls.push('complete');
+            return { ok: false as const, error: { code: 'JOB_COMMAND_FAILED', message: 'message channel closed before response' } };
+        };
+        const service = new JobExecutionService(
+            fake.port,
+            undefined,
+            undefined,
+            {
+                solve: async () => ({ ok: true as const, value: { kind: 'ice-wall' as const, solved: true } }),
+                cancel: async () => ({ ok: true as const, value: undefined }),
+            },
+        );
+
+        const result = await service.executeDetailed(job('File Decryption'));
+
+        expect(result.ok).toBe(false);
+        expect(fake.calls.filter((call) => call === 'complete')).toHaveLength(1);
+    });
+
+    it('does not reopen the minigame when the completion conditions fallback is unconfirmed', async () => {
+        const fake = actions();
+        fake.port.decryptFile = async () => {
+            fake.calls.push('decrypt-file');
+            return { ok: false as const, error: { code: 'GAME_TIMEOUT', message: 'Timed out waiting for desktop:decrypt.file (action)' } };
+        };
+        fake.port.complete = async () => {
+            fake.calls.push('complete');
+            return { ok: false as const, error: { code: 'GAME_JOB_FAILED', message: 'job conditions not met' } };
+        };
+        let afterTakeCalls = 0;
+        let solverCalls = 0;
+        const service = new JobExecutionService(
+            fake.port,
+            undefined,
+            undefined,
+            {
+                solve: async () => {
+                    solverCalls += 1;
+                    return { ok: true as const, value: { kind: 'ice-wall' as const, solved: true } };
+                },
+                cancel: async () => ({ ok: true as const, value: undefined }),
+            },
+            undefined,
+            undefined,
+            async (current) => {
+                afterTakeCalls += 1;
+                return { ok: true as const, value: { status: 'fresh' as const, resetAt: '2026-11-20T11:00:00.000Z', job: { ...current, alreadyTaken: true, canComplete: afterTakeCalls > 1 } } };
+            },
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            async () => undefined,
+            handoffRecorder(),
+        );
+
+        const result = await service.executeDetailed(job('File Decryption'));
+
+        expect(result.ok).toBe(false);
+        expect(fake.calls.filter((call) => call === 'decrypt-file')).toHaveLength(1);
+        expect(fake.calls.filter((call) => call === 'complete')).toHaveLength(1);
+        expect(fake.calls.filter((call) => call === 'take')).toHaveLength(1);
+        expect(solverCalls).toBe(1);
+    });
+
     it('extracts a minigame lock retry time from the game error', async () => {
         const fake = actions();
         fake.port.decryptFile = async () => ({
@@ -421,21 +639,53 @@ describe('JobExecutionService', () => {
         }
     });
 
-    it('skips decryption while the game reports an active minigame lock', async () => {
+    it('does not take a job when preflight rejects it', async () => {
         const fake = actions();
-        const lockExpiresAt = Date.now() + 60_000;
-        fake.port.getMinigameLock = async () => lockExpiresAt;
-        const service = new JobExecutionService(fake.port, undefined, undefined, {
-            solve: async () => ({ ok: true as const, value: { kind: 'none' as const, solved: false } }),
-            cancel: async () => ({ ok: true as const, value: undefined }),
-        });
+        let takeCalls = 0;
+        fake.port.take = async () => {
+            takeCalls += 1;
+            return { ok: true as const, value: undefined };
+        };
+        const service = new JobExecutionService(
+            fake.port,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            async () => ({ ok: false as const, error: { code: 'PREFLIGHT_FAILED', message: 'required solver disabled' } }),
+        );
         const result = await service.executeDetailed(job('File Decryption'));
         expect(result.ok).toBe(false);
-        if (!result.ok) {
-            expect(result.error.code).toBe('MINIGAME_FAILED');
-            expect(result.error.lockExpiresAt).toBe(lockExpiresAt);
-            expect(result.error.retryAt).toBe(lockExpiresAt);
-        }
+        if (!result.ok) expect(result.error.code).toBe('PREFLIGHT_FAILED');
+        expect(takeCalls).toBe(0);
+    });
+
+    it('completes a claim-only job without running a rejecting preflight', async () => {
+        const fake = actions();
+        let takeCalls = 0;
+        fake.port.take = async () => {
+            takeCalls += 1;
+            return { ok: true as const, value: undefined };
+        };
+        const service = new JobExecutionService(
+            fake.port,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            async () => ({ ok: false as const, error: { code: 'PREFLIGHT_FAILED', message: 'solver disabled' } }),
+        );
+        const result = await service.executeDetailed(job('File Decryption', {
+            alreadyTaken: true,
+            canComplete: true,
+        }));
+        expect(result.ok).toBe(true);
+        expect(takeCalls).toBe(0);
+        expect(fake.calls).toEqual(['complete']);
     });
 
     it('submits an already-decrypted file when analysis reports zero decrypt power', async () => {
@@ -483,7 +733,7 @@ describe('JobExecutionService', () => {
             undefined,
             (job) => { routeCalls.push('take:' + job.marketKey); return Promise.resolve({ ok: true as const, value: undefined }); },
             () => { routeCalls.push('target'); return Promise.resolve({ ok: true as const, value: undefined }); },
-            (refreshJob) => { routeCalls.push('refresh:' + refreshJob.id); return Promise.resolve({ ok: true as const, value: refreshJob }); },
+            (refreshJob) => { routeCalls.push('refresh:' + refreshJob.id); return Promise.resolve({ ok: true as const, value: { status: 'fresh' as const, resetAt: '2026-11-20T11:00:00.000Z', job: refreshJob } }); },
         );
         const result = await service.executeDetailed(job('Log Deletion'));
         expect(result.ok).toBe(true);
@@ -537,5 +787,495 @@ describe('JobExecutionService', () => {
         expect(result.ok).toBe(true);
         expect(targetCalls).toBe(0);
         expect(fake.calls).toEqual(['take', 'decrypt-file', 'complete']);
+    });
+});
+
+function lifecycleRecorder() {
+    const transitions: import('../../contracts/job-state.js').JobLifecycleStatus[] = [];
+    const recorder: import('./job-state-recorder.js').JobStateRecorderPort = {
+        start: async (offer) => ({
+            key: { marketKey: offer.marketKey, jobId: offer.id, resetAt: '2026-11-20T11:00:00.000Z' },
+            transition: async (status) => { transitions.push(status); },
+        }),
+    };
+    return { transitions, recorder };
+}
+
+function serviceWithRecorder(port: JobActionPort, recorder: import('./job-state-recorder.js').JobStateRecorderPort): JobExecutionService {
+    return new JobExecutionService(
+        port,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        recorder,
+    );
+}
+
+describe('JobExecutionService lifecycle records', () => {
+    it('persists taking before take, and completed only after an explicit complete success', async () => {
+        const fake = actions();
+        const lifecycle = lifecycleRecorder();
+        fake.port.take = async () => {
+            expect(lifecycle.transitions.at(-1)).toBe('taking');
+            fake.calls.push('take');
+            return { ok: true as const, value: undefined };
+        };
+        fake.port.complete = async () => {
+            expect(lifecycle.transitions.at(-1)).toBe('claiming');
+            fake.calls.push('complete');
+            return { ok: true as const, value: { credits: 100, reputation: 10, renown: 1 } };
+        };
+        const service = serviceWithRecorder(fake.port, lifecycle.recorder);
+
+        const result = await service.executeDetailed(job('IP Injection', {
+            conditions: [{ details: { ips: ['1.1.1.1'] } }],
+        }));
+
+        expect(result.ok).toBe(true);
+        expect(lifecycle.transitions).toEqual([
+            'available', 'taking', 'taken', 'executing', 'ready-to-claim', 'claiming', 'completed',
+        ]);
+    });
+
+    it('records a claim-only job as ready-to-claim and never sends take', async () => {
+        const fake = actions();
+        const lifecycle = lifecycleRecorder();
+        fake.port.take = async () => {
+            throw new Error('take must not be called for a claim-only job');
+        };
+        const service = serviceWithRecorder(fake.port, lifecycle.recorder);
+
+        const result = await service.executeDetailed(job('File Decryption', {
+            alreadyTaken: true,
+            canComplete: true,
+        }));
+
+        expect(result.ok).toBe(true);
+        expect(lifecycle.transitions).toEqual(['ready-to-claim', 'claiming', 'completed']);
+        expect(fake.calls).toEqual(['complete']);
+    });
+
+    it('does not record taken when the take request fails', async () => {
+        const fake = actions();
+        const lifecycle = lifecycleRecorder();
+        fake.port.take = async () => ({ ok: false as const, error: { code: 'GAME_ERROR', message: 'take rejected' } });
+        const service = serviceWithRecorder(fake.port, lifecycle.recorder);
+
+        const result = await service.executeDetailed(job('IP Injection'));
+
+        expect(result.ok).toBe(false);
+        expect(lifecycle.transitions).toContain('taking');
+        expect(lifecycle.transitions).not.toContain('taken');
+        expect(lifecycle.transitions.at(-1)).toBe('failed');
+    });
+
+    it('records an unconfirmed complete as unknown, never completed', async () => {
+        const fake = actions();
+        const lifecycle = lifecycleRecorder();
+        fake.port.complete = async () => ({
+            ok: false as const,
+            error: { code: 'GAME_TIMEOUT', message: 'Timed out waiting for desktop:complete' },
+        });
+        const service = serviceWithRecorder(fake.port, lifecycle.recorder);
+
+        const result = await service.executeDetailed(job('IP Injection', {
+            conditions: [{ details: { ips: ['1.1.1.1'] } }],
+        }));
+
+        expect(result.ok).toBe(false);
+        expect(lifecycle.transitions).toContain('claiming');
+        expect(lifecycle.transitions).not.toContain('completed');
+        expect(lifecycle.transitions.at(-1)).toBe('unknown');
+    });
+
+    it('records a preflight minigame lock as waiting-minigame without taking', async () => {
+        const fake = actions();
+        const lifecycle = lifecycleRecorder();
+        fake.port.take = async () => {
+            throw new Error('take must not be called while the job is locked');
+        };
+        const service = new JobExecutionService(
+            fake.port,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            async () => ({ ok: false as const, error: { code: 'PREFLIGHT_FAILED', message: 'Minigame locked (~5m remaining)' } }),
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            lifecycle.recorder,
+        );
+
+        const result = await service.executeDetailed(job('File Decryption'));
+
+        expect(result.ok).toBe(false);
+        expect(lifecycle.transitions).toEqual(['available', 'waiting-minigame']);
+        expect(fake.calls).toEqual([]);
+    });
+});
+
+describe('JobExecutionService handoff refresh safety', () => {
+    async function runHandoff(
+        afterTake: (current: JobOffer, timeoutMs?: number) => Promise<import('./refresh-outcome.js').JobRefreshResult>,
+        deadlineMs = 20,
+        expectedResetAt: string | null = '2026-11-20T11:00:00.000Z',
+    ) {
+        const fake = actions();
+        fake.port.decryptFile = async () => {
+            fake.calls.push('decrypt-file');
+            return { ok: false as const, error: { code: 'GAME_TIMEOUT', message: 'Timed out waiting for desktop:decrypt.file (action)' } };
+        };
+        const service = new JobExecutionService(
+            fake.port,
+            undefined,
+            undefined,
+            {
+                solve: async () => ({ ok: true as const, value: { kind: 'ice-wall' as const, solved: true } }),
+                cancel: async () => ({ ok: true as const, value: undefined }),
+            },
+            undefined,
+            undefined,
+            afterTake,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            async () => undefined,
+            handoffRecorder(expectedResetAt),
+            deadlineMs,
+        );
+        const result = await service.executeDetailed(job('File Decryption', { alreadyTaken: true, canComplete: false }));
+        return { fake, result };
+    }
+
+    it('does not use a failed refresh result', async () => {
+        const { fake, result } = await runHandoff(async () => ({
+            ok: false as const,
+            error: { code: 'MARKET_COMMAND_FAILED', message: 'refresh failed' },
+        }));
+
+        expect(result.ok).toBe(false);
+        expect(fake.calls).toEqual(['decrypt-file']);
+    });
+
+    it('does not use a missing refresh result', async () => {
+        const { fake, result } = await runHandoff(async () => ({ ok: true as const, value: { status: 'missing' as const } }));
+
+        expect(result.ok).toBe(false);
+        expect(fake.calls).toEqual(['decrypt-file']);
+    });
+
+    it('does not use an unavailable refresh result', async () => {
+        const { fake, result } = await runHandoff(async () => ({ ok: true as const, value: { status: 'unavailable' as const } }));
+
+        expect(result.ok).toBe(false);
+        expect(fake.calls).toEqual(['decrypt-file']);
+    });
+
+    it('does not use a fresh row for another job or market', async () => {
+        const { fake, result } = await runHandoff(async (current) => ({
+            ok: true as const,
+            value: {
+                status: 'fresh' as const,
+                resetAt: '2026-11-20T11:00:00.000Z',
+                job: { ...current, id: 'other-job', alreadyTaken: true, canComplete: true },
+            },
+        }));
+
+        expect(result.ok).toBe(false);
+        expect(fake.calls).toEqual(['decrypt-file']);
+    });
+
+    it('does not use a fresh row for the same job id in another market', async () => {
+        const { fake, result } = await runHandoff(async (current) => ({
+            ok: true as const,
+            value: {
+                status: 'fresh' as const,
+                resetAt: '2026-11-20T11:00:00.000Z',
+                job: { ...current, marketId: 'dark-market', marketKey: 'dark', alreadyTaken: true, canComplete: true },
+            },
+        }));
+
+        expect(result.ok).toBe(false);
+        expect(fake.calls).toEqual(['decrypt-file']);
+    });
+
+    it('fails closed when the execution reset is missing', async () => {
+        let calls = 0;
+        const { fake, result } = await runHandoff(async (current) => {
+            calls += 1;
+            return { ok: true as const, value: { status: 'fresh' as const, resetAt: '2026-11-20T11:00:00.000Z', job: { ...current, alreadyTaken: true, canComplete: true } } };
+        }, 20, null);
+
+        expect(result.ok).toBe(false);
+        expect(calls).toBe(0);
+        expect(fake.calls).toEqual(['decrypt-file']);
+    });
+
+    it('fails closed when the execution reset is not parseable', async () => {
+        let calls = 0;
+        const { fake, result } = await runHandoff(async (current) => {
+            calls += 1;
+            return { ok: true as const, value: { status: 'fresh' as const, resetAt: '2026-11-20T11:00:00.000Z', job: { ...current, alreadyTaken: true, canComplete: true } } };
+        }, 20, 'not-a-date');
+
+        expect(result.ok).toBe(false);
+        expect(calls).toBe(0);
+        expect(fake.calls).toEqual(['decrypt-file']);
+    });
+
+    it('does not complete when the refreshed reset is missing', async () => {
+        const { fake, result } = await runHandoff(async (current) => ({
+            ok: true as const,
+            value: { status: 'fresh' as const, resetAt: null, job: { ...current, alreadyTaken: true, canComplete: true } },
+        }));
+
+        expect(result.ok).toBe(false);
+        expect(fake.calls).toEqual(['decrypt-file']);
+    });
+
+    it('does not complete when the refreshed reset is not parseable', async () => {
+        const { fake, result } = await runHandoff(async (current) => ({
+            ok: true as const,
+            value: { status: 'fresh' as const, resetAt: 'not-a-date', job: { ...current, alreadyTaken: true, canComplete: true } },
+        }));
+
+        expect(result.ok).toBe(false);
+        expect(fake.calls).toEqual(['decrypt-file']);
+    });
+
+    it('stops on a reset mismatch without adopting the new reset', async () => {
+        let calls = 0;
+        const { fake, result } = await runHandoff(async (current) => {
+            calls += 1;
+            return { ok: true as const, value: { status: 'fresh' as const, resetAt: '2026-11-21T11:00:00.000Z', job: { ...current, alreadyTaken: true, canComplete: true } } };
+        });
+
+        expect(result.ok).toBe(false);
+        expect(calls).toBe(1);
+        expect(fake.calls).toEqual(['decrypt-file']);
+    });
+
+    it('completes with matching identity and claimability', async () => {
+        const { fake, result } = await runHandoff(async (current) => ({
+            ok: true as const,
+            value: { status: 'fresh' as const, resetAt: '2026-11-20T11:00:00.000Z', job: { ...current, alreadyTaken: true, canComplete: true } },
+        }));
+
+        expect(result.ok).toBe(true);
+        expect(fake.calls).toEqual(['decrypt-file', 'complete']);
+    });
+
+    it('stops at the handoff deadline without another refresh', async () => {
+        let calls = 0;
+        const { fake, result } = await runHandoff(async (current) => {
+            calls += 1;
+            await new Promise((resolve) => setTimeout(resolve, 50));
+            return { ok: true as const, value: { status: 'fresh' as const, resetAt: '2026-11-20T11:00:00.000Z', job: { ...current, alreadyTaken: true, canComplete: false } } };
+        }, 10);
+
+        expect(result.ok).toBe(false);
+        expect(calls).toBe(1);
+        expect(fake.calls).toEqual(['decrypt-file']);
+    });
+});
+
+describe('JobExecutionService Complete classification', () => {
+    function serviceWithComplete(
+        port: JobActionPort,
+        recorder: import('./job-state-recorder.js').JobStateRecorderPort,
+        completions?: MarketCompletionStorePort,
+    ): JobExecutionService {
+        return new JobExecutionService(
+            port,
+            undefined,
+            undefined,
+            {
+                solve: async () => ({ ok: true as const, value: { kind: 'ice-wall' as const, solved: true } }),
+                cancel: async () => ({ ok: true as const, value: undefined }),
+            },
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            async () => undefined,
+            recorder,
+            undefined,
+            completions,
+        );
+    }
+
+    it('writes the completion sidecar before transitioning completed', async () => {
+        const fake = actions();
+        let sidecarWritten = false;
+        const completions: MarketCompletionStorePort = {
+            recordCompletion: async () => {
+                sidecarWritten = true;
+                return { status: 'written' };
+            },
+            getState: async () => ({ byMarket: {} }),
+            getCompletion: async () => null,
+            clear: async () => undefined,
+            pruneMarketBeforeReset: async () => ({ status: 'pruned', removed: 0, state: { byMarket: {} } }),
+        };
+        const transitions: string[] = [];
+        const recorder: JobStateRecorderPort = {
+            start: async () => ({
+                key: { marketKey: 'home', jobId: 'job1', resetAt: '2026-11-20T11:00:00.000Z' },
+                transition: async (status) => {
+                    if (status === 'completed') expect(sidecarWritten).toBe(true);
+                    transitions.push(status);
+                },
+            }),
+        };
+        const service = serviceWithComplete(fake.port, recorder, completions);
+
+        const result = await service.executeDetailed(job('File Decryption', { alreadyTaken: true, canComplete: true }));
+
+        expect(result.ok).toBe(true);
+        expect(sidecarWritten).toBe(true);
+        expect(transitions.at(-1)).toBe('completed');
+    });
+
+    it('treats JOB_ACTION_FAILED as unconfirmed and records unknown', async () => {
+        const fake = actions();
+        fake.port.complete = async () => {
+            fake.calls.push('complete');
+            return { ok: false as const, error: { code: 'JOB_ACTION_FAILED', message: 'No job result' } };
+        };
+        const lifecycle = lifecycleRecorder();
+        const service = serviceWithComplete(fake.port, lifecycle.recorder);
+
+        const result = await service.executeDetailed(job('File Decryption'));
+
+        expect(result.ok).toBe(false);
+        expect(fake.calls.filter((call) => call === 'complete')).toHaveLength(1);
+        expect(fake.calls.filter((call) => call === 'take')).toHaveLength(1);
+        expect(lifecycle.transitions).not.toContain('completed');
+        expect(lifecycle.transitions.at(-1)).toBe('unknown');
+    });
+
+    it('treats an unknown Complete error code as unconfirmed', async () => {
+        const fake = actions();
+        fake.port.complete = async () => {
+            fake.calls.push('complete');
+            return { ok: false as const, error: { code: 'WEIRD_GAME_CODE', message: 'rejected' } };
+        };
+        const lifecycle = lifecycleRecorder();
+        const service = serviceWithComplete(fake.port, lifecycle.recorder);
+
+        const result = await service.executeDetailed(job('File Decryption'));
+
+        expect(result.ok).toBe(false);
+        expect(fake.calls.filter((call) => call === 'complete')).toHaveLength(1);
+        expect(fake.calls.filter((call) => call === 'take')).toHaveLength(1);
+        expect(lifecycle.transitions).not.toContain('completed');
+        expect(lifecycle.transitions.at(-1)).toBe('unknown');
+    });
+
+    it('treats a fallback GAME_JOB_FAILED as unconfirmed', async () => {
+        const fake = actions();
+        fake.port.complete = async () => {
+            fake.calls.push('complete');
+            return {
+                ok: false as const,
+                error: { code: 'GAME_JOB_FAILED', message: 'job-conditions-not-met', unconfirmed: true },
+            };
+        };
+        const lifecycle = lifecycleRecorder();
+        const service = serviceWithComplete(fake.port, lifecycle.recorder);
+
+        const result = await service.executeDetailed(job('File Decryption'));
+
+        expect(result.ok).toBe(false);
+        expect(fake.calls.filter((call) => call === 'complete')).toHaveLength(1);
+        expect(fake.calls.filter((call) => call === 'take')).toHaveLength(1);
+        expect(lifecycle.transitions).not.toContain('completed');
+        expect(lifecycle.transitions.at(-1)).toBe('unknown');
+    });
+
+    it('treats a server-provided GAME_JOB_FAILED as unconfirmed', async () => {
+        const fake = actions();
+        fake.port.complete = async () => {
+            fake.calls.push('complete');
+            return { ok: false as const, error: { code: 'GAME_JOB_FAILED', message: 'rejected' } };
+        };
+        const lifecycle = lifecycleRecorder();
+        const service = serviceWithComplete(fake.port, lifecycle.recorder);
+
+        const result = await service.executeDetailed(job('File Decryption'));
+
+        expect(result.ok).toBe(false);
+        expect(fake.calls.filter((call) => call === 'complete')).toHaveLength(1);
+        expect(fake.calls.filter((call) => call === 'take')).toHaveLength(1);
+        expect(lifecycle.transitions).not.toContain('completed');
+        expect(lifecycle.transitions.at(-1)).toBe('unknown');
+    });
+
+    it('treats AUTH_REQUIRED and AUTH_EXPIRED as unconfirmed outside their real paths', async () => {
+        for (const code of ['AUTH_REQUIRED', 'AUTH_EXPIRED']) {
+            const fake = actions();
+            fake.port.complete = async () => {
+                fake.calls.push('complete');
+                return { ok: false as const, error: { code, message: 'auth unavailable' } };
+            };
+            const lifecycle = lifecycleRecorder();
+            const service = serviceWithComplete(fake.port, lifecycle.recorder);
+
+            const result = await service.executeDetailed(job('File Decryption'));
+
+            expect(result.ok).toBe(false);
+            expect(fake.calls.filter((call) => call === 'complete')).toHaveLength(1);
+            expect(fake.calls.filter((call) => call === 'take')).toHaveLength(1);
+            expect(lifecycle.transitions).not.toContain('completed');
+            expect(lifecycle.transitions.at(-1)).toBe('unknown');
+        }
+    });
+
+    it('keeps confirmed-not-sent NO_COR3_TAB on the finite retry path', async () => {
+        const fake = actions();
+        fake.port.complete = async () => {
+            fake.calls.push('complete');
+            return { ok: false as const, error: { code: 'NO_COR3_TAB', message: 'No cor3.gg tab found' } };
+        };
+        const lifecycle = lifecycleRecorder();
+        const service = serviceWithComplete(fake.port, lifecycle.recorder);
+
+        const result = await service.executeDetailed(job('File Decryption'));
+
+        expect(result.ok).toBe(false);
+        expect(fake.calls.filter((call) => call === 'complete')).toHaveLength(4);
+        expect(lifecycle.transitions).not.toContain('completed');
+    });
+
+    it('keeps explicit INVALID_JOB on the finite retry path', async () => {
+        const fake = actions();
+        fake.port.complete = async () => {
+            fake.calls.push('complete');
+            return { ok: false as const, error: { code: 'INVALID_JOB', message: 'Invalid job data' } };
+        };
+        const lifecycle = lifecycleRecorder();
+        const service = serviceWithComplete(fake.port, lifecycle.recorder);
+
+        const result = await service.executeDetailed(job('File Decryption'));
+
+        expect(result.ok).toBe(false);
+        expect(fake.calls.filter((call) => call === 'complete')).toHaveLength(4);
+        expect(lifecycle.transitions).not.toContain('completed');
     });
 });

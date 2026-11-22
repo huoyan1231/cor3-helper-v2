@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { AuthStatus, SettingsV1 } from '../../contracts/storage.js';
-import type { UpdateCheckView } from '../../application/popup/portal.js';
+import type { UpdateCheckResult } from '../../contracts/update-check.js';
 import { GameSection } from '../components/GameSection.js';
 import { InfoTip } from '../components/InfoTip.js';
 import { Modal } from '../components/Modal.js';
 import { ToggleSwitch } from '../components/ToggleSwitch.js';
+import { UpdateStatus } from '../components/UpdateStatus.js';
 import { FORK_DISPLAY_NAME, FORK_ISSUES_URL, FORK_RELEASES_URL, FORK_REPO_URL, UPSTREAM_REPO, UPSTREAM_REPO_URL } from '../app/fork-info.js';
 import { t, type UiLanguage } from '../i18n.js';
 
@@ -27,8 +28,8 @@ export interface SettingsPageProps {
     readonly onImportSettings: (json: string) => Promise<string | null>;
     readonly onResetSettings: () => Promise<string | null>;
     readonly onOpenDeveloper: () => void;
-    readonly updateInfo: UpdateCheckView | null;
-    readonly updateError: string | null;
+    readonly updateResult: UpdateCheckResult | null;
+    readonly updateStatusError: string | null;
     readonly updateChecking: boolean;
     readonly onCheckUpdates: () => void | Promise<void>;
 }
@@ -63,8 +64,8 @@ export function SettingsPage({
     onImportSettings,
     onResetSettings,
     onOpenDeveloper,
-    updateInfo,
-    updateError,
+    updateResult,
+    updateStatusError,
     updateChecking,
     onCheckUpdates,
 }: SettingsPageProps) {
@@ -369,27 +370,13 @@ export function SettingsPage({
                     <span>COR3 Helper</span>
                     <span class="v2-muted">{versionName ?? '2.0'}</span>
                 </div>
-                <div class="v2-about-update">
-                    <button type="button" disabled={updateChecking} onClick={() => void onCheckUpdates()}>
-                        {updateChecking ? t(language, 'settings.about.checking') : t(language, 'settings.about.check')}
-                    </button>
-                    {updateError ? (
-                        <span class="v2-text-error" title={updateError}>
-                            {t(language, 'settings.about.checkFailed')}
-                            <a href={FORK_RELEASES_URL} target="_blank" rel="noreferrer">{t(language, 'settings.about.checkManually')}</a>
-                        </span>
-                    ) : updateInfo ? (
-                        updateInfo.updateAvailable ? (
-                            <span class="v2-text-warn">
-                                {t(language, 'settings.about.updateAvailable', { version: updateInfo.latest })}
-                                {' · '}
-                                <a href={updateInfo.releaseUrl} target="_blank" rel="noreferrer">{t(language, 'settings.about.download')}</a>
-                            </span>
-                        ) : (
-                            <span class="v2-text-ok">{t(language, 'settings.about.upToDate')}</span>
-                        )
-                    ) : null}
-                </div>
+                <UpdateStatus
+                    language={language}
+                    result={updateResult}
+                    statusError={updateStatusError}
+                    checking={updateChecking}
+                    onCheck={onCheckUpdates}
+                />
                 <div class="v2-about-line">
                     <span>{t(language, 'settings.about.fork')}</span>
                     <strong>{FORK_DISPLAY_NAME}</strong>

@@ -1,5 +1,6 @@
 import { JOB_TYPES, type JobType } from '../../kernel/job-types.js';
 import type { JobCondition, JobOffer } from '../../contracts/jobs.js';
+import { jobIdentityKey } from '../../contracts/jobs.js';
 
 export { JOB_TYPES, type JobType };
 export type { JobCondition, JobOffer };
@@ -10,6 +11,7 @@ export const JOB_TYPE_PRIORITY: readonly JobType[] = [
 ];
 
 export interface JobSelectionOptions {
+    /** Market-scoped job identity strings (`jobIdentityKey`). */
     readonly completedIds?: ReadonlySet<string>;
     readonly supportedTypes?: ReadonlySet<string>;
     readonly serverPriority: (serverName: string | null, job: JobOffer) => number;
@@ -18,14 +20,6 @@ export interface JobSelectionOptions {
 /** File Decryption works on a local downloaded file and has no target server. */
 export function isServerlessJob(type: JobType): boolean {
     return type === 'File Decryption';
-}
-
-/** True when the job requires opening the decrypt minigame at some point. */
-export function jobNeedsDecrypt(job: JobOffer): boolean {
-    if (job.type === 'File Decryption' || job.type === 'Decrypt & Extract') return true;
-    return (job.conditions ?? []).some((condition) =>
-        condition.type === 'DecryptFile' || condition.type === 'DecryptDownloadedFile',
-    );
 }
 
 export const DECRYPT_CONDITION_TYPES = ['DecryptFile', 'DecryptDownloadedFile'] as const;
@@ -113,7 +107,7 @@ export function selectJobs(offers: readonly JobOffer[], options: JobSelectionOpt
     const completed = options.completedIds ?? new Set<string>();
     const supported = options.supportedTypes;
     return offers
-        .filter((job) => !completed.has(job.id))
+        .filter((job) => !completed.has(jobIdentityKey(job.marketKey, job.id)))
         .filter((job) => !supported || supported.has(job.type))
         .sort((a, b) => {
             const server = options.serverPriority(a.serverName, a) - options.serverPriority(b.serverName, b);

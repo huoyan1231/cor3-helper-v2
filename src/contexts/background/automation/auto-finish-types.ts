@@ -1,4 +1,5 @@
-import type { AutoFinishLastRun, AutoFinishMarketResult } from '../../../contracts/auto-finish.js';
+import type { AutoFinishLastRun, AutoFinishMarketResult, AutoFinishUnknownJob } from '../../../contracts/auto-finish.js';
+import type { MarketCompletedJobsState } from '../../../contracts/market-completed-jobs.js';
 import type { AutoJobsSnapshot } from '../../../contracts/auto-jobs.js';
 import type { AutoJobProgress, AutoJobQueueService } from '../../../application/auto-job/queue.js';
 import type { AutoFinishStateStore } from '../../../infrastructure/storage/auto-finish-state-store.js';
@@ -38,14 +39,15 @@ export interface AutoFinishDeps {
     readonly runLogs: RunLogSink;
     readonly clock: { now(): number };
     readonly store: AutoFinishStateStore;
+    readonly completions: import('../../../application/auto-job/market-completion.js').MarketCompletionStorePort;
+    /** Durable Job State barrier for unconfirmed Complete results. */
+    readonly jobStates?: Pick<import('../../../application/auto-job/job-state-port.js').JobStateStorePort, 'list' | 'listWithHealth'>;
     readonly locks: JobLockRegistry;
     readonly history: JobHistoryRecorder;
     readonly queue: AutoJobQueueService;
     readonly markets: JobMarketSync;
     readonly snapshots: Pick<NetworkSnapshotService, 'get'>;
     readonly networkOps: Pick<import('../../../application/network/operation-queue.js').NetworkOperationQueue, 'enqueue'>;
-    /** Global game minigame lock, if one is active. */
-    readonly minigameLock?: () => Promise<number | null>;
     readonly humanDelay?: (minMs?: number, maxMs?: number) => Promise<void>;
 }
 
@@ -58,6 +60,14 @@ export interface AutoFinishStatus {
     readonly progress: AutoJobProgress | null;
     readonly nextRetryAt: number | null;
     readonly retryReason: string | null;
-    /** Job id -> market reset it was completed for. */
-    readonly completedJobs: Readonly<Record<string, string>>;
+    /** Authoritative automation completion state, scoped by market. */
+    readonly completedJobsByMarket: MarketCompletedJobsState;
+    /** Legacy jobId-only records; display/diagnostics only, never automation input. */
+    readonly legacyCompletedJobs: Readonly<Record<string, string>>;
+    /** `unavailable` means the sidecar could not be read; it is not an empty store. */
+    readonly completionStateStatus: 'not-loaded' | 'loaded' | 'unavailable';
+    /** Durable per-job Complete-Unknown projection. */
+    readonly unknownJobs: readonly AutoFinishUnknownJob[];
+    /** Availability of the Unknown projection sources. */
+    readonly unknownStateStatus: 'loaded' | 'partial' | 'unavailable';
 }

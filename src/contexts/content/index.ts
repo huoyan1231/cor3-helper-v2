@@ -45,10 +45,17 @@ function publishMarketCache(value: unknown, marketId: unknown): void {
 
 window.addEventListener('message', (event) => {
     if (event.source !== window) return;
-    const data = event.data as { version?: unknown; type?: unknown; readiness?: unknown; marketId?: unknown; snapshot?: unknown; level?: unknown; message?: unknown; data?: unknown } | null;
+    const data = event.data as { version?: unknown; type?: unknown; readiness?: unknown; marketId?: unknown; snapshot?: unknown; level?: unknown; message?: unknown; data?: unknown; decisions?: unknown } | null;
     if (data?.version !== undefined && data.version !== 2) return;
     if (data?.type === 'V2_GAME_READINESS_CHANGED') publishReadiness(data.readiness);
     if (data?.type === 'V2_MARKET_CACHE_UPDATED') publishMarketCache(data.snapshot, data.marketId);
+    if (data?.type === 'V2_EXPEDITION_DECISIONS' && Array.isArray(data.decisions)) {
+        try {
+            sendToBackground({ type: 'V2_EXPEDITION_DECISIONS', decisions: data.decisions });
+        } catch {
+            // The content script may outlive an extension reload.
+        }
+    }
     if (data?.type === 'V2_WS_NOTICE' && typeof data.message === 'string') {
         try {
             sendToBackground({
@@ -444,11 +451,18 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
     }
     if (type === 'V2_REQUEST_MARKET_JOBS') {
         const marketId = (message as { marketId?: unknown }).marketId;
+        const requestedTimeout = (message as { timeoutMs?: unknown }).timeoutMs;
         if (typeof marketId !== 'string' || marketId.length === 0) {
             sendResponse({ ok: false, error: { code: 'INVALID_MARKET', message: 'Invalid market id' } });
             return true;
         }
-        void game.request('game.requestMarketJobs', { marketId }, z.unknown(), 35_000).then((result) => sendResponse(result));
+        const timeoutMs = typeof requestedTimeout === 'number' && requestedTimeout > 0
+            ? Math.min(requestedTimeout, 35_000)
+            : 35_000;
+        void game.request('game.requestMarketJobs', {
+            marketId,
+            timeoutMs,
+        }, z.unknown(), timeoutMs + 500).then((result) => sendResponse(result));
         return true;
     }
     return false;

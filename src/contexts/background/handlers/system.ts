@@ -157,9 +157,11 @@ export function registerSystemHandlers(server: CoreRuntime['server'], deps: Syst
         void deps.automation.autoJobs.ensureInfo('popup-open');
         return ok({ version: VERSION, phase: PHASE });
     });
+    server.register('system.updateStatus', z.object({}).strict(), async () => {
+        return ok(await deps.core.updateCheck.getStatus());
+    });
     server.register('system.updateCheck', z.object({}).strict(), async () => {
-        const result = await deps.core.updateChecker.check(deps.core.appVersion(), deps.core.appVersionCode());
-        return result.ok ? ok(result.value) : { ok: false, error: result.error };
+        return ok(await deps.core.updateCheck.check({ force: true }));
     });
     server.register('automation.logs', z.object({
         runId: z.string().min(1),
@@ -205,6 +207,8 @@ export function registerSystemHandlers(server: CoreRuntime['server'], deps: Syst
             autoJobs: {
                 nextRefreshAt: autoJobsStatus.nextRefreshAt,
                 refreshReason: autoJobsStatus.refreshReason,
+                scheduleState: autoJobsStatus.scheduleState,
+                repairAt: autoJobsStatus.repairAt,
                 lastRefreshAt: autoJobsStatus.lastRefreshAt,
                 lastError: automation.autoJobs.lastErrorText(),
                 lastSkipReason: automation.autoJobs.lastSkipReasonText(),

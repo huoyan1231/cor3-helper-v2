@@ -134,7 +134,10 @@ export function SidePanelApp({
     const jobViews = useJobViews({
         autoFinishEnabled: autoFinish.autoFinish?.enabled ?? false,
         autoRunMarkets: autoFinish.markets,
-        completedJobs: autoFinish.completedJobs,
+        unconfirmedFailures: autoFinish.unconfirmedFailures,
+        unknownJobs: autoFinish.unknownJobs,
+        unknownStateStatus: autoFinish.unknownStateStatus,
+        completedJobsByMarket: autoFinish.completedJobsByMarket,
         jobReport: jobs.jobReport,
         autoJobsMarkets: jobs.autoJobsMarkets,
         jobRunStatusById: jobs.jobRunStatusById,
@@ -152,6 +155,15 @@ export function SidePanelApp({
         autoMailRunning: mail.autoMail?.running,
         valuableActive: valuable.valuableRunId !== null,
     });
+
+    const refreshSession = useCallback(async () => {
+        await Promise.all([
+            settings.loadAuth(),
+            network.loadNetwork(),
+            gameStatus.loadOverview(),
+            connection.check(settings.tt),
+        ]);
+    }, [settings.loadAuth, settings.tt, network.loadNetwork, gameStatus.loadOverview, connection.check]);
 
     const reloadAutomation = useCallback(async () => {
         await Promise.all([
@@ -235,7 +247,7 @@ export function SidePanelApp({
                 popupMode={popupMode}
                 onOpenSidePanel={popupMode ? () => void portal.openSidePanel() : undefined}
                 onOpenWindow={windowMode ? undefined : () => void portal.openWindow()}
-                onRefreshAuth={() => void settings.loadAuth()}
+                onRefreshAuth={refreshSession}
                 onPageChange={setActivePage}
             >
                 {activePage === 'developer' ? (

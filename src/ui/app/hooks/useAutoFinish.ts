@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
-import type { AutoFinishMarketResult, AutoFinishStatus, PopupPortal } from '../../../application/popup/portal.js';
+import type { AutoFinishFailure, AutoFinishMarketResult, AutoFinishStatus, PopupPortal } from '../../../application/popup/portal.js';
+import type { AutoFinishUnknownJob } from '../../../contracts/auto-finish.js';
+import { sortUnknownJobs } from '../view-models/job-report.js';
 import type { TranslateSource } from '../../i18n-context.js';
 import type { PopupPage } from '../AppShell.js';
 import { autoFinishMarketsToJobReport, type UiJobReport } from '../view-models/job-report.js';
@@ -25,8 +27,16 @@ export interface AutoFinishState {
     readonly autoCompleteCountdown: number | null;
     /** Markets of the live or last Auto Finish run (`autoRunMarkets`). */
     readonly markets: readonly AutoFinishMarketResult[];
-    /** Job id -> market reset it was completed for (persisted truth). */
-    readonly completedJobs: Readonly<Record<string, string>>;
+    /** Complete-unknown failures from the last AutoFinish report. */
+    readonly unconfirmedFailures: readonly AutoFinishFailure[];
+    /** Durable per-job Unknown projection, sorted for stable display. */
+    readonly unknownJobs: readonly AutoFinishUnknownJob[];
+    readonly unknownStateStatus: 'loaded' | 'partial' | 'unavailable';
+    /** Market-scoped completion truth. */
+    readonly completedJobsByMarket: import('../../../contracts/market-completed-jobs.js').MarketCompletedJobsState;
+    /** Legacy jobId-only records; display/diagnostics only. */
+    readonly legacyCompletedJobs: Readonly<Record<string, string>>;
+    readonly completionStateStatus: 'not-loaded' | 'loaded' | 'unavailable';
     /** Run id used by the merged debug log query. */
     readonly logRunId: string | null;
     readonly loadAutoFinish: () => Promise<void>;
@@ -50,6 +60,9 @@ export function useAutoFinish(portal: PopupPortal, deps: AutoFinishDeps): AutoFi
     }, []);
 
     const autoRunMarkets = autoFinish?.live?.markets ?? autoFinish?.last?.markets ?? [];
+    const unconfirmedFailures = (autoFinish?.last?.failures ?? []).filter((failure) => failure.unconfirmed === true && failure.marketKey !== undefined);
+    const unknownJobs = sortUnknownJobs(autoFinish?.unknownJobs ?? []);
+    const unknownStateStatus = autoFinish?.unknownStateStatus ?? 'unavailable';
 
     const loadAutoFinish = useCallback(async () => {
         const sequence = ++autoFinishRequestSeq.current;
@@ -126,7 +139,11 @@ export function useAutoFinish(portal: PopupPortal, deps: AutoFinishDeps): AutoFi
                     progress: null,
                     nextRetryAt: null,
                     retryReason: null,
-                    completedJobs: {},
+                    completedJobsByMarket: { byMarket: {} },
+                    legacyCompletedJobs: {},
+                    completionStateStatus: 'not-loaded',
+                    unknownJobs: [],
+                    unknownStateStatus: 'unavailable',
                 }),
                 enabled: true,
             }));
@@ -171,10 +188,15 @@ export function useAutoFinish(portal: PopupPortal, deps: AutoFinishDeps): AutoFi
     return {
         autoFinish,
         autoFinishBusy,
+        unconfirmedFailures,
+        unknownJobs,
+        unknownStateStatus,
         autoFinishCanceling,
         autoCompleteCountdown,
         markets: autoRunMarkets,
-        completedJobs: autoFinish?.completedJobs ?? {},
+        completedJobsByMarket: autoFinish?.completedJobsByMarket ?? { byMarket: {} },
+        legacyCompletedJobs: autoFinish?.legacyCompletedJobs ?? {},
+        completionStateStatus: autoFinish?.completionStateStatus ?? 'not-loaded',
         logRunId,
         loadAutoFinish,
         runAutoFinishNow,

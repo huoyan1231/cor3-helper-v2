@@ -1,12 +1,14 @@
 import { useMemo } from 'preact/hooks';
-import type { AutoFinishMarketResult } from '../../../contracts/auto-finish.js';
+import type { AutoFinishFailure, AutoFinishMarketResult, AutoFinishUnknownJob } from '../../../contracts/auto-finish.js';
 import type { AutoJobsMarket } from '../../../contracts/auto-jobs.js';
+import type { MarketCompletedJobsState } from '../../../contracts/market-completed-jobs.js';
 import type { JobOffer } from '../../../application/popup/catalog.js';
 import type { JobMarketView } from '../../components/JobMarketList.js';
 import {
     buildJobMarketViews,
     buildJobReasonById,
     buildJobStatusById,
+    resolveUnknownJobs,
     selectShownJobReport,
     type JobRunStatus,
     type UiJobReport,
@@ -20,7 +22,10 @@ import {
 export interface JobViewsInput {
     readonly autoFinishEnabled: boolean;
     readonly autoRunMarkets: readonly AutoFinishMarketResult[];
-    readonly completedJobs: Readonly<Record<string, string>>;
+    readonly unconfirmedFailures?: readonly AutoFinishFailure[];
+    readonly unknownJobs?: readonly AutoFinishUnknownJob[];
+    readonly unknownStateStatus?: 'loaded' | 'partial' | 'unavailable';
+    readonly completedJobsByMarket: MarketCompletedJobsState;
     readonly jobReport: readonly UiJobReport[];
     readonly autoJobsMarkets: readonly AutoJobsMarket[];
     readonly jobRunStatusById: Readonly<Record<string, JobRunStatus>>;
@@ -33,13 +38,18 @@ export interface JobViews {
     readonly jobReasonById: Readonly<Record<string, string>>;
     readonly jobMarketViews: readonly JobMarketView[];
     readonly shownJobReport: readonly UiJobReport[];
+    /** Preserve the source availability internally; no new visual state. */
+    readonly unknownStateStatus: 'loaded' | 'partial' | 'unavailable';
 }
 
 export function useJobViews(input: JobViewsInput): JobViews {
     const {
         autoFinishEnabled,
         autoRunMarkets,
-        completedJobs,
+        unconfirmedFailures = [],
+        unknownJobs = [],
+        unknownStateStatus = 'unavailable',
+        completedJobsByMarket,
         jobReport,
         autoJobsMarkets,
         jobRunStatusById,
@@ -47,13 +57,26 @@ export function useJobViews(input: JobViewsInput): JobViews {
         jobsByMarket,
     } = input;
 
+    const resolvedUnknown = useMemo(
+        () => resolveUnknownJobs({
+            unknownJobs,
+            unknownStateStatus,
+            autoRunMarkets,
+            failures: unconfirmedFailures,
+            resetByMarket: jobResetByMarket,
+        }),
+        [unknownJobs, unknownStateStatus, autoRunMarkets, unconfirmedFailures, jobResetByMarket],
+    );
+    const unknownByIdentity = resolvedUnknown.unknownByIdentity;
+
     const jobStatusById = useMemo(
         () => buildJobStatusById(autoFinishEnabled, autoRunMarkets, jobRunStatusById, {
-            completedJobs,
+            completedJobsByMarket,
             resetByMarket: jobResetByMarket,
             jobsByMarket,
+            unknownByIdentity,
         }),
-        [autoFinishEnabled, autoRunMarkets, completedJobs, jobRunStatusById, jobResetByMarket, jobsByMarket],
+        [autoFinishEnabled, autoRunMarkets, completedJobsByMarket, jobRunStatusById, jobResetByMarket, jobsByMarket, unknownByIdentity],
     );
 
     const jobReasonById = useMemo(
@@ -71,5 +94,11 @@ export function useJobViews(input: JobViewsInput): JobViews {
         [autoFinishEnabled, autoRunMarkets, jobReport, autoJobsMarkets],
     );
 
-    return { jobStatusById, jobReasonById, jobMarketViews, shownJobReport };
+    return {
+        jobStatusById,
+        jobReasonById,
+        jobMarketViews,
+        shownJobReport,
+        unknownStateStatus: resolvedUnknown.status,
+    };
 }

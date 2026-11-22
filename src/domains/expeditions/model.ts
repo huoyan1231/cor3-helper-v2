@@ -16,6 +16,7 @@ export interface ExpeditionLocation {
 }
 
 export type DecisionPolicy = 'off' | 'veterans' | 'loot' | 'risk';
+export type DecisionMode = 'simple' | 'score';
 
 export interface ExpeditionMercenary {
     readonly id: string;
@@ -29,6 +30,7 @@ export interface ExpeditionMercenary {
     readonly status: string;
     readonly faction: string;
     readonly elite: boolean;
+    readonly restUntil?: string | null;
 }
 
 export interface ExpeditionDecisionOption {
@@ -36,6 +38,7 @@ export interface ExpeditionDecisionOption {
     readonly label: string;
     readonly successChance: number | null;
     readonly risk: number | null;
+    readonly loot: number | null;
     readonly lootModifier: number;
     readonly riskModifier: number;
     readonly requiredModuleId: string | null;
@@ -45,6 +48,9 @@ export interface ExpeditionDecision {
     readonly id: string;
     readonly expeditionId: string;
     readonly message: string;
+    readonly riskScore: number | null;
+    readonly lootScore: number | null;
+    readonly deadline: string | null;
     readonly options: readonly ExpeditionDecisionOption[];
 }
 
@@ -56,6 +62,7 @@ export interface ActiveExpedition {
     readonly mercenaryRank?: string | null;
     readonly totalCost: number | null;
     readonly riskScore: number | null;
+    readonly lootScore: number | null;
     readonly hasInsurance: boolean | null;
     readonly endsAt: string | null;
 }
@@ -107,6 +114,48 @@ export interface EffectiveDecisionPolicyInput {
 export function resolveEffectiveDecisionPolicy(input: EffectiveDecisionPolicyInput): DecisionPolicy {
     if (input.policy === 'off' || !input.getRidOfVeterans || !input.isVeteran) return input.policy;
     return 'veterans';
+}
+
+export interface DecisionScoreWeights {
+    readonly loot: number;
+    readonly risk: number;
+}
+
+/** v1 ratio score: loot modifier weight plus risk modifier scaled by expedition risk. */
+export function decisionScore(
+    option: Pick<ExpeditionDecisionOption, 'lootModifier' | 'riskModifier'>,
+    expeditionRiskScore: number | null,
+    weights: DecisionScoreWeights,
+): number {
+    const riskScore = expeditionRiskScore ?? 0;
+    return Math.round(
+        (option.lootModifier * weights.loot)
+        + (option.riskModifier * weights.risk * (((riskScore + Math.abs(option.riskModifier)) / 10) || 1)),
+    );
+}
+
+/**
+ * Score mode: highest score wins; on a tie the first option wins because only
+ * a strictly higher score replaces the incumbent. Unusable module-locked
+ * options stay behind usable ones.
+ */
+export function chooseScoredDecisionOption(
+    options: readonly ExpeditionDecisionOption[],
+    expeditionRiskScore: number | null,
+    weights: DecisionScoreWeights,
+): ExpeditionDecisionOption | null {
+    const usable = options.filter((option) => option.requiredModuleId === null);
+    const pool = usable.length > 0 ? usable : options;
+    let best: ExpeditionDecisionOption | null = null;
+    let bestScore = -Infinity;
+    for (const option of pool) {
+        const score = decisionScore(option, expeditionRiskScore, weights);
+        if (score > bestScore) {
+            best = option;
+            bestScore = score;
+        }
+    }
+    return best;
 }
 
 

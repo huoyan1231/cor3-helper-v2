@@ -5,15 +5,15 @@
 - **Method:** static source review of popup, content scripts, MAIN-world hooks, background scheduler, bridge contracts, tests, build/release config, and architecture docs
 - **Status legend for v1 → v2:** `Implemented` = equivalent user capability exists; `Partial` = core exists but visible scope/behavior differs; `Missing` = no counterpart found; `Unknown` = cannot confirm without runtime QA
 - **Caveat:** this is not a runtime parity sign-off. The 2.0 release line is complete; the displayed version is now the plain `<version>` (no `-salta` suffix, no local build counter), while release tags and artifact names still use `<version>-salta`. Historical sections retain their original development labels.
-- **Last verified:** 2026-11-21 against `2.4.0` (Part 47 records the v2.3.x drone-tab work; Part 49 records the v2.4.0 inventory bulk-sell addition; Part 50 records the tracker tab-switch fix; Part 51 records the per-item quantity modal; Part 52 records the mission-surplus sale; Part 53 records the full-test bug-fix pass; Part 54 records the versionCode-based update detection restore; older Parts keep their original version labels)
+- **Last verified:** 2026-11-22 against `2.4.3` (Part 47 records the v2.3.x drone-tab work; Part 49 records the v2.4.0 inventory bulk-sell addition; Part 50 records the tracker tab-switch fix; Part 51 records the per-item quantity modal; Part 52 records the mission-surplus sale; Part 53 records the full-test bug-fix pass; Part 54 records the versionCode-based update detection restore; Parts 55-62 record the fork's maintenance, config, cache-loading and UI fixes; older Parts keep their original version labels)
 - **Current verification:** `npm run typecheck`, `npm run lint`, `npm test` and `npm run build` all pass.
 
-## Current completion snapshot (`2.0.6`)
+## Current completion snapshot (`2.4.3`)
 
 | Metric | Value |
 |---|---|
-| TypeScript/TSX source files | 390 (including 80 test files) |
-| Files under `src/` | 399 (vendored JavaScript is limited to `src/libs/`) |
+| TypeScript/TSX source files | 461 (including 122 test files) |
+| Files under `src/` | 470 (vendored JavaScript is limited to `src/libs/`) |
 | v1 parity rows with a status | 147 |
 | Implemented / improved | 89 |
 | Partial | 37 |
@@ -361,7 +361,7 @@ Reading the numbers:
 | H7 | Job schema assumption | `application/auto-job/market-mapper.ts` validates `raw.name` against `JOB_TYPES` and sets `type: raw.name`; ignores `raw.jobType`. | Localization/rename silently marks every job unsupported. | Map from machine `jobType`; keep display names separate; fixtures for localized rows. |
 | H8 | Background god module | `contexts/background/index.ts` ~4,575 lines, ~98 handlers plus alarms/routing/business logic. `SidePanelApp.tsx` ~1,860 lines. | High merge/regression risk; hard to test. | Split into context composition + per-automation application services; small handler modules. |
 | H9 | Persistence/versioning | Unversioned stores: `daily-ops-cache-store`, `drone-data-cache-store`, `expedition-config-cache-store`, `feature-availability-store`, `automation-state-store`. `versioned-repository` discards incompatible data with no migration. `contracts/storage.ts` makes settings enums depend on `JOB_TYPES`. | Caches/settings silently reset; removing a job type invalidates all settings. | Version every persisted value; idempotent migrations; decouple settings from domain enums. |
-| H10 | Untested critical paths | 80 test files vs 390 TypeScript/TSX source files (399 files under `src/`). The dev.230 pass added a decrypt-pipeline integration test, store-migration tests and an architecture-boundary test, but background/content/portal orchestration and UI rendering still lack integration tests. Vitest uses node env; no coverage thresholds/fake timers. | Orchestration/races/migrations regress invisibly; UI mostly untestable. | Integration tests with fake tab transport/clock; migration/redaction tests; jsdom component tests. |
+| H10 | Untested critical paths | 108 test files vs 440 TypeScript/TSX source files (448 files under `src/`). The dev.230 pass added a decrypt-pipeline integration test, store-migration tests and an architecture-boundary test, but background/content/portal orchestration and UI rendering still lack integration tests. Vitest uses node env; no coverage thresholds/fake timers. | Orchestration/races/migrations regress invisibly; UI mostly untestable. | Integration tests with fake tab transport/clock; migration/redaction tests; jsdom component tests. |
 
 ## Medium severity
 
@@ -609,8 +609,8 @@ Residual risk: these changes have unit coverage but still need a live-game smoke
 
 - `npm run typecheck` — pass
 - `npm run lint` — pass
-- `npm test` — 95 files / 478 tests pass
-- `npm run build` — pass, `2.0.6-salta.281`
+- `npm test` — 122 files / 986 tests pass
+- `npm run build` — pass, `2.0.7-salta.311`
 
 ---
 
@@ -738,7 +738,7 @@ Fixes:
 
 - typecheck / lint pass
 - 80 test files / 355 tests
-- build `2.0.6-salta.281`
+- build `2.0.6-salta.297`
 
 ---
 
@@ -1324,3 +1324,13 @@ A full verification run (typecheck, Vitest, oxlint, build) plus a review of the 
 - **Symptom:** the top-right AUTH / NEEDS REFRESH tag stayed stale after refreshing the game page; only reopening the side panel updated it. `useSettings()` loaded auth once on mount and nothing re-read it, even though `ChromeTabAuthAdapter.status()` queries the game tab's content script live on every call.
 - **Fix:** `useSettings()` now runs `loadAuth()` on a 15 s `usePolling` loop. `AppShell`'s auth tag became a button (`onRefreshAuth`) wired in `SidePanelApp` to `settings.loadAuth()` for an immediate re-check. Added `.v2-status-action` styling and updated the EN/ZH `status.authHint` tooltips to describe click-to-refresh.
 - **Verification:** typecheck, oxlint, Vitest and production build pass.
+
+---
+
+# Part 63 — Merge `upstream/v2` while preserving fork semantics (2026-11-22)
+
+- **Scope:** merged 25 conflicting files from `upstream/v2`. Upstream's auto-job completion barriers, job-state store/reconciler/recorder, market-completed-jobs store, update-check lifecycle/cache/UI and richer mercenary decision model were adopted; the fork's inventory tools, maintenance forcing, drone tracker, configurable expedition interval and live auth header were preserved.
+- **Update check:** kept the fork's single `update.json` + integer `versionCode` decision (`remote.versionCode > __COR3_VERSION_CODE__`), with the popup doing a direct check first and the bridge as fallback. Upstream's timeout/error taxonomy, cached `system.updateStatus` and `UpdateStatus` UI remain; `update.json` stays the remote release baseline and is not hand-edited. The upstream "popup never fetches" test was updated to assert direct-first/fallback-to-bridge instead.
+- **Mercenary decisions:** merged the fork's veteran/insurance flags with upstream's `mercDecisionMode` and loot/risk score weights. `autoRespond()` receives one options object; candidates carry both `insurance` and `insuranceCost`; the option UI keeps the veteran helpers alongside upstream's score mode. No old setting key was removed.
+- **UI composition:** `AppShell` retains `ping` and `hasEndpoint` props supplied by `SidePanelApp`; the auth refresh button uses upstream's `refreshSession`. The UI architecture test now normalizes Windows path separators.
+- **Verification:** typecheck, oxlint, all 1096 Vitest tests and production build pass.

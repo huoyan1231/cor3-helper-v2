@@ -7,6 +7,7 @@ import { networkMapSummarySchema } from '../../application/network/summary.js';
 import type { BridgeClient } from '../bridge/bridge-client.js';
 import { UpdateChecker } from '../update/update-checker.js';
 import { toVersionCode } from '../../kernel/version.js';
+import { updateCheckResultSchema, type UpdateCheckResult } from '../../contracts/update-check.js';
 import type { AutoDailyStatus, AutoDroneStatus, AutoExpeditionStatus, AutoFinishRunResult, AutoFinishStatus, AutoJobsSnapshot, AutoJobsStatus, AutoMailStatus, BackgroundEvent, CachedMarketView, DailyHackResult, DebugLogLine, DismissFailedSummary, DroneAutoResult, InventoryFilterOptions, InventoryFilterResult, InventoryItemSellResult, InventoryPreviewResult, InventorySortResult, InventoryView, JobAllMarketsResult, JobHistoryEntry, JobMarketSyncResult, JobQueueResult, JobQueueState, LoadoutApplyResult, LoadoutView, MailClaimResult, MarketOptionsView, ActivityState, MaintenanceForceSummary, MaintenanceTarget, NetworkDiagnostics, NetworkServerSummary, OverviewState, PopupPortal, ValuableReport, ValuableRunState, ValuableSaleResult, ValuableSearchResult } from '../../application/popup/portal.js';
 import type { NetworkOperationQueueStatus } from '../../application/network/operation-queue.js';
 import { gameReadinessSchema } from '../../application/game/readiness.js';
@@ -18,16 +19,11 @@ import type { DroneState } from '../../domains/drone/model.js';
 import type { JobMarketDefinition } from '../../domains/jobs/markets.js';
 import { jobOfferSchema } from '../../contracts/jobs.js';
 import { openWorkspaceSidePanel, openWorkspaceWindow } from './workspace-opener.js';
+import { marketCompletedJobsSchema } from '../../contracts/market-completed-jobs.js';
+import { autoJobsScheduleStateSchema, autoJobsStatusSchema } from '../../contracts/auto-jobs.js';
+import { autoFinishLastRunSchema, autoFinishMarketSchema, autoFinishRunResultSchema, autoFinishUnknownJobSchema } from '../../contracts/auto-finish.js';
 
 const pingSchema = z.object({ version: z.string(), phase: z.string() });
-const updateCheckSchema = z.object({
-    current: z.string(),
-    latest: z.string(),
-    updateAvailable: z.boolean(),
-    releaseUrl: z.string(),
-    checkedAt: z.number(),
-    source: z.string(),
-}).strict();
 const settingsExportSchema = z.object({
     format: z.literal('cor3-helper-v2-settings'),
     version: z.string(),
@@ -48,16 +44,21 @@ const expeditionMercenarySchema = z.object({
     id: z.string(), name: z.string(), level: z.number(), rarity: z.string(), price: z.number(),
     totalCost: z.number().nullable(), riskScore: z.number().nullable(), status: z.string(), faction: z.string(), elite: z.boolean(),
     rank: z.string().nullable().optional(),
+    restUntil: z.string().nullable().optional(),
 }).strict();
 const expeditionDecisionSchema = z.object({
     id: z.string(),
     expeditionId: z.string(),
     message: z.string(),
+    riskScore: z.number().nullable(),
+    lootScore: z.number().nullable(),
+    deadline: z.string().nullable(),
     options: z.array(z.object({
         id: z.string(),
         label: z.string(),
         successChance: z.number().nullable(),
         risk: z.number().nullable(),
+        loot: z.number().nullable(),
         lootModifier: z.number(),
         riskModifier: z.number(),
         requiredModuleId: z.string().nullable(),
@@ -66,7 +67,7 @@ const expeditionDecisionSchema = z.object({
 const activeExpeditionSchema = z.object({
     id: z.string(), status: z.string(), locationName: z.string(),
     mercenaryName: z.string().nullable(), mercenaryRank: z.string().nullable().optional(), totalCost: z.number().nullable(), riskScore: z.number().nullable(),
-    hasInsurance: z.boolean().nullable(), endsAt: z.string().nullable(),
+    lootScore: z.number().nullable(), hasInsurance: z.boolean().nullable(), endsAt: z.string().nullable(),
 }).strict();
 export const expeditionOverviewSchema = z.object({
     active: z.array(activeExpeditionSchema),
@@ -111,7 +112,26 @@ const expeditionPreparationSchema = z.object({
     totalCost: z.number(),
     riskScore: z.number(),
     insurance: z.boolean(),
+    insuranceCost: z.number().nullable(),
     locationName: z.string(),
+}).strict();
+const autoExpeditionDecisionSchema = z.object({
+    id: z.string(),
+    expeditionId: z.string(),
+    message: z.string(),
+    riskScore: z.number().nullable(),
+    lootScore: z.number().nullable(),
+    deadline: z.string().nullable(),
+    firstSeenAt: z.number(),
+    autoRespondAt: z.number().nullable(),
+    options: expeditionDecisionSchema.shape.options,
+    mode: z.enum(['simple', 'score']),
+    policy: z.string(),
+    lootWeight: z.number(),
+    riskWeight: z.number(),
+    chosenOptionId: z.string().nullable(),
+    resolvedAt: z.number().nullable(),
+    resolvedBy: z.enum(['manual', 'auto']).nullable(),
 }).strict();
 const autoExpeditionStatusSchema = z.object({
     enabled: z.boolean(),
@@ -120,6 +140,7 @@ const autoExpeditionStatusSchema = z.object({
     available: z.boolean(),
     dataStale: z.boolean(),
     preparation: expeditionPreparationSchema.nullable(),
+    decision: autoExpeditionDecisionSchema.nullable().optional(),
     last: z.object({
         at: z.number(),
         decisions: z.number(),
@@ -365,78 +386,6 @@ const inventorySortSchema = z.object({
     fallback: z.boolean(),
     notice: z.string().nullable(),
 }).strict();
-const autoFinishJobSchema = z.object({
-    jobId: z.string(),
-    name: z.string(),
-    serverName: z.string().nullable(),
-    marketKey: z.string(),
-    status: z.enum(['done', 'failed', 'pending', 'running', 'skipped', 'retry', 'expired']),
-    rewardCredits: z.number().optional(),
-    rewardReputation: z.number().optional(),
-    error: z.string().optional(),
-    code: z.string().optional(),
-    retryable: z.boolean().optional(),
-    retryAt: z.number().optional(),
-    lockExpiresAt: z.number().optional(),
-    retryExhausted: z.boolean().optional(),
-    stage: z.string().optional(),
-}).strict();
-const autoJobsStatusSchema = z.object({
-    enabled: z.boolean(),
-    intervalMinutes: z.number(),
-    running: z.boolean(),
-    stage: z.string().default('idle'),
-    nextRefreshAt: z.number().nullable(),
-    refreshReason: z.enum(['interval', 'reset', 'fallback']),
-    lastRefreshAt: z.number().nullable(),
-    snapshotAt: z.number().nullable().default(null),
-    locks: z.record(z.string(), z.number()).default({}),
-    retryAttempts: z.record(z.string(), z.object({
-        count: z.number().int().nonnegative(),
-        lastAttemptAt: z.number(),
-    }).strict()).default({}),
-}).strict();
-const autoFinishMarketSchema = z.object({
-    marketKey: z.string(),
-    label: z.string(),
-    ok: z.boolean(),
-    skipped: z.number().int().nonnegative(),
-    retry: z.number().int().nonnegative().optional(),
-    expired: z.number().int().nonnegative().optional(),
-    resetAt: z.string().nullable().optional(),
-    jobTotal: z.number().int().nonnegative().optional(),
-    success: z.number().int().nonnegative().optional(),
-    failed: z.number().int().nonnegative().optional(),
-    pending: z.number().int().nonnegative().optional(),
-    jobs: z.array(autoFinishJobSchema).optional(),
-    updatedAt: z.number().int().nonnegative().optional(),
-    stale: z.boolean().optional(),
-    error: z.string().optional(),
-}).strict();
-const autoFinishFailureSchema = z.object({
-    jobId: z.string(),
-    name: z.string(),
-    serverName: z.string().nullable(),
-    code: z.string(),
-    message: z.string(),
-    retryable: z.boolean().optional(),
-    retryAt: z.number().optional(),
-    lockExpiresAt: z.number().optional(),
-    stage: z.string().optional(),
-}).strict();
-const autoFinishLastSchema = z.object({
-    runId: z.string(),
-    finishedAt: z.number(),
-    jobs: z.number().int().nonnegative(),
-    done: z.number().int().nonnegative(),
-    retry: z.number().int().nonnegative().optional(),
-    skipped: z.number().int().nonnegative().optional(),
-    expired: z.number().int().nonnegative().optional(),
-    failed: z.number().int().nonnegative(),
-    stopped: z.boolean(),
-    markets: z.array(autoFinishMarketSchema),
-    failures: z.array(autoFinishFailureSchema).default([]),
-}).strict();
 const autoFinishProgressSchema = z.object({
     index: z.number().int().nonnegative(),
     total: z.number().int().nonnegative(),
@@ -456,22 +405,15 @@ const autoFinishStatusSchema = z.object({
     running: z.boolean(),
     currentRunId: z.string().nullable().default(null),
     live: autoFinishLiveSchema.nullable().default(null),
-    last: autoFinishLastSchema.nullable(),
+    last: autoFinishLastRunSchema.nullable(),
     progress: autoFinishProgressSchema.nullable(),
     nextRetryAt: z.number().nullable(),
     retryReason: z.string().nullable(),
-    completedJobs: z.record(z.string(), z.string()).default({}),
-}).strict();
-const autoFinishRunSchema = z.object({
-    jobs: z.number().int().nonnegative(),
-    done: z.number().int().nonnegative(),
-    retry: z.number().int().nonnegative().optional(),
-    skipped: z.number().int().nonnegative().optional(),
-    expired: z.number().int().nonnegative().optional(),
-    failed: z.number().int().nonnegative(),
-    stopped: z.boolean(),
-    markets: z.array(autoFinishMarketSchema),
-    failures: z.array(autoFinishFailureSchema).default([]),
+    completedJobsByMarket: marketCompletedJobsSchema.default({ byMarket: {} }),
+    legacyCompletedJobs: z.record(z.string(), z.string()).default({}),
+    completionStateStatus: z.enum(['not-loaded', 'loaded', 'unavailable']).default('not-loaded'),
+    unknownJobs: z.array(autoFinishUnknownJobSchema).default([]),
+    unknownStateStatus: z.enum(['loaded', 'partial', 'unavailable']).default('unavailable'),
 }).strict();
 const networkOperationInfoSchema = z.object({
     id: z.string(),
@@ -495,9 +437,11 @@ const overviewAutomationSchema = z.object({
     lastError: z.string().nullable(),
     waiting: z.boolean().optional(),
 }).strict();
-const overviewAutoJobsSchema = z.object({
+export const overviewAutoJobsSchema = z.object({
     nextRefreshAt: z.number().int().nonnegative().nullable(),
     refreshReason: z.enum(['interval', 'reset', 'fallback']),
+    scheduleState: autoJobsScheduleStateSchema,
+    repairAt: z.number().nullable(),
     lastRefreshAt: z.number().int().nonnegative().nullable(),
     lastError: z.string().nullable(),
     lastSkipReason: z.string().nullable(),
@@ -508,7 +452,7 @@ const overviewTimerSchema = z.object({
     name: z.string(),
     endsAt: z.string().nullable(),
 }).strict();
-const overviewStateSchema = z.object({
+export const overviewStateSchema = z.object({
     auth: authStatusSchema,
     network: networkMapSummarySchema.nullable(),
     networkAgeMs: z.number().int().nonnegative().nullable(),
@@ -518,7 +462,7 @@ const overviewStateSchema = z.object({
     autoJobs: overviewAutoJobsSchema,
     automations: z.array(overviewAutomationSchema),
     timers: z.array(overviewTimerSchema),
-    jobReport: autoFinishLastSchema.nullable(),
+    jobReport: autoFinishLastRunSchema.nullable(),
 }).strict();
 const backgroundEventSchema = z.object({
     type: z.string(),
@@ -633,6 +577,7 @@ const jobAllMarketsSchema = z.object({
         resetAt: z.string().nullable().optional(),
         updatedAt: z.number().int().nonnegative().optional(),
         stale: z.boolean().optional(),
+        reconciliationStatus: z.enum(['loaded', 'partial', 'unavailable']).optional(),
         error: z.string().optional(),
         errorCode: z.string().optional(),
     }).strict()),
@@ -652,9 +597,11 @@ const jobQueueFailureSchema = z.object({
     jobId: z.string(),
     name: z.string(),
     serverName: z.string().nullable(),
+    marketKey: z.string(),
     code: z.string(),
     message: z.string(),
     retryable: z.boolean().optional(),
+    unconfirmed: z.boolean().optional(),
     retryAt: z.number().optional(),
     lockExpiresAt: z.number().optional(),
     stage: z.string().optional(),
@@ -666,6 +613,7 @@ const jobQueueSchema = z.object({
 }).strict();
 const jobHistorySchema = z.array(z.object({
     jobId: z.string(), name: z.string(), type: z.string(), serverName: z.string().nullable(),
+    marketKey: z.string().optional(),
     status: z.enum(['done', 'failed', 'retry']), at: z.number(), error: z.string().optional(),
 }).strict());
 const jobQueueProgressSchema = z.object({
@@ -673,6 +621,7 @@ const jobQueueProgressSchema = z.object({
     total: z.number().int().nonnegative(),
     jobId: z.string(),
     jobName: z.string(),
+    marketKey: z.string(),
     serverName: z.string().nullable(),
     doneCount: z.number().int().nonnegative(),
     failedCount: z.number().int().nonnegative(),
@@ -798,13 +747,24 @@ export class ChromePopupPortal implements PopupPortal {
         return this.client.request('system.ping', {}, pingSchema);
     }
 
-    async updateCheck() {
+    async updateCheck(): Promise<{ ok: true; value: UpdateCheckResult } | { ok: false; error: { code: string; message: string } }> {
         // v1 checked directly from the popup. Keep that path first: it avoids a
-        // service-worker/bridge timeout on slow or restricted networks.
+        // service-worker/bridge timeout on slow or restricted networks. The
+        // checker uses the fork's update.json + versionCode decision.
         const localCode = toVersionCode(typeof __COR3_VERSION_CODE__ === 'number' ? __COR3_VERSION_CODE__ : undefined);
         const direct = await new UpdateChecker().check(this.versionInfo().versionName, localCode);
-        if (direct.ok) return direct;
-        return this.client.request('system.updateCheck', {}, updateCheckSchema, 120_000);
+        if (direct.ok) {
+            return {
+                ok: true,
+                value: { ...direct.value, lastSuccess: direct.value },
+            };
+        }
+        return this.client.request('system.updateCheck', {}, updateCheckResultSchema, 120_000);
+    }
+
+    updateStatus(): Promise<{ ok: true; value: UpdateCheckResult | null } | { ok: false; error: { code: string; message: string } }> {
+        return this.client.request('system.updateStatus', {}, updateCheckResultSchema.nullable(), 10_000) as
+            Promise<{ ok: true; value: UpdateCheckResult | null } | { ok: false; error: { code: string; message: string } }>;
     }
 
     getSettings() {
@@ -933,6 +893,10 @@ export class ChromePopupPortal implements PopupPortal {
 
     expeditionView(): Promise<{ ok: true; value: ExpeditionOverview } | { ok: false; error: { code: string; message: string } }> {
         return this.client.request('expeditions.view', {}, expeditionOverviewSchema, 90000) as Promise<{ ok: true; value: ExpeditionOverview } | { ok: false; error: { code: string; message: string } }>;
+    }
+
+    respondExpeditionDecision(expeditionId: string, messageId: string, optionId: string): Promise<{ ok: true; value: void } | { ok: false; error: { code: string; message: string } }> {
+        return this.client.request('expeditions.respond', { expeditionId, messageId, optionId }, z.undefined(), 20000) as Promise<{ ok: true; value: void } | { ok: false; error: { code: string; message: string } }>;
     }
 
     droneView(): Promise<{ ok: true; value: DroneState } | { ok: false; error: { code: string; message: string } }> {
@@ -1143,7 +1107,7 @@ export class ChromePopupPortal implements PopupPortal {
     }
 
     runAutoFinish(force = false): Promise<{ ok: true; value: AutoFinishRunResult } | { ok: false; error: { code: string; message: string } }> {
-        return this.client.request('auto-finish.run', { force }, autoFinishRunSchema, 600000) as Promise<{ ok: true; value: AutoFinishRunResult } | { ok: false; error: { code: string; message: string } }>;
+        return this.client.request('auto-finish.run', { force }, autoFinishRunResultSchema, 600000) as Promise<{ ok: true; value: AutoFinishRunResult } | { ok: false; error: { code: string; message: string } }>;
     }
 
     cancelAutoFinish(): Promise<{ ok: true; value: void } | { ok: false; error: { code: string; message: string } }> {

@@ -14,6 +14,7 @@ import type { MarketReputation, MarketView } from '../../domains/markets/model.j
 import type { DailyOpsState } from '../../domains/daily-ops/model.js';
 import type { SpecialistPurchase, SpecialistState } from '../../domains/specialists/model.js';
 import type { ExpeditionOverview } from '../../domains/expeditions/model.js';
+import type { ExpeditionDecisionOption } from '../../domains/expeditions/model.js';
 
 import type { DroneState } from '../../domains/drone/model.js';
 import type { LoadoutView } from '../loadout/view.js';
@@ -22,10 +23,12 @@ import type { MaintenanceForceProgress, MaintenanceForceSummary, MaintenanceTarg
 export type { LoadoutView } from '../loadout/view.js';
 export type { MaintenanceForceProgress, MaintenanceForceSummary, MaintenanceTarget } from '../valuable/maintenance.js';
 
-import type { AutoFinishFailure, AutoFinishLastRun, AutoFinishMarketResult, AutoFinishRunResult } from '../../contracts/auto-finish.js';
+import type { AutoFinishFailure, AutoFinishLastRun, AutoFinishMarketResult, AutoFinishRunResult, AutoFinishUnknownJob } from '../../contracts/auto-finish.js';
 import type { AutoJobsSnapshot } from '../../contracts/auto-jobs.js';
+import type { MarketCompletedJobsState } from '../../contracts/market-completed-jobs.js';
+import type { UpdateCheckResult } from '../../contracts/update-check.js';
 
-export type { AutoFinishFailure, AutoFinishLastRun, AutoFinishMarketResult, AutoFinishRunResult, AutoJobsSnapshot };
+export type { AutoFinishFailure, AutoFinishLastRun, AutoFinishMarketResult, AutoFinishRunResult, AutoFinishUnknownJob, AutoJobsSnapshot, MarketCompletedJobsState };
 
 export interface JobRouteNode {
     readonly id: string;
@@ -79,9 +82,12 @@ export interface JobQueueFailure {
     readonly jobId: string;
     readonly name: string;
     readonly serverName: string | null;
+    /** Market-scoped identity; failure must not be mapped by jobId alone. */
+    readonly marketKey: string;
     readonly code: string;
     readonly message: string;
     readonly retryable?: boolean;
+    readonly unconfirmed?: boolean;
     readonly retryAt?: number;
     readonly lockExpiresAt?: number;
     readonly stage?: string;
@@ -89,6 +95,7 @@ export interface JobQueueFailure {
 
 export interface JobQueueResult {
     readonly stopped: boolean;
+    /** Market-scoped job identity strings (`jobIdentityKey`), not raw job ids. */
     readonly done: readonly string[];
     readonly failed: readonly JobQueueFailure[];
 }
@@ -98,6 +105,8 @@ export interface JobHistoryEntry {
     readonly name: string;
     readonly type: string;
     readonly serverName: string | null;
+    /** Optional for legacy history entries; new entries carry market identity. */
+    readonly marketKey?: string;
     readonly status: 'done' | 'failed' | 'retry';
     readonly at: number;
     readonly error?: string;
@@ -108,6 +117,7 @@ export interface JobQueueProgress {
     readonly total: number;
     readonly jobId: string;
     readonly jobName: string;
+    readonly marketKey: string;
     readonly serverName: string | null;
     readonly doneCount: number;
     readonly failedCount: number;
@@ -188,7 +198,27 @@ export interface ExpeditionPreparation {
     readonly totalCost: number;
     readonly riskScore: number;
     readonly insurance: boolean;
+    readonly insuranceCost: number | null;
     readonly locationName: string;
+}
+
+export interface ExpeditionDecisionView {
+    readonly id: string;
+    readonly expeditionId: string;
+    readonly message: string;
+    readonly riskScore: number | null;
+    readonly lootScore: number | null;
+    readonly deadline: string | null;
+    readonly firstSeenAt: number;
+    readonly autoRespondAt: number | null;
+    readonly options: readonly ExpeditionDecisionOption[];
+    readonly mode: 'simple' | 'score';
+    readonly policy: string;
+    readonly lootWeight: number;
+    readonly riskWeight: number;
+    readonly chosenOptionId: string | null;
+    readonly resolvedAt: number | null;
+    readonly resolvedBy: 'manual' | 'auto' | null;
 }
 
 export interface AutoExpeditionStatus {
@@ -198,6 +228,7 @@ export interface AutoExpeditionStatus {
     readonly available: boolean;
     readonly dataStale: boolean;
     readonly preparation: ExpeditionPreparation | null;
+    readonly decision: ExpeditionDecisionView | null;
     readonly last: {
         readonly at: number;
         readonly decisions: number;
@@ -341,11 +372,13 @@ export interface AutoJobsStatus {
     readonly stage: string;
     readonly nextRefreshAt: number | null;
     readonly refreshReason: 'interval' | 'reset' | 'fallback';
+    readonly scheduleState: 'scheduled' | 'repair-pending' | 'repairing' | 'schedule-unavailable' | 'disabled';
+    readonly repairAt: number | null;
     readonly lastRefreshAt: number | null;
     readonly snapshotAt: number | null;
-    /** Active minigame locks: job id -> expiry. */
+    /** Active minigame locks: market-scoped job identity -> expiry. */
     readonly locks: Readonly<Record<string, number>>;
-    /** Per-job retry budget for the current reset. */
+    /** Per-job retry budget for the current reset, keyed by market-scoped identity. */
     readonly retryAttempts: Readonly<Record<string, { readonly count: number; readonly lastAttemptAt: number }>>;
 }
 
@@ -358,14 +391,22 @@ export interface AutoFinishStatus {
     readonly progress: JobQueueProgress | null;
     readonly nextRetryAt: number | null;
     readonly retryReason: string | null;
-    /** Job id -> market reset it was completed for. */
-    readonly completedJobs: Readonly<Record<string, string>>;
+    /** Authoritative market-scoped completion state. */
+    readonly completedJobsByMarket: MarketCompletedJobsState;
+    /** Legacy jobId-only records; display/diagnostics only. */
+    readonly legacyCompletedJobs: Readonly<Record<string, string>>;
+    readonly completionStateStatus: 'not-loaded' | 'loaded' | 'unavailable';
+    /** Durable per-job Complete-Unknown projection. */
+    readonly unknownJobs: readonly AutoFinishUnknownJob[];
+    /** Availability of the Unknown projection sources. */
+    readonly unknownStateStatus: 'loaded' | 'partial' | 'unavailable';
 }
 
 export interface JobQueueState {
     readonly runId: string;
     readonly status: 'running' | 'done' | 'cancelled' | 'error';
     readonly progress: JobQueueProgress | null;
+    /** Market-scoped identity strings (`jobIdentityKey`). */
     readonly done: readonly string[];
     readonly failed: readonly JobQueueFailure[];
     readonly error: string | null;
@@ -455,6 +496,8 @@ export interface OverviewAutomation {
 export interface OverviewAutoJobs {
     readonly nextRefreshAt: number | null;
     readonly refreshReason: 'interval' | 'reset' | 'fallback';
+    readonly scheduleState: 'scheduled' | 'repair-pending' | 'repairing' | 'schedule-unavailable' | 'disabled';
+    readonly repairAt: number | null;
     readonly lastRefreshAt: number | null;
     readonly lastError: string | null;
     readonly lastSkipReason: string | null;
@@ -499,15 +542,6 @@ export interface SettingsExportData {
     readonly settings: SettingsV1;
 }
 
-export interface UpdateCheckView {
-    readonly current: string;
-    readonly latest: string;
-    readonly updateAvailable: boolean;
-    readonly releaseUrl: string;
-    readonly checkedAt: number;
-    readonly source: string;
-}
-
 export interface PopupPortal {
     subscribeStorage(listener: (keys: readonly string[]) => void): () => void;
     subscribeEvents(listener: (event: BackgroundEvent) => void): () => void;
@@ -522,7 +556,8 @@ export interface PopupPortal {
     /** Opens the full workspace in a detached Chrome popup window. */
     openWindow(): Promise<boolean>;
     ping(): Promise<BridgeResult<{ readonly version: string; readonly phase: string }>>;
-    updateCheck(): Promise<BridgeResult<UpdateCheckView>>;
+    updateStatus(): Promise<BridgeResult<UpdateCheckResult | null>>;
+    updateCheck(): Promise<BridgeResult<UpdateCheckResult>>;
     getSettings(): Promise<BridgeResult<SettingsV1>>;
     updateSettings(patch: SettingsPatch): Promise<BridgeResult<SettingsV1>>;
     exportSettings(): Promise<BridgeResult<SettingsExportData>>;
@@ -544,6 +579,7 @@ export interface PopupPortal {
     marketOptions(market: JobMarketDefinition): Promise<BridgeResult<MarketOptionsView>>;
     activityState(): Promise<BridgeResult<ActivityState>>;
     expeditionView(): Promise<BridgeResult<ExpeditionOverview>>;
+    respondExpeditionDecision(expeditionId: string, messageId: string, optionId: string): Promise<BridgeResult<void>>;
     autoExpeditionStatus(): Promise<BridgeResult<AutoExpeditionStatus>>;
     cancelExpeditionPreparation(): Promise<BridgeResult<void>>;
     enableAutoExpedition(intervalMinutes?: number): Promise<BridgeResult<unknown>>;

@@ -6,10 +6,15 @@ import { mapMarketSnapshotJobs, type SkippedJob } from '../../../application/aut
 import { mapMarketView } from '../../../application/markets/map.js';
 import type { NetworkSnapshotService } from '../../../application/network/snapshot-service.js';
 import type { NetworkSnapshot } from '../../../domains/network/model.js';
+import { withSnapshotEndpoint } from '../../../domains/network/model.js';
 import type { MarketSyncService } from '../../../application/network/market-sync.js';
+import type { JobReconciliationResult, JobStateReconcilerPort, ReconcileMarketInput } from '../../../application/auto-job/job-state-reconciler.js';
+import { unavailableReconciliationResult } from '../../../application/auto-job/job-state-reconciler.js';
+import type { MarketCompletionStorePort } from '../../../application/auto-job/market-completion.js';
+import type { MarketCompletedJobsState } from '../../../contracts/market-completed-jobs.js';
 import type { MarketCacheStore } from '../../../infrastructure/storage/market-cache-store.js';
 import type { AutomationLogger, EventPublisher } from '../../../application/automation/ports.js';
-import { asServerId } from '../../../kernel/ids.js';
+import { asServerId, type ServerId } from '../../../kernel/ids.js';
 import type { TabRequestPort } from './job-routing.js';
 
 export interface JobMarketSyncEntry {
@@ -27,6 +32,8 @@ export interface JobMarketSyncEntry {
     readonly jobs?: readonly import('../../../contracts/auto-finish.js').AutoFinishJobResult[];
     readonly updatedAt?: number;
     readonly stale?: boolean;
+    /** Health of the optional lifecycle reconciliation; `loaded` means complete. */
+    readonly reconciliationStatus?: 'loaded' | 'partial' | 'unavailable';
     readonly error?: string;
     readonly errorCode?: string;
 }
@@ -39,6 +46,9 @@ export interface JobMarketSyncDeps {
     readonly tabs: TabRequestPort;
     readonly events: EventPublisher;
     readonly logger: AutomationLogger;
+    readonly reconciler?: JobStateReconcilerPort;
+    readonly completions?: Pick<MarketCompletionStorePort, 'pruneMarketBeforeReset'>;
+    readonly onCompletionsChanged?: (state: MarketCompletedJobsState) => void;
     readonly now?: () => number;
     readonly humanDelay?: (minMs?: number, maxMs?: number) => Promise<void>;
 }
@@ -82,17 +92,36 @@ export class JobMarketSync {
         });
     }
 
+    /**
+     * Reconcile local lifecycle records against one successful market snapshot.
+     * Failed/stale snapshots must never reach this method.
+     */
+    async reconcileMarketSnapshot(input: ReconcileMarketInput): Promise<JobReconciliationResult | null> {
+        if (!this.deps.reconciler) return null;
+        try {
+            return await this.deps.reconciler.reconcile(input);
+        } catch (error) {
+            this.deps.logger.warn('job-state', 'Job state reconciliation failed', {
+                marketKey: input.marketKey,
+                resetAt: input.resetAt,
+                message: error instanceof Error ? error.message : String(error),
+            });
+            return unavailableReconciliationResult(input.marketKey, input.resetAt);
+        }
+    }
+
     async syncAll(
         owner: string,
         reason: string,
         targets?: readonly JobMarketDefinition[],
         onMarket?: (partial: { readonly jobs: readonly JobOffer[]; readonly markets: readonly JobMarketSyncEntry[] }) => void,
         shouldStop?: () => boolean,
-    ): Promise<{ jobs: JobOffer[]; markets: JobMarketSyncEntry[] }> {
+    ): Promise<{ jobs: JobOffer[]; markets: JobMarketSyncEntry[]; finalEndpoint?: ServerId }> {
         const selected = targets ?? JOB_MARKETS;
         const jobs: JobOffer[] = [];
         const marketEntries = new Map<string, JobMarketSyncEntry>();
         const networkSnapshot = await this.deps.snapshots.get();
+        let currentSnapshot = networkSnapshot.ok ? networkSnapshot.value : undefined;
         const failed: JobMarketDefinition[] = [];
         const publish = (): void => {
             onMarket?.({ jobs: [...jobs], markets: [...marketEntries.values()] });
@@ -104,9 +133,13 @@ export class JobMarketSync {
                 market,
                 owner,
                 reason,
-                networkSnapshot.ok ? networkSnapshot.value : undefined,
+                currentSnapshot,
                 'initial',
             );
+            const nextSnapshot = synced.snapshot ?? currentSnapshot;
+            if (nextSnapshot && synced.finalEndpoint) {
+                currentSnapshot = withSnapshotEndpoint(nextSnapshot, synced.finalEndpoint);
+            }
             jobs.push(...synced.jobs);
             marketEntries.set(market.key, synced.entry);
             if (!synced.entry.ok) failed.push(market);
@@ -126,7 +159,7 @@ export class JobMarketSync {
             });
             await this.humanDelay(round === 0 ? 3_000 : 6_000, round === 0 ? 5_000 : 8_000);
             const refreshed = await this.deps.snapshots.get(true);
-            const retrySnapshot = refreshed.ok ? refreshed.value : undefined;
+            let retrySnapshot = refreshed.ok ? refreshed.value : currentSnapshot;
             const next: JobMarketDefinition[] = [];
             for (const market of pending) {
                 if (shouldStop?.()) break;
@@ -137,6 +170,10 @@ export class JobMarketSync {
                     retrySnapshot,
                     'retry',
                 );
+                const nextSnapshot = synced.snapshot ?? retrySnapshot;
+                if (nextSnapshot && synced.finalEndpoint) {
+                    retrySnapshot = withSnapshotEndpoint(nextSnapshot, synced.finalEndpoint);
+                }
                 jobs.push(...synced.jobs);
                 marketEntries.set(market.key, synced.entry);
                 if (!synced.entry.ok && isRetryableMarketFailure(synced.entry)) next.push(market);
@@ -144,9 +181,14 @@ export class JobMarketSync {
                 if (pending.indexOf(market) < pending.length - 1) await this.humanDelay(350, 700);
             }
             pending = next;
+            currentSnapshot = retrySnapshot;
         }
 
-        return { jobs, markets: [...marketEntries.values()] };
+        return {
+            jobs,
+            markets: [...marketEntries.values()],
+            ...(currentSnapshot?.endpointId ? { finalEndpoint: currentSnapshot.endpointId } : {}),
+        };
     }
 
     private async syncMarketEntry(
@@ -155,7 +197,12 @@ export class JobMarketSync {
         reason: string,
         snapshot: NetworkSnapshot | undefined,
         phase: 'initial' | 'retry',
-    ): Promise<{ readonly entry: JobMarketSyncEntry; readonly jobs: readonly JobOffer[] }> {
+    ): Promise<{
+        readonly entry: JobMarketSyncEntry;
+        readonly jobs: readonly JobOffer[];
+        readonly snapshot?: NetworkSnapshot;
+        readonly finalEndpoint?: ServerId;
+    }> {
         const synced = await this.deps.marketSync.sync({
             marketId: market.marketId,
             serverId: asServerId(market.routeServerId),
@@ -182,9 +229,50 @@ export class JobMarketSync {
                     errorCode: synced.error.code,
                 },
                 jobs: [],
+                ...(snapshot ? { snapshot } : {}),
+                ...(synced.error.finalEndpoint ? { finalEndpoint: synced.error.finalEndpoint } : {}),
             };
         }
         const mapped = mapMarketSnapshotJobs(synced.value.market, market.marketId, market.key, market.completionServerId ?? market.routeServerId);
+        // A successful, non-stale market with a known reset is the only safe
+        // evidence for removing stale sidecar completions in this market.
+        if (this.deps.completions && mapped.resetAt) {
+            try {
+                const pruned = await this.deps.completions.pruneMarketBeforeReset(market.key, mapped.resetAt);
+                if (pruned.status === 'pruned' && pruned.removed > 0) {
+                    this.deps.logger.info('auto-jobs', 'Pruned stale market completions', {
+                        market: market.key,
+                        removed: pruned.removed,
+                        resetAt: mapped.resetAt,
+                    });
+                    this.deps.onCompletionsChanged?.(pruned.state);
+                }
+            } catch (error) {
+                this.deps.logger.warn('auto-jobs', 'Failed to prune stale market completions', {
+                    market: market.key,
+                    message: error instanceof Error ? error.message : String(error),
+                });
+            }
+        }
+        // Reconcile before returning the market to the scheduler. This is a
+        // successful, non-stale snapshot, so its game rows are valid evidence.
+        const reconciliation = await this.reconcileMarketSnapshot({
+            marketKey: market.key,
+            resetAt: mapped.resetAt ?? null,
+            observedAt: this.now(),
+            jobs: mapped.jobs,
+            skippedJobs: mapped.skippedJobs,
+        });
+        if (reconciliation?.storeFailed) {
+            this.deps.logger.warn('job-state', 'Market reconciliation was incomplete; local state was kept', {
+                market: market.key,
+                resetAt: mapped.resetAt ?? null,
+                storeStatus: reconciliation.storeStatus,
+                updated: reconciliation.updated,
+                pending: reconciliation.pending,
+                completionFailures: reconciliation.completionFailures,
+            });
+        }
         const view = mapMarketView(synced.value.market);
         if (view) {
             await this.deps.marketCache.set(market.marketId, view);
@@ -217,8 +305,11 @@ export class JobMarketSync {
                 resetAt: mapped.resetAt ?? null,
                 updatedAt: this.now(),
                 stale: false,
+                ...(reconciliation ? { reconciliationStatus: reconciliation.storeStatus } : {}),
             },
             jobs: mapped.jobs,
+            snapshot: synced.value.snapshot,
+            ...(synced.value.finalEndpoint ? { finalEndpoint: synced.value.finalEndpoint } : {}),
         };
     }
 

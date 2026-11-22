@@ -8,6 +8,9 @@ import type { GameRuntime } from './game.js';
 import { ChromeScheduler } from './chrome-scheduler.js';
 import { JobLockRegistry } from '../automation/job-locks.js';
 import { JobHistoryRecorder } from '../automation/job-outcome.js';
+import { JobStateRecorder } from '../../../application/auto-job/job-state-recorder.js';
+import { JobStateReconciler } from '../../../application/auto-job/job-state-reconciler.js';
+import { jobActiveKey } from '../../../contracts/job-state.js';
 import { JobRouting } from '../automation/job-routing.js';
 import { JobPreflight } from '../automation/job-preflight.js';
 import { JobMarketSync } from '../automation/job-market-sync.js';
@@ -31,6 +34,7 @@ export interface AutomationRuntime {
     readonly scheduler: ChromeScheduler;
     readonly locks: JobLockRegistry;
     readonly history: JobHistoryRecorder;
+    readonly jobStates: JobStateRecorder;
     readonly routing: JobRouting;
     readonly preflight: JobPreflight;
     readonly markets: JobMarketSync;
@@ -56,6 +60,36 @@ export function createAutomationRuntime(core: CoreRuntime, game: GameRuntime): A
     const scheduler = new ChromeScheduler();
     const locks = new JobLockRegistry(stores.automationState, () => clock.now());
     const history = new JobHistoryRecorder(stores.jobHistory);
+    let autoFinishRef: AutoFinishCoordinator | null = null;
+    let queueRef: JobQueueCoordinator | null = null;
+    let autoJobsRef: AutoJobsCoordinator | null = null;
+    let autoJobsRunnerRef: AutoJobRunner | null = null;
+    const resetAtForMarket = (marketKey: string): string | null => {
+        const market = autoJobsRef?.snapshotView()?.markets.find((entry) => entry.marketKey === marketKey);
+        return market?.ok && market.stale !== true && typeof market.resetAt === 'string' && market.resetAt.length > 0
+            ? market.resetAt
+            : null;
+    };
+    const jobStates = new JobStateRecorder({
+        store: stores.jobState,
+        logger,
+        now: () => clock.now(),
+        resetAtForMarket,
+    });
+    const jobStateReconciler = new JobStateReconciler({
+        store: stores.jobState,
+        writer: jobStates,
+        completions: stores.marketCompletedJobs,
+        logger,
+        now: () => clock.now(),
+        isActive: (key) => {
+            const activeKey = jobActiveKey(key.marketKey, key.jobId);
+            const progress = autoFinishRef?.progressValue();
+            return autoJobsRunnerRef?.activeJobKeys().has(activeKey) === true
+                || queueRef?.activeJobKeys().has(activeKey) === true
+                || (progress !== null && progress !== undefined && jobActiveKey(progress.marketKey, progress.jobId) === activeKey);
+        },
+    });
 
     const routing = new JobRouting({
         snapshots: game.snapshots,
@@ -69,11 +103,7 @@ export function createAutomationRuntime(core: CoreRuntime, game: GameRuntime): A
     const preflight = new JobPreflight({
         snapshots: game.snapshots,
         loadout: game.loadout,
-        jobActions: game.jobActions,
-        minigameSolversEnabled: async () => {
-            const current = await settings.get();
-            return current.autoDecryptEnabled || current.autoSimpleDecryptEnabled || current.autoIceWallEnabled;
-        },
+        locks,
         logger,
         now: () => clock.now(),
     });
@@ -85,6 +115,9 @@ export function createAutomationRuntime(core: CoreRuntime, game: GameRuntime): A
         tabs,
         events,
         logger,
+        reconciler: jobStateReconciler,
+        completions: stores.marketCompletedJobs,
+        onCompletionsChanged: (state) => autoFinishRef?.applyCompletedByMarket(state),
         now: () => clock.now(),
         humanDelay,
     });
@@ -167,8 +200,6 @@ export function createAutomationRuntime(core: CoreRuntime, game: GameRuntime): A
         networkOps,
     });
 
-    let autoFinishRef: AutoFinishCoordinator | null = null;
-    let queueRef: JobQueueCoordinator | null = null;
     const jobExecution = new JobExecutionService(
         game.jobActions,
         (job) => routing.routeJobToMarket(job, 'complete'),
@@ -222,8 +253,15 @@ export function createAutomationRuntime(core: CoreRuntime, game: GameRuntime): A
         () => autoFinishRef?.isCancelRequested() === true || queueRef?.hasPendingCancellation() === true,
         () => humanDelay(),
         (message, data) => logger.info('auto-job', message, data),
+        undefined,
+        jobStates,
+        undefined,
+        stores.marketCompletedJobs,
+        stores.jobState,
+        resetAtForMarket,
     );
     const autoJobsRunner = new AutoJobRunner(jobExecution);
+    autoJobsRunnerRef = autoJobsRunner;
     const autoJobsQueue = new AutoJobQueueService(autoJobsRunner);
 
     const queue = new JobQueueCoordinator({
@@ -247,13 +285,14 @@ export function createAutomationRuntime(core: CoreRuntime, game: GameRuntime): A
         runLogs,
         clock,
         store: stores.autoFinish,
+        completions: stores.marketCompletedJobs,
+        jobStates: stores.jobState,
         locks,
         history,
         queue: autoJobsQueue,
         markets,
         snapshots: game.snapshots,
         networkOps,
-        minigameLock: async () => (await game.jobActions.getMinigameLock?.()) ?? null,
         humanDelay,
     });
     autoFinishRef = autoFinish;
@@ -274,6 +313,7 @@ export function createAutomationRuntime(core: CoreRuntime, game: GameRuntime): A
     });
     autoJobs.attachAutoFinish(autoFinish);
     autoFinish.attachAutoJobs(autoJobs);
+    autoJobsRef = autoJobs;
 
     const dismisser = new FailedJobDismisser({
         snapshots: game.snapshots,
@@ -301,6 +341,7 @@ export function createAutomationRuntime(core: CoreRuntime, game: GameRuntime): A
         scheduler,
         locks,
         history,
+        jobStates,
         routing,
         preflight,
         markets,

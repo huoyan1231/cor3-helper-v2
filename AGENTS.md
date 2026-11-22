@@ -87,13 +87,19 @@ Daily ops state loading:
 
 Auth status display:
 
-- `useSettings()` polls `auth.status` every 15 s in addition to the initial load, because `ChromeTabAuthAdapter.status()` queries the live game tab. The top-right auth tag in `AppShell` is a button wired to `settings.loadAuth()` for an immediate re-check after refreshing the game page; no UI reload is needed.
+- `useSettings()` polls `auth.status` every 15 s in addition to the initial load, because `ChromeTabAuthAdapter.status()` queries the live game tab. The top-right auth tag in `AppShell` is a button wired in `SidePanelApp` to `refreshSession` for an immediate re-check after refreshing the game page; no UI reload is needed.
 
 Auto Expedition resilience:
 
 - The main-cycle interval `autoExpeditionIntervalMinutes` (5-1440, default 30) is editable in Settings → Basic as "Auto Expedition interval"; `settings.update` recreates `AUTO_EXPEDITION_ALARM` on change. `enableAutoExpedition()` no longer takes an interval so toggling the switch cannot overwrite the setting with a stale UI value.
 - Transient credit failures (reward payout, threshold check, launch) pause the cycle with a retry alarm via `ExpeditionCycle.pauseAndRetry()`; they no longer write `autoExpeditionEnabled: false`. Only explicit user/helper-mode/config changes disable the switch.
 - `useExpeditions()` keeps `expeditionLoading` (view refresh) separate from `expeditionBusy` (toggle in progress). The initial `expeditionView()` poll only disables the refresh button, never the "Auto start mercenary expedition" switch.
+
+Upstream `v2` merge (2026-11-22):
+
+- Update checks keep fork semantics: `ChromePopupPortal.updateCheck()` reads the fork's `update.json` first and compares integer `versionCode`; bridge `system.updateCheck` is only the fallback. Upstream's `UpdateCheckService`/`UpdateCheckStore`, `system.updateStatus` cache and `UpdateStatus` UI are retained, but semantic-version comparison never decides an update. Upstream's "no direct fetch in popup" test was adapted to this fork behavior.
+- Mercenary decisions support both surfaces: fork flags (`mercGetRidOfVeterans`, `mercInsureVeterans`) and upstream decision mode/score weights (`mercDecisionMode`, `mercDecisionScoreLoot`, `mercDecisionScoreRisk`). `ExpeditionCycle.autoRespond()` passes them together; selection data carries both `insurance` and `insuranceCost`.
+- Upstream auto-job completion barriers, job-state store/reconciler/recorder and market-completed-jobs store are adopted. Background composition registers both the fork toolbar opener and upstream update lifecycle; `AppShell` still receives `ping` / `hasEndpoint` from `SidePanelApp`.
 
 ## Definition of done
 

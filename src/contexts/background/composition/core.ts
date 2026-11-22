@@ -7,6 +7,8 @@ import { RunLogStore } from '../../../infrastructure/logging/run-log-store.js';
 import { ChromeTabAuthAdapter } from '../../../infrastructure/auth/chrome-tab-auth-adapter.js';
 import { ChromeTabsMessagePort } from '../../../infrastructure/auth/chrome-tabs-message-port.js';
 import { UpdateChecker } from '../../../infrastructure/update/update-checker.js';
+import { UpdateCheckStore } from '../../../infrastructure/storage/update-check-store.js';
+import { UpdateCheckService } from '../../../application/update/update-check-service.js';
 import { ChromeStorageArea } from '../../../infrastructure/storage/storage-area.js';
 import { SettingsRepository } from '../../../infrastructure/storage/settings-repository.js';
 import { AutoFinishStateStore } from '../../../infrastructure/storage/auto-finish-state-store.js';
@@ -20,6 +22,8 @@ import { DroneDataCacheStore } from '../../../infrastructure/storage/drone-data-
 import { DroneBuildSnapshotStore } from '../../../infrastructure/storage/drone-build-snapshot-store.js';
 import { AutomationStateStore } from '../../../infrastructure/storage/automation-state-store.js';
 import { JobHistoryStore } from '../../../infrastructure/storage/job-history-store.js';
+import { JobStateStore } from '../../../infrastructure/storage/job-state-store.js';
+import { MarketCompletedJobsStore } from '../../../infrastructure/storage/market-completed-jobs-store.js';
 import { NetworkSnapshotStore } from '../../../infrastructure/storage/network-snapshot-store.js';
 import { NetworkOperationQueue } from '../../../application/network/operation-queue.js';
 import type { EventPublisher } from '../../../application/automation/ports.js';
@@ -67,6 +71,7 @@ export interface CoreRuntime {
     readonly tabs: ChromeTabsMessagePort;
     readonly auth: ChromeTabAuthAdapter;
     readonly updateChecker: UpdateChecker;
+    readonly updateCheck: UpdateCheckService;
     readonly networkOps: NetworkOperationQueue;
     readonly events: EventPublisher;
     readonly sessionLogArea: ChromeStorageArea | null;
@@ -83,6 +88,8 @@ export interface CoreRuntime {
         readonly automationState: AutomationStateStore;
         readonly dailyOpsCache: DailyOpsCacheStore;
         readonly jobHistory: JobHistoryStore;
+        readonly jobState: JobStateStore;
+        readonly marketCompletedJobs: MarketCompletedJobsStore;
         readonly networkSnapshot: NetworkSnapshotStore;
     };
     readonly helperModeEnabled: () => Promise<boolean>;
@@ -200,12 +207,20 @@ export function createCoreRuntime(): CoreRuntime {
         automationState: new AutomationStateStore(storageArea),
         dailyOpsCache: new DailyOpsCacheStore(storageArea),
         jobHistory: new JobHistoryStore(storageArea, undefined, logger),
+        jobState: new JobStateStore(storageArea, undefined, logger),
+        marketCompletedJobs: new MarketCompletedJobsStore(storageArea, undefined, logger),
         networkSnapshot: new NetworkSnapshotStore(storageArea, undefined, logger),
     } as const;
 
     const tabs = new ChromeTabsMessagePort();
     const auth = new ChromeTabAuthAdapter(tabs);
-    const updateChecker = new UpdateChecker();
+    const updateChecker = new UpdateChecker({ currentVersionCode: () => APP_VERSION_CODE });
+    const updateCheck = new UpdateCheckService({
+        checker: updateChecker,
+        store: new UpdateCheckStore(storageArea),
+        currentVersion: () => VERSION,
+        now: () => Date.now(),
+    });
     const networkOps = new NetworkOperationQueue({
         onChange: (status) => events.publish('network.queue', status),
     });
@@ -252,6 +267,7 @@ export function createCoreRuntime(): CoreRuntime {
         tabs,
         auth,
         updateChecker,
+        updateCheck,
         networkOps,
         events,
         sessionLogArea,
