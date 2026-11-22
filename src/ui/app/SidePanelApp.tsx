@@ -235,6 +235,7 @@ export function SidePanelApp({
                 popupMode={popupMode}
                 onOpenSidePanel={popupMode ? () => void portal.openSidePanel() : undefined}
                 onOpenWindow={windowMode ? undefined : () => void portal.openWindow()}
+                onRefreshAuth={() => void settings.loadAuth()}
                 onPageChange={setActivePage}
             >
                 {activePage === 'developer' ? (

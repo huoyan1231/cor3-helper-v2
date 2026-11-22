@@ -38,6 +38,7 @@ export interface AppShellProps {
     readonly popupMode?: boolean;
     readonly onOpenSidePanel?: (() => void) | undefined;
     readonly onOpenWindow?: (() => void) | undefined;
+    readonly onRefreshAuth?: (() => void) | undefined;
     readonly onPageChange: (page: PopupPage) => void;
     readonly children: ComponentChildren;
 }
@@ -55,6 +56,7 @@ export function AppShell({
     popupMode = false,
     onOpenSidePanel,
     onOpenWindow,
+    onRefreshAuth,
     onPageChange,
     children,
 }: AppShellProps) {
@@ -65,9 +67,14 @@ export function AppShell({
                 <span class={`v2-status v2-status-${ping === 'ok' ? 'ok' : ping === 'error' ? 'error' : ''}`} title={t(language, 'status.pingHint')}>
                     {ping === 'ok' ? t(language, 'status.ok') : ping === 'error' ? t(language, 'status.offline') : '…'}
                 </span>
-                <span class={`v2-status ${authenticated ? 'v2-status-ok' : 'v2-status-bad'}`} title={t(language, 'status.authHint')}>
+                <button
+                    type="button"
+                    class={`v2-status v2-status-action ${authenticated ? 'v2-status-ok' : 'v2-status-bad'}`}
+                    title={t(language, 'status.authHint')}
+                    onClick={onRefreshAuth}
+                >
                     {authenticated ? t(language, 'status.auth') : t(language, 'status.needsRefresh')}
-                </span>
+                </button>
                 <span class={`v2-status ${hasEndpoint ? 'v2-status-ok' : 'v2-status-muted'}`} title={t(language, 'status.endpointHint')}>
                     {hasEndpoint ? t(language, 'status.endpoint') : t(language, 'status.noEndpoint')}
                 </span>

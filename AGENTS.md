@@ -85,6 +85,10 @@ Daily ops state loading:
 
 - `useDaily()` loads both `autoDailyStatus` and `dailyView` on mount. `dailyView` reads the persisted `v2.dailyOpsCache` first, so the Auto Daily "Today" card and Overview timers show the saved claimed/unclaimed state immediately instead of flashing "unclaimed" until a later poll. The 15 s poll runs on the automation and overview pages regardless of the Auto Daily switch, since `daily` is an independent view model.
 
+Auth status display:
+
+- `useSettings()` polls `auth.status` every 15 s in addition to the initial load, because `ChromeTabAuthAdapter.status()` queries the live game tab. The top-right auth tag in `AppShell` is a button wired to `settings.loadAuth()` for an immediate re-check after refreshing the game page; no UI reload is needed.
+
 Auto Expedition resilience:
 
 - The main-cycle interval `autoExpeditionIntervalMinutes` (5-1440, default 30) is editable in Settings → Basic as "Auto Expedition interval"; `settings.update` recreates `AUTO_EXPEDITION_ALARM` on change. `enableAutoExpedition()` no longer takes an interval so toggling the switch cannot overwrite the setting with a stale UI value.

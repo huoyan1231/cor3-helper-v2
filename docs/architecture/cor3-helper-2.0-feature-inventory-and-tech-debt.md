@@ -1316,3 +1316,11 @@ A full verification run (typecheck, Vitest, oxlint, build) plus a review of the 
 - **Alarm rebuild:** `applySettingsPatch()` recreates `AUTO_EXPEDITION_ALARM` with the new period whenever `autoExpeditionIntervalMinutes` is patched while Auto Expedition is enabled and Helper Mode is off, so the change takes effect without toggling the feature.
 - **Stale-value fix:** `useExpeditions.toggleAutoExpedition()` no longer passes its own cached interval to `portal.enableAutoExpedition()` — the portal method and bridge payload now make `intervalMinutes` optional and the coordinator keeps the current settings value. This prevents re-enabling the switch from silently reverting an interval just changed in Settings.
 - **No schema change:** the field already existed in `SettingsV1`/`settingsPatchSchema` with default 30; only UI, alarm wiring and the optional bridge parameter changed. typecheck, oxlint, Vitest and production build pass.
+
+---
+
+# Part 62 — Live auth status in the header
+
+- **Symptom:** the top-right AUTH / NEEDS REFRESH tag stayed stale after refreshing the game page; only reopening the side panel updated it. `useSettings()` loaded auth once on mount and nothing re-read it, even though `ChromeTabAuthAdapter.status()` queries the game tab's content script live on every call.
+- **Fix:** `useSettings()` now runs `loadAuth()` on a 15 s `usePolling` loop. `AppShell`'s auth tag became a button (`onRefreshAuth`) wired in `SidePanelApp` to `settings.loadAuth()` for an immediate re-check. Added `.v2-status-action` styling and updated the EN/ZH `status.authHint` tooltips to describe click-to-refresh.
+- **Verification:** typecheck, oxlint, Vitest and production build pass.

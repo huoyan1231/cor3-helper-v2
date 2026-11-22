@@ -4,6 +4,7 @@ import type { PopupPortal, UpdateCheckView } from '../../../application/popup/po
 import type { AuthStatus, SettingsPatch, SettingsV1 } from '../../../contracts/storage.js';
 import type { HackToggleKey } from '../../features/automation/HackingAutomationCard.js';
 import { detectBrowserLanguage, translate, type UiLanguage } from '../../i18n.js';
+import { usePolling } from './usePolling.js';
 import type { TranslateSource } from '../../i18n-context.js';
 import type { PopupPage } from '../AppShell.js';
 
@@ -99,6 +100,10 @@ export function useSettings(portal: PopupPortal, deps: SettingsDeps): SettingsSt
         void loadSettings();
         void loadAuth();
     }, [loadSettings, loadAuth]);
+
+    // Auth is read live from the game tab's content script, so a page refresh
+    // there changes the state without reloading the extension UI.
+    usePolling(loadAuth, 15000);
 
     const checkUpdates = useCallback(async () => {
         if (updateChecking) return;
