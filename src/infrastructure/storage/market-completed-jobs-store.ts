@@ -3,6 +3,7 @@ import type {
     MarketCompletionStateReadResult,
     MarketCompletionStoreOutcome,
     MarketCompletionStorePort,
+    MarketCompletionUnconfirmedReleaseResult,
     MarketCompletionWriteInput,
 } from '../../application/auto-job/market-completion.js';
 import {
@@ -228,6 +229,30 @@ export class MarketCompletedJobsStore implements MarketCompletionStorePort {
                     [marketKey]: { ...markets[marketKey], [jobId]: value },
                 },
             });
+        });
+    }
+
+    async releaseUnconfirmed(input: {
+        readonly marketKey: string;
+        readonly jobId: string;
+        readonly resetAt: string;
+        readonly expectedStoredResetAt: string;
+    }): Promise<MarketCompletionUnconfirmedReleaseResult> {
+        const marketKey = requireValue(input.marketKey, 'marketKey');
+        const jobId = requireValue(input.jobId, 'jobId');
+        const resetAt = requireReset(input.resetAt, 'resetAt');
+        const expected = requireReset(input.expectedStoredResetAt, 'expectedStoredResetAt');
+        // A bounded recovery only ever releases an exact-reset barrier. Legacy
+        // 'unknown' fallbacks stay durable until explicit completion evidence.
+        if (expected !== resetAt) return { status: 'mismatch' };
+        return this.enqueue(async () => {
+            const current = await this.readForWrite();
+            const stored = current.unconfirmedByMarket?.[marketKey]?.[jobId];
+            if (stored === undefined) return { status: 'absent' };
+            if (stored !== expected) return { status: 'mismatch' };
+            const next = withoutUnconfirmed(current, marketKey, jobId, resetAt);
+            if (next !== current) await this.repository.set(next);
+            return { status: 'released' };
         });
     }
 }

@@ -1,5 +1,5 @@
 import type { JobLifecycleStatus, JobStateKey, JobStateRecord } from '../../contracts/job-state.js';
-import { isCompletionUncertainRecord, JOB_STATE_UNKNOWN_RESET, normalizeJobStateResetAt } from '../../contracts/job-state.js';
+import { canRecoverClaimableAfterUnknown, isCompletionUncertainRecord, JOB_STATE_UNKNOWN_RESET, normalizeJobStateResetAt } from '../../contracts/job-state.js';
 import type { JobOffer } from '../../domains/jobs/model.js';
 import type { AutomationLogger } from '../automation/ports.js';
 import type { SkippedJob } from './market-mapper.js';
@@ -23,6 +23,7 @@ export type JobReconciliationOutcome =
     | 'unchanged'
     | 'reconciled'
     | 'recoverable'
+    | 'claim-recovery'
     | 'pending'
     | 'conflict'
     | 'skipped-active';
@@ -149,12 +150,26 @@ export function decideJobStateReconciliation(
     previousStatus: JobLifecycleStatus,
     observation: RemoteJobObservation,
     completionUnconfirmed = false,
+    recoveryRecord?: Pick<JobStateRecord, 'resetAt' | 'completeRecoveryAttemptedAt' | 'status' | 'errorCode' | 'unconfirmed'>,
 ): ReconciliationDecision {
     // A Complete whose result was never confirmed cannot be cleared by the job
-    // merely still existing (taken/claimable/available/absent). Only explicit
-    // completed evidence may release the barrier; expired/failed remain terminal.
+    // merely still existing (taken/claimable/available/absent). One exception:
+    // a fresh claimable row for a known reset proves the reward is still owed,
+    // so a single bounded recovery may release that exact barrier.
     if (completionUnconfirmed && observation !== 'completed' && observation !== 'expired' && observation !== 'failed') {
-        return { outcome: 'pending', recoverable: false, reason: 'complete-result-unknown' };
+        if (observation === 'taken-claimable' && recoveryRecord && canRecoverClaimableAfterUnknown(recoveryRecord)) {
+            return {
+                outcome: 'claim-recovery',
+                nextStatus: 'ready-to-claim',
+                recoverable: true,
+                reason: 'claimable-after-unconfirmed-complete',
+            };
+        }
+        return {
+            outcome: 'pending',
+            recoverable: false,
+            reason: recoveryRecord?.completeRecoveryAttemptedAt !== undefined ? 'claim-recovery-exhausted' : 'complete-result-unknown',
+        };
     }
     if (observation === 'completed') {
         if (previousStatus === 'completed') return { outcome: 'unchanged', recoverable: false, reason: 'already-completed' };
@@ -352,9 +367,20 @@ export class JobStateReconciler implements JobStateReconcilerPort {
                 continue;
             }
 
-            let decision = decideJobStateReconciliation(record.status, observation, isCompletionUncertainRecord(record));
+            const uncertain = isCompletionUncertainRecord(record);
+            let decision = decideJobStateReconciliation(record.status, observation, uncertain, record);
             let completionStatus: CompletionBridgeStatus | undefined;
             let completionError: string | undefined;
+            let releasedForRecovery = false;
+            if (decision.outcome === 'claim-recovery') {
+                const released = await this.releaseClaimRecoveryBarrier(record.marketKey, record.jobId, resetAt);
+                if (!released.ok) {
+                    decision = { outcome: 'pending', recoverable: false, reason: released.reason };
+                    completionFailures += 1;
+                } else {
+                    releasedForRecovery = true;
+                }
+            }
             if (observation === 'completed') {
                 const bridged = await this.bridgeCompletion(record.marketKey, record.jobId, resetAt);
                 completionStatus = bridged.status;
@@ -380,9 +406,16 @@ export class JobStateReconciler implements JobStateReconcilerPort {
                     marketKey: record.marketKey,
                     jobId: record.jobId,
                     resetAt: record.resetAt,
-                }, decision.nextStatus);
+                }, decision.nextStatus, releasedForRecovery
+                    ? { unconfirmed: false, recoveryAttemptedAt: new Date(this.now()).toISOString() }
+                    : undefined);
                 if (persisted) updated += 1;
-                else failedWrites += 1;
+                else {
+                    failedWrites += 1;
+                    if (releasedForRecovery) {
+                        await this.restoreClaimRecoveryBarrier(record.marketKey, record.jobId, resetAt);
+                    }
+                }
             }
             if (decision.outcome === 'pending') pending += 1;
             if (decision.outcome === 'conflict') conflicts += 1;
@@ -671,6 +704,53 @@ export class JobStateReconciler implements JobStateReconcilerPort {
             };
         }
         return { status: 'reset-mismatch', blocksJobState: false };
+    }
+
+    private async releaseClaimRecoveryBarrier(
+        marketKey: string,
+        jobId: string,
+        resetAt: string | null,
+    ): Promise<{ readonly ok: true } | { readonly ok: false; readonly reason: string }> {
+        const completions = this.deps.completions;
+        if (!completions?.releaseUnconfirmed || resetAt === null) {
+            return { ok: false, reason: 'claim-recovery-release-unavailable' };
+        }
+        try {
+            const result = await completions.releaseUnconfirmed({
+                marketKey,
+                jobId,
+                resetAt,
+                expectedStoredResetAt: resetAt,
+            });
+            return result.status === 'mismatch'
+                ? { ok: false, reason: 'claim-recovery-barrier-mismatch' }
+                : { ok: true };
+        } catch (error) {
+            return {
+                ok: false,
+                reason: `claim-recovery-release-failed: ${error instanceof Error ? error.message : String(error)}`,
+            };
+        }
+    }
+
+    private async restoreClaimRecoveryBarrier(
+        marketKey: string,
+        jobId: string,
+        resetAt: string | null,
+    ): Promise<void> {
+        const completions = this.deps.completions;
+        const mark = completions?.markUnconfirmed;
+        if (!completions || !mark || resetAt === null) return;
+        try {
+            await mark.call(completions, { marketKey, jobId, resetAt });
+        } catch (error) {
+            this.deps.logger.warn('job-state', 'Failed to restore completion barrier after claim recovery write failure', {
+                marketKey,
+                jobId,
+                resetAt,
+                message: error instanceof Error ? error.message : String(error),
+            });
+        }
     }
 
     private log(input: ReconcileMarketInput, result: JobReconciliationResult): void {

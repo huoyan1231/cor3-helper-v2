@@ -15,6 +15,8 @@ export interface JobStateTransitionDetails {
     readonly message?: string;
     readonly stage?: string;
     readonly unconfirmed?: boolean;
+    /** Set when a bounded claimable recovery has already been attempted. */
+    readonly recoveryAttemptedAt?: string;
 }
 
 export interface JobStateSession {
@@ -60,20 +62,24 @@ function safeErrorText(input: string): string {
 
 class JobStateSessionImpl implements JobStateSession {
     private createdAt: string;
+    private recoveryAttemptedAt: string | undefined;
     private chain: Promise<void> = Promise.resolve();
 
     constructor(
         private readonly deps: JobStateRecorderDeps,
         readonly key: JobStateKey,
         createdAt: string,
+        recoveryAttemptedAt: string | undefined,
         private readonly now: () => number,
     ) {
         this.createdAt = createdAt;
+        this.recoveryAttemptedAt = recoveryAttemptedAt;
     }
 
     transition(status: JobLifecycleStatus, details: JobStateTransitionDetails = {}): Promise<void> {
         const run = async (): Promise<void> => {
             const at = iso(this.now());
+            const recoveryAttemptedAt = details.recoveryAttemptedAt ?? this.recoveryAttemptedAt;
             const record: JobStateRecord = {
                 marketKey: this.key.marketKey,
                 jobId: this.key.jobId,
@@ -86,10 +92,12 @@ class JobStateSessionImpl implements JobStateSession {
                 ...(details.message ? { lastError: safeErrorText(details.message) } : {}),
                 ...(details.stage ? { stage: details.stage } : {}),
                 ...(details.unconfirmed === true ? { unconfirmed: true } : {}),
+                ...(recoveryAttemptedAt ? { completeRecoveryAttemptedAt: recoveryAttemptedAt } : {}),
             };
             try {
                 await this.deps.store.upsert(record);
                 this.createdAt = record.createdAt;
+                if (recoveryAttemptedAt !== undefined) this.recoveryAttemptedAt = recoveryAttemptedAt;
             } catch (error) {
                 this.deps.logger.warn('job-state', 'Failed to persist job lifecycle transition', {
                     jobId: this.key.jobId,
@@ -142,13 +150,20 @@ export class JobStateRecorder implements JobStateRecorderPort, JobStateWriterPor
         );
         const key: JobStateKey = { marketKey: job.marketKey, jobId: job.id, resetAt };
         const existing = await this.existingFor(key);
-        return new JobStateSessionImpl(this.deps, key, existing?.createdAt ?? iso(this.now()), this.now);
+        return new JobStateSessionImpl(
+            this.deps,
+            key,
+            existing?.createdAt ?? iso(this.now()),
+            existing?.completeRecoveryAttemptedAt,
+            this.now,
+        );
     }
 
     async update(key: JobStateKey, status: JobLifecycleStatus, details: JobStateTransitionDetails = {}): Promise<boolean> {
         const normalized: JobStateKey = { ...key, resetAt: normalizeJobStateResetAt(key.resetAt) };
         const existing = await this.existingFor(normalized);
         const at = iso(this.now());
+        const recoveryAttemptedAt = details.recoveryAttemptedAt ?? existing?.completeRecoveryAttemptedAt;
         const record: JobStateRecord = {
             marketKey: normalized.marketKey,
             jobId: normalized.jobId,
@@ -161,6 +176,7 @@ export class JobStateRecorder implements JobStateRecorderPort, JobStateWriterPor
             ...(details.message ? { lastError: safeErrorText(details.message) } : {}),
             ...(details.stage ? { stage: details.stage } : {}),
             ...(details.unconfirmed === true ? { unconfirmed: true } : {}),
+            ...(recoveryAttemptedAt ? { completeRecoveryAttemptedAt: recoveryAttemptedAt } : {}),
         };
         try {
             await this.deps.store.upsert(record);

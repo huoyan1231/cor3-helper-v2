@@ -422,6 +422,7 @@ export class AutoFinishCoordinator {
                 if (this.deps.locks.isLocked(job.marketKey, job.id)) return false;
                 return true;
             });
+            preRunnable.sort((a, b) => Number(b.alreadyTaken && b.canComplete) - Number(a.alreadyTaken && a.canComplete));
             if (preRunnable.length === 0) {
                 const preRunnableIds = new Set(preRunnable.map((job) => jobIdentityKey(job.marketKey, job.id)));
                 const preSkipped = { noServer: 0, typeDisabled: 0, locked: 0, retryExhausted: 0, completed: 0, completionUnknown: 0 };
@@ -585,6 +586,9 @@ export class AutoFinishCoordinator {
                 if (this.deps.locks.isLocked(job.marketKey, job.id)) return false;
                 return true;
             });
+            // v1 claimed already-finished jobs first; keep that parity so a
+            // fresh claimable row is picked up before fresh work in the same run.
+            runnable.sort((a, b) => Number(b.alreadyTaken && b.canComplete) - Number(a.alreadyTaken && a.canComplete));
             const runnableIds = new Set(runnable.map((job) => jobIdentityKey(job.marketKey, job.id)));
             const skipped = { noServer: 0, typeDisabled: 0, locked: 0, retryExhausted: 0, completed: 0, completionUnknown: 0 };
             for (const job of runJobs) {

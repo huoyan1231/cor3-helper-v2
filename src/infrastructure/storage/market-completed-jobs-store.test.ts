@@ -407,6 +407,30 @@ describe('Completion fallback lifecycle', () => {
         expect(await store.getUnconfirmedState()).toEqual({ home: { legacy: 'unknown' } });
     });
 
+    it('releases only an exact-reset barrier for bounded claim recovery', async () => {
+        const store = new MarketCompletedJobsStore(new MemoryStorageArea(), { now: () => 1 });
+        await store.markUnconfirmed({ marketKey: 'home', jobId: 'exact', resetAt: resetA });
+        await store.markUnconfirmed({ marketKey: 'home', jobId: 'legacy', resetAt: null });
+        await store.markUnconfirmed({ marketKey: 'dark', jobId: 'exact', resetAt: resetA });
+
+        expect(await store.releaseUnconfirmed({
+            marketKey: 'home', jobId: 'exact', resetAt: resetA, expectedStoredResetAt: resetB,
+        })).toEqual({ status: 'mismatch' });
+        expect(await store.releaseUnconfirmed({
+            marketKey: 'home', jobId: 'legacy', resetAt: resetA, expectedStoredResetAt: resetA,
+        })).toEqual({ status: 'mismatch' });
+        expect(await store.releaseUnconfirmed({
+            marketKey: 'home', jobId: 'missing', resetAt: resetA, expectedStoredResetAt: resetA,
+        })).toEqual({ status: 'absent' });
+        expect(await store.releaseUnconfirmed({
+            marketKey: 'home', jobId: 'exact', resetAt: resetA, expectedStoredResetAt: resetA,
+        })).toEqual({ status: 'released' });
+        expect(await store.getUnconfirmedState()).toEqual({
+            home: { legacy: 'unknown' },
+            dark: { exact: resetA },
+        });
+    });
+
     it('F06 keeps market and job isolation for identity-less fallbacks', async () => {
         const store = new MarketCompletedJobsStore(new MemoryStorageArea(), { now: () => 1 });
         await store.markUnconfirmed({ marketKey: 'home', jobId: 'shared', resetAt: null });

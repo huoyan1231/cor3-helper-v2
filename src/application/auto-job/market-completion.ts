@@ -25,6 +25,11 @@ export type MarketCompletionPruneOutcome =
     | { readonly status: 'pruned'; readonly removed: number; readonly state: MarketCompletedJobsState }
     | { readonly status: 'skipped'; readonly reason: 'unknown-reset' | 'invalid-reset'; readonly state: MarketCompletedJobsState };
 
+export type MarketCompletionUnconfirmedReleaseResult =
+    | { readonly status: 'released' }
+    | { readonly status: 'absent' }
+    | { readonly status: 'mismatch' };
+
 /** Atomic write/query port for the sidecar market-scoped completion store. */
 export interface MarketCompletionStorePort {
     recordCompletion(input: MarketCompletionWriteInput): Promise<MarketCompletionStoreOutcome>;
@@ -45,6 +50,16 @@ export interface MarketCompletionStorePort {
         readonly jobId: string;
         readonly resetAt: string | null;
     }): Promise<void>;
+    /**
+     * Releases an exact-reset fallback barrier for a bounded claim recovery.
+     * Identity-less 'unknown' barriers are never auto-released.
+     */
+    releaseUnconfirmed?(input: {
+        readonly marketKey: string;
+        readonly jobId: string;
+        readonly resetAt: string;
+        readonly expectedStoredResetAt: string;
+    }): Promise<MarketCompletionUnconfirmedReleaseResult>;
 }
 
 function nonEmpty(value: string | null | undefined): string | null {

@@ -761,3 +761,15 @@ Approved by maintainer on 2026-11-08:
 - D-010 dedicated 2.0 extension identity
 
 This record does not authorize code rewrite. Implementation starts only after maintainer confirmation.
+
+---
+
+## 14. Open item O-001 — Bounded claimable recovery after an unconfirmed Complete (2026-11-22)
+
+The upstream completion barrier intentionally fails closed: an unconfirmed `Complete` result blocks re-execution until explicit remote `completed` evidence appears. In practice a fresh market row with `alreadyTaken && canComplete` is also valid evidence that the reward was not granted, and the barrier made v2 skip a reward that v1 would have claimed.
+
+Approved implementation for this fork: one bounded automatic recovery per known reset. `JobStateReconciler` may CAS-release an exact-reset barrier when a fresh `taken-claimable` row is observed, mark `completeRecoveryAttemptedAt`, and let the normal claim-only path complete once. Null/unknown resets and identity-less sidecar barriers stay durable. If the recovery is again unconfirmed, the barrier is restored and no further automatic attempt is made for that reset.
+
+**Why:** restore v1's "claim rewards first" behavior without turning an ACK loss into an infinite retry loop or a silent weakening of the double-completion guard.
+
+**How to apply:** do not remove the completion barrier wholesale; only the exact-reset, once-per-reset recovery path described above is authorized. Any broader auto-clear requires a new open item and maintainer approval.

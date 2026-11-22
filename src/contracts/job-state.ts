@@ -45,6 +45,8 @@ export const jobStateRecordSchema = z.object({
     stage: z.string().optional(),
     /** Complete result was unconfirmed; block automatic re-execution until remote completed. */
     unconfirmed: z.boolean().optional(),
+    /** A fresh claimable row already triggered one bounded automatic recovery. */
+    completeRecoveryAttemptedAt: z.string().min(1).optional(),
 }).strict();
 
 export type JobStateRecord = z.infer<typeof jobStateRecordSchema>;
@@ -91,6 +93,18 @@ export function isCompletionUncertainRecord(record: Pick<JobStateRecord, 'status
     if (record.unconfirmed === true) return true;
     return record.status === 'unknown'
         && (record.errorCode === 'COMPLETE_FAILED' || record.errorCode === undefined);
+}
+
+/**
+ * A fresh, claimable market row is positive evidence that the reward was not
+ * granted. Allow one bounded recovery, but never for a null/unknown reset or
+ * after a previous recovery attempt.
+ */
+export function canRecoverClaimableAfterUnknown(record: Pick<JobStateRecord, 'resetAt' | 'completeRecoveryAttemptedAt' | 'status' | 'errorCode' | 'unconfirmed'>): boolean {
+    if (!isCompletionUncertainRecord(record)) return false;
+    if (record.completeRecoveryAttemptedAt !== undefined) return false;
+    const resetAt = normalizeJobStateResetAt(record.resetAt);
+    return resetAt !== null && Number.isFinite(Date.parse(resetAt));
 }
 
 export function normalizeJobStateRecord(record: JobStateRecord): JobStateRecord {

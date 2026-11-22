@@ -1334,3 +1334,13 @@ A full verification run (typecheck, Vitest, oxlint, build) plus a review of the 
 - **Mercenary decisions:** merged the fork's veteran/insurance flags with upstream's `mercDecisionMode` and loot/risk score weights. `autoRespond()` receives one options object; candidates carry both `insurance` and `insuranceCost`; the option UI keeps the veteran helpers alongside upstream's score mode. No old setting key was removed.
 - **UI composition:** `AppShell` retains `ping` and `hasEndpoint` props supplied by `SidePanelApp`; the auth refresh button uses upstream's `refreshSession`. The UI architecture test now normalizes Windows path separators.
 - **Verification:** typecheck, oxlint, all 1096 Vitest tests and production build pass.
+
+---
+
+# Part 64 — Bounded automatic recovery of claimable jobs after an unconfirmed Complete (2026-11-22)
+
+- **Symptom:** the UI showed a job as "ready to claim" (`alreadyTaken && canComplete`), but Auto Finish skipped it forever with `completionUnknown`. v2's durable completion barrier — adopted from upstream to avoid double completion after an unconfirmed `Complete` — blocked the claim-only path even though the server was positively saying the reward was still owed. v1 did not have this barrier: it claimed every `canComplete` row first on every run, and retried after market reset.
+- **Fix:** ported that v1 behavior as a bounded recovery. `JobStateReconciler` now treats a fresh `taken-claimable` observation for a known reset as `claim-recovery`: it CAS-releases the exact-reset barrier via `MarketCompletionStorePort.releaseUnconfirmed()`, moves Job State to `ready-to-claim` with `completeRecoveryAttemptedAt`, and lets the normal claim-only path call `job.complete`. Claim-only jobs are sorted first in Auto Finish so they are claimed at the start of each run.
+- **Safety:** one recovery per known reset; null/unknown resets and identity-less `'unknown'` sidecar barriers are never auto-released. If the recovery `Complete` is again unconfirmed, the barrier is restored and no second automatic attempt is made for that reset. Successful completion still writes the sidecar and Job State `completed`.
+- **Contracts/tests:** added optional `completeRecoveryAttemptedAt` to `JobStateRecord`, optional `releaseUnconfirmed()` to the completion store port, reconciler decision tests, storage CAS tests, and integration tests for single recovery plus exhaustion. `complete unknown → claimable → automatic claim` is now a supported, tested flow.
+- **Verification:** typecheck, oxlint, all 1101 Vitest tests and production build pass.

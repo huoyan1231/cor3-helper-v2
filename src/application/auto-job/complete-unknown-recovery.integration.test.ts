@@ -191,30 +191,50 @@ describe('Complete unknown recovery integration', () => {
         expect((await made.jobStore.get({ marketKey: 'home', jobId: 'job-1', resetAt: resetA }))?.status).toBe('unknown');
     });
 
-    it('keeps a remote claimable row blocked after an unconfirmed Complete', async () => {
+    it('recovers a remote claimable row once after an unconfirmed Complete', async () => {
         const made = await makeUnknownJob();
-        await reconcilerFor(made).reconcile({
+        const result = await reconcilerFor(made).reconcile({
             marketKey: 'home',
             resetAt: resetA,
             observedAt: 2,
             jobs: [job({ alreadyTaken: true, canComplete: true })],
         });
-        expect(await made.completionStore.getState()).toEqual({ byMarket: {} });
+        expect(result.updated).toBe(1);
+        expect(result.recoverable).toContain('job-1');
+        const recovered = await made.jobStore.get({ marketKey: 'home', jobId: 'job-1', resetAt: resetA });
+        expect(recovered?.status).toBe('ready-to-claim');
+        expect(recovered?.unconfirmed).toBeUndefined();
+        expect(recovered?.completeRecoveryAttemptedAt).toBeDefined();
+
+        const completed = await executeSuccessfulAck(made);
+        expect(completed.ok).toBe(true);
+        expect(made.calls.filter((call) => call === 'take')).toHaveLength(1);
+        expect(made.calls.filter((call) => call === 'complete')).toHaveLength(2);
+        expect(await made.completionStore.getCompletion('home', 'job-1')).toBe(resetA);
+        expect((await made.jobStore.get({ marketKey: 'home', jobId: 'job-1', resetAt: resetA }))?.status).toBe('completed');
+    });
+
+    it('does not auto-recover the same reset twice', async () => {
+        const made = await makeUnknownJob();
+        const current = await made.jobStore.get({ marketKey: 'home', jobId: 'job-1', resetAt: resetA });
+        expect(current).toBeDefined();
+        await made.jobStore.upsert({
+            ...current!,
+            completeRecoveryAttemptedAt: '2026-11-20T11:30:00.000Z',
+        });
+
+        const result = await reconcilerFor(made).reconcile({
+            marketKey: 'home',
+            resetAt: resetA,
+            observedAt: 2,
+            jobs: [job({ alreadyTaken: true, canComplete: true })],
+        });
+        expect(result.pending).toBe(1);
+        expect(result.recoverable).toEqual([]);
         const blocked = await made.jobStore.get({ marketKey: 'home', jobId: 'job-1', resetAt: resetA });
         expect(blocked?.status).toBe('unknown');
         expect(blocked?.unconfirmed).toBe(true);
-
-        // alreadyTaken + canComplete cannot release the unconfirmed barrier.
-        made.actions.complete = async () => {
-            made.calls.push('complete');
-            return { ok: true as const, value: { credits: 1, reputation: 1, renown: 0 } };
-        };
-        const executed = await made.service.executeDetailed(job({ alreadyTaken: true, canComplete: true }));
-        expect(executed.ok).toBe(false);
-        expect(made.calls.filter((call) => call === 'take')).toHaveLength(1);
         expect(made.calls.filter((call) => call === 'complete')).toHaveLength(1);
-        expect((await made.jobStore.get({ marketKey: 'home', jobId: 'job-1', resetAt: resetA }))?.status).toBe('unknown');
-        expect(await made.completionStore.getState()).toEqual({ byMarket: {} });
     });
 
     it('does not fall back to available when the remote row is open', async () => {

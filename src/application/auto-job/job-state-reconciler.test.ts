@@ -135,6 +135,23 @@ describe('decideJobStateReconciliation', () => {
         });
     });
 
+    it('allows one claimable recovery after an unconfirmed Complete', () => {
+        const uncertain = record({ status: 'unknown', unconfirmed: true });
+        expect(decideJobStateReconciliation('unknown', 'taken-claimable', true, uncertain)).toMatchObject({
+            outcome: 'claim-recovery',
+            nextStatus: 'ready-to-claim',
+            recoverable: true,
+        });
+        expect(decideJobStateReconciliation('unknown', 'taken-claimable', true, {
+            ...uncertain,
+            completeRecoveryAttemptedAt: at,
+        })).toMatchObject({ outcome: 'pending', reason: 'claim-recovery-exhausted' });
+        expect(decideJobStateReconciliation('unknown', 'taken-claimable', true, {
+            ...uncertain,
+            resetAt: null,
+        })).toMatchObject({ outcome: 'pending', recoverable: false });
+    });
+
     it('marks completed only from explicit completed evidence', () => {
         expect(decideJobStateReconciliation('claiming', 'completed')).toMatchObject({
             outcome: 'reconciled',
@@ -189,6 +206,39 @@ describe('JobStateReconciler', () => {
         expect((await made.store.get({ marketKey: 'dark', jobId: 'shared', resetAt: resetA }))?.status).toBe('taking');
         expect((await made.store.get({ marketKey: 'home', jobId: 'shared', resetAt: resetB }))?.status).toBe('taking');
         expect((await made.store.get({ marketKey: 'home', jobId: 'shared', resetAt: null }))?.status).toBe('taking');
+    });
+
+    it('releases an exact sidecar barrier for a fresh claimable row', async () => {
+        const made = await harness([record({ status: 'unknown', unconfirmed: true })]);
+        await made.completions.markUnconfirmed?.({ marketKey: 'home', jobId: 'job-1', resetAt: resetA });
+        const result = await made.reconciler.reconcile({
+            marketKey: 'home',
+            resetAt: resetA,
+            observedAt,
+            jobs: [job('job-1', { alreadyTaken: true, canComplete: true })],
+        });
+
+        expect(result.recoverable).toContain('job-1');
+        expect(await made.completions.getUnconfirmedState?.()).toEqual({});
+        const stored = await made.store.get({ marketKey: 'home', jobId: 'job-1', resetAt: resetA });
+        expect(stored?.status).toBe('ready-to-claim');
+        expect(stored?.unconfirmed).toBeUndefined();
+        expect(stored?.completeRecoveryAttemptedAt).toBeDefined();
+    });
+
+    it('does not auto-release a legacy unknown-reset barrier', async () => {
+        const made = await harness([record({ status: 'unknown', unconfirmed: true })]);
+        await made.completions.markUnconfirmed?.({ marketKey: 'home', jobId: 'job-1', resetAt: null });
+        const result = await made.reconciler.reconcile({
+            marketKey: 'home',
+            resetAt: resetA,
+            observedAt,
+            jobs: [job('job-1', { alreadyTaken: true, canComplete: true })],
+        });
+
+        expect(result.pending).toBe(1);
+        expect(await made.completions.getUnconfirmedState?.()).toEqual({ home: { 'job-1': 'unknown' } });
+        expect((await made.store.get({ marketKey: 'home', jobId: 'job-1', resetAt: resetA }))?.status).toBe('unknown');
     });
 
     it('does not match a known reset record while the current reset is unknown', async () => {
@@ -417,7 +467,7 @@ describe('JobStateReconciler completion bridge', () => {
         expect((await made.store.get({ marketKey: 'home', jobId: 'job-1', resetAt: null }))?.status).toBe('claiming');
     });
 
-    it('keeps an unconfirmed completion blocked on a claimable remote row', async () => {
+    it('recovers an unconfirmed completion on a claimable remote row', async () => {
         const made = await harness([record({ jobId: 'job-1', status: 'unknown', unconfirmed: true })]);
 
         const result = await made.reconciler.reconcile({
@@ -430,15 +480,15 @@ describe('JobStateReconciler completion bridge', () => {
         expect(result.decisions[0]).toMatchObject({
             previousStatus: 'unknown',
             observation: 'taken-claimable',
-            outcome: 'pending',
-            reason: 'complete-result-unknown',
+            outcome: 'claim-recovery',
+            reason: 'claimable-after-unconfirmed-complete',
         });
         expect((await made.store.get({ marketKey: 'home', jobId: 'job-1', resetAt: resetA })))
-            .toMatchObject({ status: 'unknown', unconfirmed: true });
+            .toMatchObject({ status: 'ready-to-claim' });
         expect(await made.completions.getState()).toEqual({ byMarket: {} });
     });
 
-    it('treats a legacy unknown COMPLETE_FAILED record as completion-uncertain', async () => {
+    it('recovers a legacy unknown COMPLETE_FAILED record from a fresh claimable row', async () => {
         const made = await harness([record({
             jobId: 'job-1', status: 'unknown', errorCode: 'COMPLETE_FAILED',
         })]);
@@ -451,10 +501,10 @@ describe('JobStateReconciler completion bridge', () => {
         });
 
         expect(result.decisions[0]).toMatchObject({
-            outcome: 'pending',
-            reason: 'complete-result-unknown',
+            outcome: 'claim-recovery',
+            reason: 'claimable-after-unconfirmed-complete',
         });
-        expect((await made.store.get({ marketKey: 'home', jobId: 'job-1', resetAt: resetA }))?.status).toBe('unknown');
+        expect((await made.store.get({ marketKey: 'home', jobId: 'job-1', resetAt: resetA }))?.status).toBe('ready-to-claim');
     });
 
     it('recovers a durable barrier that has no Job State record', async () => {

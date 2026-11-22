@@ -101,6 +101,12 @@ Upstream `v2` merge (2026-11-22):
 - Mercenary decisions support both surfaces: fork flags (`mercGetRidOfVeterans`, `mercInsureVeterans`) and upstream decision mode/score weights (`mercDecisionMode`, `mercDecisionScoreLoot`, `mercDecisionScoreRisk`). `ExpeditionCycle.autoRespond()` passes them together; selection data carries both `insurance` and `insuranceCost`.
 - Upstream auto-job completion barriers, job-state store/reconciler/recorder and market-completed-jobs store are adopted. Background composition registers both the fork toolbar opener and upstream update lifecycle; `AppShell` still receives `ping` / `hasEndpoint` from `SidePanelApp`.
 
+Complete-unknown claim recovery:
+
+- A fresh market row with `alreadyTaken && canComplete` is positive evidence that an unconfirmed `Complete` did not grant the reward. `JobStateReconciler` may release that exact-reset barrier once and transition to `ready-to-claim` with `completeRecoveryAttemptedAt`; Auto Finish then claims it through the normal claim-only path. Claim-only jobs are sorted first each run, matching v1's "claim rewards first" behavior.
+- The recovery is bounded: one attempt per known reset; null/unknown resets and identity-less sidecar barriers are never auto-released. If the recovery `Complete` is again unconfirmed, the barrier is restored and no further automatic attempt is made for that reset.
+- `JobStateRecord.completeRecoveryAttemptedAt` and `MarketCompletionStorePort.releaseUnconfirmed()` are the contract surface. Do not weaken the expected-reset CAS check or allow null-reset auto-release.
+
 ## Definition of done
 
 - typecheck passes
