@@ -27,6 +27,10 @@ export interface AutoFinishState {
     readonly autoCompleteCountdown: number | null;
     /** Markets of the live or last Auto Finish run (`autoRunMarkets`). */
     readonly markets: readonly AutoFinishMarketResult[];
+    /** True while a live Auto Finish run owns `markets`. */
+    readonly live: boolean;
+    /** Started time of the live run, or finished time of the last run. */
+    readonly reportAt: number | null;
     /** Complete-unknown failures from the last AutoFinish report. */
     readonly unconfirmedFailures: readonly AutoFinishFailure[];
     /** Durable per-job Unknown projection, sorted for stable display. */
@@ -60,6 +64,8 @@ export function useAutoFinish(portal: PopupPortal, deps: AutoFinishDeps): AutoFi
     }, []);
 
     const autoRunMarkets = autoFinish?.live?.markets ?? autoFinish?.last?.markets ?? [];
+    const autoFinishLive = autoFinish?.live !== null && autoFinish?.live !== undefined;
+    const autoFinishReportAt = autoFinish?.live?.startedAt ?? autoFinish?.last?.finishedAt ?? null;
     const unconfirmedFailures = (autoFinish?.last?.failures ?? []).filter((failure) => failure.unconfirmed === true && failure.marketKey !== undefined);
     const unknownJobs = sortUnknownJobs(autoFinish?.unknownJobs ?? []);
     const unknownStateStatus = autoFinish?.unknownStateStatus ?? 'unavailable';
@@ -70,13 +76,10 @@ export function useAutoFinish(portal: PopupPortal, deps: AutoFinishDeps): AutoFi
         if (sequence !== autoFinishRequestSeq.current) return;
         if (response.ok) {
             setAutoFinish(response.value);
-            if (response.value.enabled && response.value.last) {
-                setJobReport(autoFinishMarketsToJobReport(response.value.last.markets));
-            }
         } else {
             setJobStatus(tt('Auto Jobs status failed: {message}', { message: response.error.message }));
         }
-    }, [portal, setJobReport, setJobStatus, tt]);
+    }, [portal, setJobStatus, tt]);
 
     useEffect(() => {
         void loadAutoFinish();
@@ -194,6 +197,8 @@ export function useAutoFinish(portal: PopupPortal, deps: AutoFinishDeps): AutoFi
         autoFinishCanceling,
         autoCompleteCountdown,
         markets: autoRunMarkets,
+        live: autoFinishLive,
+        reportAt: autoFinishReportAt,
         completedJobsByMarket: autoFinish?.completedJobsByMarket ?? { byMarket: {} },
         legacyCompletedJobs: autoFinish?.legacyCompletedJobs ?? {},
         completionStateStatus: autoFinish?.completionStateStatus ?? 'not-loaded',

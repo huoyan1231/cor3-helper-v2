@@ -84,16 +84,26 @@ export function autoJobsSnapshotToJobReport(markets: readonly AutoJobsMarket[]):
 }
 
 /**
- * Picks the report the Auto Jobs card shows: the live Auto Finish run first,
+ * Picks the report the Auto Jobs card shows: a live Auto Finish run first, a
+ * last run only while it is at least as new as the current market snapshot,
  * then the last manual queue run, then the snapshot fallback.
  */
 export function selectShownJobReport(input: {
     readonly autoFinishEnabled: boolean;
     readonly autoRunMarkets: readonly AutoFinishMarketResult[];
+    readonly autoFinishLive?: boolean;
+    readonly autoFinishReportAt?: number | null;
+    readonly autoJobsSnapshotAt?: number | null;
     readonly jobReport: readonly UiJobReport[];
     readonly autoJobsMarkets: readonly AutoJobsMarket[];
 }): readonly UiJobReport[] {
-    const autoFinishReport = input.autoFinishEnabled
+    const autoFinishReportIsCurrent = input.autoFinishLive === true
+        || (input.autoFinishReportAt !== null
+            && input.autoFinishReportAt !== undefined
+            && (input.autoJobsSnapshotAt === null
+                || input.autoJobsSnapshotAt === undefined
+                || input.autoFinishReportAt >= input.autoJobsSnapshotAt));
+    const autoFinishReport = input.autoFinishEnabled && autoFinishReportIsCurrent
         ? autoFinishMarketsToJobReport(input.autoRunMarkets)
         : [];
     if (autoFinishReport.length > 0) return autoFinishReport;

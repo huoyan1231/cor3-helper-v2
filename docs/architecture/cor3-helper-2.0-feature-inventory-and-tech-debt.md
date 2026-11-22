@@ -1353,3 +1353,11 @@ A full verification run (typecheck, Vitest, oxlint, build) plus a review of the 
 - **Busy handling:** when enabled, the coordinator checks Auto Expedition, Auto Jobs/Auto Finish/job queue, Auto Daily and the active minigame lock. If any are running it retries every 30 seconds for up to 10 minutes, refreshes immediately when idle, and force-refreshes if the 10-minute timeout expires. Missing tabs and reload failures are recorded and retried on the next interval.
 - **Architecture:** browser-free `AutoPageRefreshCoordinator` owns the state machine and depends on settings/scheduler/state/tab/busy ports. `AutoPageRefreshStateStore` persists `nextRefreshAt`, `lastRefreshAt`, wait window and last result. The UI reads `autoPageRefresh.status` via the bridge; Helper Mode saves and disables the new setting like other automations.
 - **Verification:** typecheck, oxlint, Vitest and production build pass.
+
+---
+
+# Part 66 — Auto Jobs report freshness guard (2026-11-22)
+
+- **Symptom:** after browser/background restart, a persisted `AutoFinish.last` report from an older run (for example all four markets "refresh failed") was shown in the Auto Jobs card even after a newer market snapshot had succeeded. This made it look as if Auto Finish started completing jobs while market refresh was still failing.
+- **Fix:** `selectShownJobReport()` now exposes report timestamps from `useAutoFinish` and compares them with `AutoJobsStatus.snapshotAt`. A live run always wins; a persisted `last` report is used only when it is at least as new as the snapshot. `loadAutoFinish()` no longer copies the persisted `last` report into the manual `jobReport`, so stale data cannot bypass the freshness check.
+- **Verification:** typecheck, oxlint, Vitest and production build pass.

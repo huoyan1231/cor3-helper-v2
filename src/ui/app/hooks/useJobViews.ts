@@ -22,6 +22,9 @@ import {
 export interface JobViewsInput {
     readonly autoFinishEnabled: boolean;
     readonly autoRunMarkets: readonly AutoFinishMarketResult[];
+    readonly autoFinishLive?: boolean;
+    readonly autoFinishReportAt?: number | null;
+    readonly autoJobsSnapshotAt?: number | null;
     readonly unconfirmedFailures?: readonly AutoFinishFailure[];
     readonly unknownJobs?: readonly AutoFinishUnknownJob[];
     readonly unknownStateStatus?: 'loaded' | 'partial' | 'unavailable';
@@ -46,6 +49,9 @@ export function useJobViews(input: JobViewsInput): JobViews {
     const {
         autoFinishEnabled,
         autoRunMarkets,
+        autoFinishLive = false,
+        autoFinishReportAt = null,
+        autoJobsSnapshotAt = null,
         unconfirmedFailures = [],
         unknownJobs = [],
         unknownStateStatus = 'unavailable',
@@ -90,8 +96,16 @@ export function useJobViews(input: JobViewsInput): JobViews {
     );
 
     const shownJobReport = useMemo(
-        () => selectShownJobReport({ autoFinishEnabled, autoRunMarkets, jobReport, autoJobsMarkets }),
-        [autoFinishEnabled, autoRunMarkets, jobReport, autoJobsMarkets],
+        () => selectShownJobReport({
+            autoFinishEnabled,
+            autoRunMarkets,
+            autoFinishLive,
+            autoFinishReportAt,
+            autoJobsSnapshotAt,
+            jobReport,
+            autoJobsMarkets,
+        }),
+        [autoFinishEnabled, autoRunMarkets, autoFinishLive, autoFinishReportAt, autoJobsSnapshotAt, jobReport, autoJobsMarkets],
     );
 
     return {

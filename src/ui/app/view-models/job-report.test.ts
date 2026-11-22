@@ -121,6 +121,9 @@ describe('selectShownJobReport', () => {
         const report = selectShownJobReport({
             autoFinishEnabled: true,
             autoRunMarkets: [{ marketKey: 'auto', label: 'Auto', ok: true, skipped: 0 }],
+            autoFinishLive: true,
+            autoFinishReportAt: 2_000,
+            autoJobsSnapshotAt: 1_000,
             jobReport: runReport,
             autoJobsMarkets: snapshot,
         });
@@ -140,6 +143,42 @@ describe('selectShownJobReport', () => {
             jobReport: [],
             autoJobsMarkets: snapshot,
         })[0]?.marketKey).toBe('home');
+    });
+
+    it('ignores a persisted last report when a newer snapshot exists', () => {
+        expect(selectShownJobReport({
+            autoFinishEnabled: true,
+            autoRunMarkets: [{ marketKey: 'auto', label: 'Auto', ok: false, skipped: 0, error: 'Refresh failed' }],
+            autoFinishLive: false,
+            autoFinishReportAt: 1_000,
+            autoJobsSnapshotAt: 2_000,
+            jobReport: [],
+            autoJobsMarkets: snapshot,
+        })[0]?.marketKey).toBe('home');
+    });
+
+    it('keeps a live run even when its start time is older than the snapshot', () => {
+        expect(selectShownJobReport({
+            autoFinishEnabled: true,
+            autoRunMarkets: [{ marketKey: 'auto', label: 'Auto', ok: true, skipped: 0 }],
+            autoFinishLive: true,
+            autoFinishReportAt: 900,
+            autoJobsSnapshotAt: 2_000,
+            jobReport: [],
+            autoJobsMarkets: snapshot,
+        })[0]?.marketKey).toBe('auto');
+    });
+
+    it('uses a last report when it is at least as new as the snapshot', () => {
+        expect(selectShownJobReport({
+            autoFinishEnabled: true,
+            autoRunMarkets: [{ marketKey: 'auto', label: 'Auto', ok: true, skipped: 0 }],
+            autoFinishLive: false,
+            autoFinishReportAt: 2_000,
+            autoJobsSnapshotAt: 2_000,
+            jobReport: [],
+            autoJobsMarkets: snapshot,
+        })[0]?.marketKey).toBe('auto');
     });
 });
 

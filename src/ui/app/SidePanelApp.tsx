@@ -137,6 +137,9 @@ export function SidePanelApp({
     const jobViews = useJobViews({
         autoFinishEnabled: autoFinish.autoFinish?.enabled ?? false,
         autoRunMarkets: autoFinish.markets,
+        autoFinishLive: autoFinish.live,
+        autoFinishReportAt: autoFinish.reportAt,
+        autoJobsSnapshotAt: autoJobs.autoJobs?.snapshotAt ?? null,
         unconfirmedFailures: autoFinish.unconfirmedFailures,
         unknownJobs: autoFinish.unknownJobs,
         unknownStateStatus: autoFinish.unknownStateStatus,
