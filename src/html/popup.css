@@ -817,9 +817,10 @@ button.v2-icon-button:hover { color: var(--v2-accent); border-color: var(--v2-ac
 .v2-brand-text h1 { margin: 0; font-size: 18px; line-height: 1.15; letter-spacing: .01em; }
 .v2-brand-sub { margin: 0; color: var(--v2-muted); font-size: 10px; text-transform: uppercase; letter-spacing: .1em; }
 .v2-header { align-items: flex-start; }
-.v2-status-bad { color: var(--v2-error); border-color: var(--v2-error); background: rgba(255, 107, 107, .08); }
+.v2-status-bad { color: var(--v2-error); border-color: var(--v2-error); }
 .v2-status-muted { color: var(--v2-muted); border-color: var(--v2-border); opacity: .75; }
-.v2-status-action { font-family: inherit; cursor: pointer; }
+button.v2-status { margin: 0; background: transparent; font-family: inherit; font-weight: 400; line-height: 1.2; }
+.v2-status-action { cursor: pointer; }
 .v2-status-action:hover { filter: brightness(1.25); }
 .v2-update-status {
     display: grid;
