@@ -337,7 +337,7 @@ export function AutoExpeditionCard({
                             <strong>{tr('Active Expedition')}</strong>
                             <span class="v2-expedition-active-actions">
                                 {mercStatus?.dataStale ? <span class="v2-tag v2-tag-warn">{tr('stale')}</span> : null}
-                                <RefreshButton label={tr('Refresh active expedition')} disabled={mercBusy || mercLoading} onClick={onLoadMerc} />
+                                <RefreshButton label={tr('Refresh active expedition')} disabled={mercBusy || mercLoading || mercStatus?.running} onClick={onLoadMerc} />
                             </span>
                         </div>
                         <div class="v2-expedition-stage-list">
@@ -416,7 +416,7 @@ export function AutoExpeditionCard({
                                                     type="button"
                                                     key={option.id}
                                                     class={`v2-decision-option${chosen ? ' is-selected' : ''}`}
-                                                    disabled={mercBusy || decisionView.resolvedAt !== null}
+                                                    disabled={mercBusy || mercStatus?.running || decisionView.resolvedAt !== null}
                                                     onClick={() => {
                                                         setMercError(null);
                                                         void onRespondDecision(decisionView.expeditionId, decisionView.id, option.id).then((error) => {
@@ -475,7 +475,7 @@ export function AutoExpeditionCard({
                             </div>
                             <Switch
                                 checked={mercStatus?.enabled ?? settings?.autoExpeditionEnabled ?? false}
-                                disabled={mercBusy || mercStatus?.running}
+                                disabled={mercBusy}
                                 label={tr('Auto start mercenary expedition')}
                                 onClick={() => void setMercSwitch()}
                             />

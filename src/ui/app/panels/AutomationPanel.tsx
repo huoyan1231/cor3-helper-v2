@@ -120,7 +120,7 @@ export function AutomationPanel({
                 settings={settings.settings}
                 expeditions={expeditions.expeditions}
                 drone={drone.drone}
-                mercBusy={expeditions.expeditionBusy || (expeditions.autoExpedition?.running ?? false)}
+                mercBusy={expeditions.expeditionBusy}
                 mercLoading={expeditions.expeditionLoading}
                 droneBusy={drone.droneBusy || (drone.autoDrone?.running ?? false)}
                 expanded={panelOpen['auto-expedition'] ?? false}
