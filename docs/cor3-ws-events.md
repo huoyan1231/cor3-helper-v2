@@ -142,6 +142,8 @@ Mercenary expedition:
 5. Helper claims each message with `mail claim.all { messageId }`.
 6. When no PENDING message remains for that expedition, auto-send refreshes mercenaries and launches the next expedition.
 
+The game keeps fully paid-out expeditions in the archived room with `status: "COMPLETED"` indefinitely. The helper treats a non-empty `containerOpenedAt` as settled (`isExpeditionSettled()`); settled entries are excluded from "awaiting payment" (`isExpeditionReady()`), from the UI's active/completed lists, from payout retries, and from the "expedition already active" launch guard. Only a `COMPLETED` expedition with `containerOpenedAt: null` is eligible for `open.container`.
+
 Personal drone:
 
 1. Mission succeeds.

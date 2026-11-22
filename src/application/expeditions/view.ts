@@ -1,5 +1,5 @@
 import { DRONE_EXPEDITION_PROFILE, MERC_EXPEDITION_PROFILES, mercProfileKeyForMarket } from '../../domains/expeditions/profiles.js';
-import { isExpeditionReady, type ExpeditionOverview } from '../../domains/expeditions/model.js';
+import { isExpeditionReady, isExpeditionSettled, type ExpeditionOverview } from '../../domains/expeditions/model.js';
 import { droneChargeSecondsForMission, type DroneMission, type DroneState } from '../../domains/drone/model.js';
 
 export { DRONE_EXPEDITION_PROFILE, MERC_EXPEDITION_PROFILES, mercProfileKeyForMarket };
@@ -10,9 +10,10 @@ export function partitionExpeditions(overview: ExpeditionOverview | null): {
 } {
     const all = [...(overview?.active ?? []), ...(overview?.archived ?? [])];
     const unique = [...new Map(all.map((entry) => [entry.id, entry])).values()];
+    const visible = unique.filter((entry) => !isExpeditionSettled(entry));
     return {
-        active: unique.filter((entry) => !isExpeditionReady(entry)),
-        completed: unique.filter(isExpeditionReady),
+        active: visible.filter((entry) => !isExpeditionReady(entry)),
+        completed: visible.filter(isExpeditionReady),
     };
 }
 

@@ -39,6 +39,25 @@ describe('expedition mapping', () => {
         expect(overview.archived).toHaveLength(0);
     });
 
+    it('does not promote a completed and already opened archived expedition to active', () => {
+        const settled = {
+            ...expedition,
+            id: 'exp-settled',
+            status: 'COMPLETED',
+            outcome: 'FULL_SUCCESS',
+            containerOpenedAt: '2026-11-20T06:29:14.010Z',
+        };
+        const overview = mapExpeditionOverview({}, { expeditions: [settled] }, {}, {});
+        expect(overview.active).toHaveLength(0);
+        expect(overview.archived).toHaveLength(1);
+        expect(overview.archived[0]).toMatchObject({
+            id: 'exp-settled',
+            status: 'COMPLETED',
+            containerOpenedAt: '2026-11-20T06:29:14.010Z',
+            outcome: 'FULL_SUCCESS',
+        });
+    });
+
     it('keeps the active expedition when a message entry is malformed', () => {
         const overview = mapExpeditionOverview({ expeditions: [{ ...expedition, messages: [{ weird: true }] }] }, {}, {}, {});
         expect(overview.active).toHaveLength(1);

@@ -65,6 +65,9 @@ export interface ActiveExpedition {
     readonly lootScore: number | null;
     readonly hasInsurance: boolean | null;
     readonly endsAt: string | null;
+    /** Non-null once the game opened the reward container (payout already done). */
+    readonly containerOpenedAt?: string | null;
+    readonly outcome?: string | null;
 }
 
 export interface ExpeditionOverview {
@@ -169,7 +172,18 @@ export function chooseExpeditionMercenary(mercenaries: readonly ExpeditionMercen
 }
 
 
+/**
+ * The game keeps finished expeditions in the archived room with `status: COMPLETED`
+ * forever. A non-empty `containerOpenedAt` means the reward container was already
+ * opened (loot collected / in mailbox), so the expedition is settled and must not
+ * be shown as "awaiting payment" or handed to the payout loop again.
+ */
+export function isExpeditionSettled(expedition: ActiveExpedition): boolean {
+    return typeof expedition.containerOpenedAt === 'string' && expedition.containerOpenedAt.length > 0;
+}
+
 export function isExpeditionReady(expedition: ActiveExpedition): boolean {
+    if (isExpeditionSettled(expedition)) return false;
     const status = expedition.status.toUpperCase();
     return status.includes('COMPLETE')
         || status.includes('READY')

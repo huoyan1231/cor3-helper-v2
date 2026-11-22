@@ -3,7 +3,7 @@ import type { JobMarketDefinition } from '../../../domains/jobs/markets.js';
 import { selectMercenary } from '../../../domains/expeditions/selection.js';
 import { MERC_EXPEDITION_PROFILES, mercProfileKeyForMarket } from '../../../domains/expeditions/profiles.js';
 import { totalCostInfo } from '../../../application/expeditions/service.js';
-import { isExpeditionReady } from '../../../domains/expeditions/model.js';
+import { isExpeditionReady, isExpeditionSettled } from '../../../domains/expeditions/model.js';
 import { AUTO_EXPEDITION_RETRY_ALARM } from './alarm-ids.js';
 import { humanDelay, readWithRetry } from './delay.js';
 import type { AutoExpeditionDeps, AutoExpeditionLast, ExpeditionPreparation, ExpeditionRunState } from './expedition-types.js';
@@ -167,7 +167,10 @@ export async function launchExpedition(ctx: ExpeditionLaunchContext): Promise<vo
     state.lastViewAt = deps.clock.now();
     const stillActive = [...activeCheck.value.active, ...activeCheck.value.archived].filter((entry) => {
         const status = entry.status.toUpperCase();
-        return !isExpeditionReady(entry) && !status.includes('FAILED') && !status.includes('EXPIRED');
+        return !isExpeditionReady(entry)
+            && !isExpeditionSettled(entry)
+            && !status.includes('FAILED')
+            && !status.includes('EXPIRED');
     });
     const stillDecisionActive = activeCheck.value.decisions.length > 0;
     if (stillActive.length > 0 || stillDecisionActive) {

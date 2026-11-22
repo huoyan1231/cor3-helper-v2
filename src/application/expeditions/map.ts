@@ -6,6 +6,7 @@ import {
 } from '../../contracts/expedition.js';
 import {
     isExpeditionReady,
+    isExpeditionSettled,
     type ActiveExpedition,
     type ExpeditionDecision,
     type ExpeditionLocation,
@@ -77,6 +78,8 @@ function mapExpedition(raw: unknown): ActiveExpedition | null {
         endsAt: typeof entry.endsAt === 'string'
             ? entry.endsAt
             : typeof entry.endTime === 'string' ? entry.endTime : null,
+        containerOpenedAt: typeof entry.containerOpenedAt === 'string' ? entry.containerOpenedAt : null,
+        outcome: typeof entry.outcome === 'string' ? entry.outcome : null,
     };
 }
 
@@ -217,7 +220,10 @@ export function mapExpeditionOverview(
     // active rather than showing "No active expedition".
     const fromArchive = mappedArchived.filter((entry) => {
         const status = entry.status.toUpperCase();
-        return !isExpeditionReady(entry) && !status.includes('FAILED') && !status.includes('EXPIRED');
+        return !isExpeditionReady(entry)
+            && !isExpeditionSettled(entry)
+            && !status.includes('FAILED')
+            && !status.includes('EXPIRED');
     });
     const activeById = new Map(mappedActive.map((entry) => [entry.id, entry]));
     for (const entry of fromArchive) {

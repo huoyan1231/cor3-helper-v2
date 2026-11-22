@@ -69,6 +69,7 @@ const activeExpeditionSchema = z.object({
     id: z.string(), status: z.string(), locationName: z.string(),
     mercenaryName: z.string().nullable(), mercenaryRank: z.string().nullable().optional(), totalCost: z.number().nullable(), riskScore: z.number().nullable(),
     lootScore: z.number().nullable(), hasInsurance: z.boolean().nullable(), endsAt: z.string().nullable(),
+    containerOpenedAt: z.string().nullable().optional(), outcome: z.string().nullable().optional(),
 }).strict();
 export const expeditionOverviewSchema = z.object({
     active: z.array(activeExpeditionSchema),

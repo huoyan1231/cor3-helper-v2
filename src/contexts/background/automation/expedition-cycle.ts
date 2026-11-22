@@ -5,6 +5,7 @@ import {
     chooseDecisionOption,
     chooseScoredDecisionOption,
     isExpeditionReady,
+    isExpeditionSettled,
     type ExpeditionDecision,
     type DecisionPolicy,
 } from '../../../domains/expeditions/model.js';
@@ -205,7 +206,10 @@ export class ExpeditionCycle {
             decisions = decisionHandling.responded;
             const active = [...overview.value.active, ...overview.value.archived].filter((entry) => {
                 const status = entry.status.toUpperCase();
-                return !isExpeditionReady(entry) && !status.includes('FAILED') && !status.includes('EXPIRED');
+                return !isExpeditionReady(entry)
+                    && !isExpeditionSettled(entry)
+                    && !status.includes('FAILED')
+                    && !status.includes('EXPIRED');
             });
             // A pending decision always belongs to an in-progress expedition. If the
             // active list is temporarily empty or an entry was dropped by schema
