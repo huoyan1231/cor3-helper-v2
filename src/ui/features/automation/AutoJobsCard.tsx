@@ -231,65 +231,74 @@ export function AutoJobsCard(props: AutoJobsCardProps) {
                     </button>
                 </div>
 
-                <section class="v2-job-section">
-                    <JobMarketList
-                        markets={jobMarketViews}
-                        activeKey={marketKey}
-                        now={now}
-                        onSelect={setMarketKey}
-                        statusById={jobStatusById}
-                        statusReasonById={jobStatusReasonById}
-                        selectable={!autoFinish?.enabled}
-                        selectionDisabled={jobRunId !== null}
-                        selectedIds={selectedJobs}
-                        onToggleJob={toggleJob}
-                        onToggleMarket={toggleSelectMarket}
-                        emptyText={tr('No jobs loaded yet. Waiting for the live market snapshot.')}
-                    />
-                    <div class="v2-actions v2-job-actions">
-                        {autoFinish?.enabled ? (
-                            autoFinish.running ? (
-                                <button type="button" class="v2-danger" disabled={autoFinishCanceling} onClick={() => void cancelAutoFinish()}>
-                                    {autoFinishCanceling ? tr('Canceling...') : tr('Cancel')}
-                                </button>
-                            ) : (
-                                <button type="button" disabled={autoFinishBusy} onClick={() => void runAutoFinishNow()}>
-                                    {autoFinishBusy ? tr('Starting...') : tr('Force run now')}
-                                </button>
-                            )
-                        ) : (
-                            <>
-                                <RefreshButton label={tr('Refresh all jobs')} disabled={jobBusy || jobRunId !== null} onClick={() => syncJobs(true)} />
-                                {jobRunId !== null ? (
-                                    <button type="button" class="v2-danger" onClick={() => void cancelJobQueue()}>{tr('Cancel')}</button>
-                                ) : (
-                                    <button type="button" disabled={jobBusy || currentMarketSelectedCount === 0} onClick={() => void runSelectedJobs()}>
-                                        {tr('Start selected ({count})', { count: currentMarketSelectedCount })}
+                <details
+                    class="v2-status-console"
+                    open={panelOpen['auto-jobs.job-list'] ?? true}
+                    onToggle={(event) => updatePanelOpen('auto-jobs.job-list', (event.currentTarget as HTMLDetailsElement).open)}
+                >
+                    <summary class="v2-status-toggle">
+                        <span class="v2-status-title">{tr('Market jobs')}</span>
+                    </summary>
+                    <section class="v2-job-section">
+                        <JobMarketList
+                            markets={jobMarketViews}
+                            activeKey={marketKey}
+                            now={now}
+                            onSelect={setMarketKey}
+                            statusById={jobStatusById}
+                            statusReasonById={jobStatusReasonById}
+                            selectable={!autoFinish?.enabled}
+                            selectionDisabled={jobRunId !== null}
+                            selectedIds={selectedJobs}
+                            onToggleJob={toggleJob}
+                            onToggleMarket={toggleSelectMarket}
+                            emptyText={tr('No jobs loaded yet. Waiting for the live market snapshot.')}
+                        />
+                        <div class="v2-actions v2-job-actions">
+                            {autoFinish?.enabled ? (
+                                autoFinish.running ? (
+                                    <button type="button" class="v2-danger" disabled={autoFinishCanceling} onClick={() => void cancelAutoFinish()}>
+                                        {autoFinishCanceling ? tr('Canceling...') : tr('Cancel')}
                                     </button>
-                                )}
+                                ) : (
+                                    <button type="button" disabled={autoFinishBusy} onClick={() => void runAutoFinishNow()}>
+                                        {autoFinishBusy ? tr('Starting...') : tr('Force run now')}
+                                    </button>
+                                )
+                            ) : (
+                                <>
+                                    <RefreshButton label={tr('Refresh all jobs')} disabled={jobBusy || jobRunId !== null} onClick={() => syncJobs(true)} />
+                                    {jobRunId !== null ? (
+                                        <button type="button" class="v2-danger" onClick={() => void cancelJobQueue()}>{tr('Cancel')}</button>
+                                    ) : (
+                                        <button type="button" disabled={jobBusy || currentMarketSelectedCount === 0} onClick={() => void runSelectedJobs()}>
+                                            {tr('Start selected ({count})', { count: currentMarketSelectedCount })}
+                                        </button>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                        {autoFinish?.enabled ? (
+                            <>
+                                <p class="v2-muted">
+                                    {tr('Status:')} <strong>{autoFinishBusy || autoFinish.running ? tr('running') : tr('scheduled')}</strong>
+                                    {autoFinish.last ? ` · ${tr('last {time}', { time: new Date(autoFinish.last.finishedAt).toLocaleTimeString() })}` : ''}
+                                </p>
+                                {autoFinish.progress ? (
+                                    <p class="v2-muted">
+                                        {autoFinish.progress.jobName}{autoFinish.progress.serverName ? ` @ ${autoFinish.progress.serverName}` : ''} ({autoFinish.progress.index}/{autoFinish.progress.total})
+                                    </p>
+                                ) : null}
+                                {autoFinish.nextRetryAt !== null ? (
+                                    <p class="v2-muted">
+                                        {tr('Retry in {time}', { time: formatRemaining(new Date(autoFinish.nextRetryAt).toISOString(), now) })}
+                                        {autoFinish.retryReason ? ` · ${autoFinish.retryReason}` : ''}
+                                    </p>
+                                ) : null}
                             </>
-                        )}
-                    </div>
-                    {autoFinish?.enabled ? (
-                        <>
-                            <p class="v2-muted">
-                                {tr('Status:')} <strong>{autoFinishBusy || autoFinish.running ? tr('running') : tr('scheduled')}</strong>
-                                {autoFinish.last ? ` · ${tr('last {time}', { time: new Date(autoFinish.last.finishedAt).toLocaleTimeString() })}` : ''}
-                            </p>
-                            {autoFinish.progress ? (
-                                <p class="v2-muted">
-                                    {autoFinish.progress.jobName}{autoFinish.progress.serverName ? ` @ ${autoFinish.progress.serverName}` : ''} ({autoFinish.progress.index}/{autoFinish.progress.total})
-                                </p>
-                            ) : null}
-                            {autoFinish.nextRetryAt !== null ? (
-                                <p class="v2-muted">
-                                    {tr('Retry in {time}', { time: formatRemaining(new Date(autoFinish.nextRetryAt).toISOString(), now) })}
-                                    {autoFinish.retryReason ? ` · ${autoFinish.retryReason}` : ''}
-                                </p>
-                            ) : null}
-                        </>
-                    ) : null}
-                </section>
+                        ) : null}
+                    </section>
+                </details>
 
                 <details
                     class="v2-debug-console v2-status-console"

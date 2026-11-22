@@ -128,6 +128,7 @@ Collapsible card/panel state persistence:
 - Shared collapsibles (`GameSection`, `AutomationCard`, `InfoPanel`) use the controlled/uncontrolled pattern `expanded ?? internalOpen`: pass a `panelOpen[key]` value to persist, or omit it to keep local state. Use stable `page.area` keys (e.g. `overview.timer.daily`, `drone-mission.step.3`, `valuable-seller.status`); for dynamic items use a business id, never an array index.
 - `DroneMissionPage` step cards only auto-expand the current step while no persisted choice exists (`expanded === undefined`); an explicit saved choice is never overridden by incoming WS data.
 - `AutomationCard` with `persistentSwitch` only auto-expands on an `enabled` transition while uncontrolled (`expanded === undefined`). Controlled cards must not call `onOpenChange(true)` when settings finish loading: the initial `false → true` enable would otherwise overwrite the persisted collapsed choice and mark panel state initialized before it is read. An explicit click on the enable switch still expands the card via its own `setOpen(true)`.
+- `AutoJobsCard` keeps the market job list plus its action buttons and Auto Finish status inside a collapsible `<details>` under the `auto-jobs.job-list` key (default open). The separate `auto-jobs.status` and `auto-complete` details remain independent keys.
 
 ## Definition of done
 
