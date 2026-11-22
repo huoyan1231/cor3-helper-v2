@@ -1,4 +1,4 @@
-import { useRef, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import type { AuthStatus, SettingsV1 } from '../../contracts/storage.js';
 import type { UpdateCheckView } from '../../application/popup/portal.js';
 import { GameSection } from '../components/GameSection.js';
@@ -21,6 +21,7 @@ export interface SettingsPageProps {
     readonly onChangeLanguage: (language: UiLanguage) => void | Promise<void>;
     readonly onChangeHelperMode: (enabled: boolean) => void | Promise<void>;
     readonly onChangeDeveloperMode: (enabled: boolean) => void | Promise<void>;
+    readonly onChangeAutoExpeditionInterval: (minutes: number) => void | Promise<void>;
     readonly onChangeQol: (key: 'disableNetworkFog' | 'disableBackground' | 'moveNotificationsLeft' | 'antiAfkEnabled' | 'hideWingsOfMars', enabled: boolean) => void | Promise<void>;
     readonly onExportSettings: () => Promise<string | null>;
     readonly onImportSettings: (json: string) => Promise<string | null>;
@@ -56,6 +57,7 @@ export function SettingsPage({
     onChangeLanguage,
     onChangeHelperMode,
     onChangeDeveloperMode,
+    onChangeAutoExpeditionInterval,
     onChangeQol,
     onExportSettings,
     onImportSettings,
@@ -72,7 +74,12 @@ export function SettingsPage({
     const [dataStatus, setDataStatus] = useState<string | null>(null);
     const [dataBusy, setDataBusy] = useState(false);
     const [resetArmed, setResetArmed] = useState(false);
+    const [expeditionIntervalDraft, setExpeditionIntervalDraft] = useState('');
     const fileInput = useRef<HTMLInputElement | null>(null);
+
+    useEffect(() => {
+        setExpeditionIntervalDraft(String(settings?.autoExpeditionIntervalMinutes ?? 30));
+    }, [settings?.autoExpeditionIntervalMinutes]);
 
     const helperMode = settings?.helperMode ?? false;
     const consentGiven = settings?.helperModeConsent ?? false;
@@ -119,6 +126,15 @@ export function SettingsPage({
         } finally {
             setDataBusy(false);
         }
+    };
+
+    const commitExpeditionInterval = () => {
+        const parsed = Number(expeditionIntervalDraft);
+        if (!Number.isInteger(parsed) || parsed < 5 || parsed > 1440) {
+            setExpeditionIntervalDraft(String(settings?.autoExpeditionIntervalMinutes ?? 30));
+            return;
+        }
+        void onChangeAutoExpeditionInterval(parsed);
     };
 
     const pickImport = () => {
@@ -199,6 +215,31 @@ export function SettingsPage({
                         label={t(language, 'settings.developerMode')}
                         onChange={(next) => void onChangeDeveloperMode(next)}
                     />
+                </div>
+
+                <div class="v2-settings-row">
+                    <div class="v2-settings-copy">
+                        <strong>{t(language, 'settings.autoExpeditionInterval')}</strong>
+                        <span class="v2-muted">{t(language, 'settings.autoExpeditionInterval.description')}</span>
+                    </div>
+                    <div class="v2-settings-number-wrap">
+                        <input
+                            class="v2-settings-number"
+                            type="number"
+                            min={5}
+                            max={1440}
+                            step={1}
+                            value={expeditionIntervalDraft}
+                            disabled={!settings || helperMode}
+                            aria-label={t(language, 'settings.autoExpeditionInterval')}
+                            onInput={(event) => setExpeditionIntervalDraft((event.currentTarget as HTMLInputElement).value)}
+                            onBlur={commitExpeditionInterval}
+                            onKeyDown={(event) => {
+                                if (event.key === 'Enter') (event.currentTarget as HTMLInputElement).blur();
+                            }}
+                        />
+                        <span class="v2-muted">min</span>
+                    </div>
                 </div>
 
                 <div class="v2-settings-row">

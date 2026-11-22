@@ -956,8 +956,9 @@ export class ChromePopupPortal implements PopupPortal {
         return this.client.request('expeditions.autoCancel', {}, z.undefined(), 10000);
     }
 
-    enableAutoExpedition(intervalMinutes: number): Promise<{ ok: true; value: unknown } | { ok: false; error: { code: string; message: string } }> {
-        return this.client.request('expeditions.autoEnable', { intervalMinutes }, z.unknown(), 10000);
+    enableAutoExpedition(intervalMinutes?: number): Promise<{ ok: true; value: unknown } | { ok: false; error: { code: string; message: string } }> {
+        const payload = intervalMinutes === undefined ? {} : { intervalMinutes };
+        return this.client.request('expeditions.autoEnable', payload, z.unknown(), 10000);
     }
 
     disableAutoExpedition(): Promise<{ ok: true; value: unknown } | { ok: false; error: { code: string; message: string } }> {

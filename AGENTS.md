@@ -87,6 +87,7 @@ Daily ops state loading:
 
 Auto Expedition resilience:
 
+- The main-cycle interval `autoExpeditionIntervalMinutes` (5-1440, default 30) is editable in Settings → Basic as "Auto Expedition interval"; `settings.update` recreates `AUTO_EXPEDITION_ALARM` on change. `enableAutoExpedition()` no longer takes an interval so toggling the switch cannot overwrite the setting with a stale UI value.
 - Transient credit failures (reward payout, threshold check, launch) pause the cycle with a retry alarm via `ExpeditionCycle.pauseAndRetry()`; they no longer write `autoExpeditionEnabled: false`. Only explicit user/helper-mode/config changes disable the switch.
 - `useExpeditions()` keeps `expeditionLoading` (view refresh) separate from `expeditionBusy` (toggle in progress). The initial `expeditionView()` poll only disables the refresh button, never the "Auto start mercenary expedition" switch.
 

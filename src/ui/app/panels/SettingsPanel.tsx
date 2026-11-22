@@ -34,6 +34,7 @@ export function SettingsPanel({
             onChangeLanguage={settings.changeLanguage}
             onChangeHelperMode={settings.changeHelperMode}
             onChangeDeveloperMode={settings.changeDeveloperMode}
+            onChangeAutoExpeditionInterval={settings.changeAutoExpeditionInterval}
             onChangeQol={settings.changeQol}
             onExportSettings={settings.exportSettings}
             onImportSettings={settings.importSettings}

@@ -135,6 +135,9 @@ async function applySettingsPatch(deps: SettingsHandlerDeps, patch: SettingsPatc
             autoDaily: next.dailyHackEnabled,
         });
     }
+    if ('autoExpeditionIntervalMinutes' in effective && next.autoExpeditionEnabled && !next.helperMode) {
+        automation.scheduler.create(AUTO_EXPEDITION_ALARM, { periodInMinutes: next.autoExpeditionIntervalMinutes });
+    }
     if (effective.autoExpeditionEnabled === false) {
         automation.expedition.cancelRun();
         await Promise.all([

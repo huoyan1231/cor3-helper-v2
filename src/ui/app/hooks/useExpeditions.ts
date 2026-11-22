@@ -36,7 +36,6 @@ export function useExpeditions(portal: PopupPortal, deps: ExpeditionsDeps): Expe
     const [expeditionBusy, setExpeditionBusy] = useState(false);
     const [expeditionLoading, setExpeditionLoading] = useState(false);
     const [autoExpedition, setAutoExpedition] = useState<AutoExpeditionStatus | null>(null);
-    const [autoExpeditionInterval, setAutoExpeditionInterval] = useState(30);
 
     const loadExpeditions = useCallback(async () => {
         setExpeditionLoading(true);
@@ -53,7 +52,6 @@ export function useExpeditions(portal: PopupPortal, deps: ExpeditionsDeps): Expe
         const response = await portal.autoExpeditionStatus();
         if (response.ok) {
             setAutoExpedition(response.value);
-            setAutoExpeditionInterval(response.value.intervalMinutes);
         }
     }, [portal]);
 
@@ -65,11 +63,11 @@ export function useExpeditions(portal: PopupPortal, deps: ExpeditionsDeps): Expe
         setExpeditionBusy(true);
         const response = autoExpedition?.enabled
             ? await portal.disableAutoExpedition()
-            : await portal.enableAutoExpedition(autoExpeditionInterval);
+            : await portal.enableAutoExpedition();
         setExpeditionBusy(false);
         await Promise.all([loadAutoExpedition(), reloadSettings()]);
         return response.ok ? null : response.error.message;
-    }, [portal, autoExpedition, autoExpeditionInterval, loadAutoExpedition, reloadSettings]);
+    }, [portal, autoExpedition, loadAutoExpedition, reloadSettings]);
 
     const cancelMercPreparation = useCallback(async () => {
         const response = await portal.cancelExpeditionPreparation();

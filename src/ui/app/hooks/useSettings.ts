@@ -43,6 +43,7 @@ export interface SettingsState {
         enabled: boolean,
     ) => Promise<void>;
     readonly changeLanguage: (next: UiLanguage) => Promise<void>;
+    readonly changeAutoExpeditionInterval: (minutes: number) => Promise<void>;
     readonly toggleHack: (key: HackToggleKey) => Promise<void>;
     readonly exportSettings: () => Promise<string | null>;
     readonly importSettings: (json: string) => Promise<string | null>;
@@ -158,6 +159,13 @@ export function useSettings(portal: PopupPortal, deps: SettingsDeps): SettingsSt
         else reportDetail(response.error.message);
     }, [portal, reportDetail]);
 
+    const changeAutoExpeditionInterval = useCallback(async (minutes: number) => {
+        const value = Math.min(1440, Math.max(5, Math.round(minutes)));
+        const response = await portal.updateSettings({ autoExpeditionIntervalMinutes: value });
+        if (response.ok) setSettings(response.value);
+        else reportDetail(response.error.message);
+    }, [portal, reportDetail]);
+
     const exportSettings = useCallback(async (): Promise<string | null> => {
         const response = await portal.exportSettings();
         if (!response.ok) return response.error.message;
@@ -237,6 +245,7 @@ export function useSettings(portal: PopupPortal, deps: SettingsDeps): SettingsSt
         changeDeveloperMode,
         changeQol,
         changeLanguage,
+        changeAutoExpeditionInterval,
         toggleHack,
         exportSettings,
         importSettings,

@@ -823,6 +823,9 @@ button.v2-icon-button:hover { color: var(--v2-accent); border-color: var(--v2-ac
 .v2-settings-copy .v2-muted { font-size: 10px; }
 .v2-settings-inline-title { display: inline-flex; align-items: center; gap: 4px; }
 .v2-settings-select { flex: 0 0 auto; min-width: 120px; padding: 5px 7px; color: var(--v2-text); background: var(--v2-bg); border: 1px solid var(--v2-border); border-radius: 6px; }
+.v2-settings-number-wrap { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+.v2-settings-number { width: 76px; padding: 5px 7px; color: var(--v2-text); background: var(--v2-bg); border: 1px solid var(--v2-border); border-radius: 6px; font-variant-numeric: tabular-nums; }
+.v2-settings-number:disabled { opacity: .5; cursor: default; }
 .v2-settings-block { display: grid; gap: 4px; padding: 7px 0 2px; }
 .v2-settings-block > strong { color: var(--v2-text); font-size: 12px; }
 .v2-settings-block .v2-actions { margin-top: 4px; }

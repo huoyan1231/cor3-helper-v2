@@ -546,7 +546,7 @@ export interface PopupPortal {
     expeditionView(): Promise<BridgeResult<ExpeditionOverview>>;
     autoExpeditionStatus(): Promise<BridgeResult<AutoExpeditionStatus>>;
     cancelExpeditionPreparation(): Promise<BridgeResult<void>>;
-    enableAutoExpedition(intervalMinutes: number): Promise<BridgeResult<unknown>>;
+    enableAutoExpedition(intervalMinutes?: number): Promise<BridgeResult<unknown>>;
     disableAutoExpedition(): Promise<BridgeResult<unknown>>;
     autoMailStatus(): Promise<BridgeResult<AutoMailStatus>>;
     enableAutoMail(intervalMinutes: number): Promise<BridgeResult<unknown>>;
