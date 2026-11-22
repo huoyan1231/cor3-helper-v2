@@ -146,12 +146,22 @@ export function OverviewPage({
                 <section class="v2-card v2-overview-card">
                     <h2>{tr('Timers')}</h2>
                     {daily?.nextTaskTime ? (
-                        <InfoPanel title={tr('Next daily task')} meta={formatRemaining(daily.nextTaskTime, now)}>
+                        <InfoPanel
+                            title={tr('Next daily task')}
+                            meta={formatRemaining(daily.nextTaskTime, now)}
+                            expanded={panelOpen['overview.timer.daily']}
+                            onOpenChange={(open) => onPanelOpenChange('overview.timer.daily', open)}
+                        >
                             <p class="v2-muted">{tr('Scheduled at {date}', { date: new Date(daily.nextTaskTime).toLocaleString() })}</p>
                         </InfoPanel>
                     ) : null}
                     {specialists?.expansions[0]?.expiresAt ? (
-                        <InfoPanel title={tr('Stash expansion')} meta={formatRemaining(specialists.expansions[0].expiresAt, now)}>
+                        <InfoPanel
+                            title={tr('Stash expansion')}
+                            meta={formatRemaining(specialists.expansions[0].expiresAt, now)}
+                            expanded={panelOpen['overview.timer.stash-expansion']}
+                            onOpenChange={(open) => onPanelOpenChange('overview.timer.stash-expansion', open)}
+                        >
                             <p class="v2-muted">
                                 {tr('+{slots} slots · {status} · ends {date}', {
                                     slots: specialists.expansions[0].bonusSlots,
@@ -162,7 +172,13 @@ export function OverviewPage({
                         </InfoPanel>
                     ) : null}
                     {networkDiag?.maintenance.map((maintenance) => maintenance.endsAt ? (
-                        <InfoPanel key={`maintenance-${maintenance.id}`} title={tr('Maintenance · {name}', { name: maintenance.name })} meta={formatRemaining(maintenance.endsAt, now)}>
+                        <InfoPanel
+                            key={`maintenance-${maintenance.id}`}
+                            title={tr('Maintenance · {name}', { name: maintenance.name })}
+                            meta={formatRemaining(maintenance.endsAt, now)}
+                            expanded={panelOpen[`overview.timer.maintenance.${maintenance.id}`]}
+                            onOpenChange={(open) => onPanelOpenChange(`overview.timer.maintenance.${maintenance.id}`, open)}
+                        >
                             <p class="v2-muted">{tr('Ends at {date}', { date: new Date(maintenance.endsAt).toLocaleString() })}</p>
                         </InfoPanel>
                     ) : null)}

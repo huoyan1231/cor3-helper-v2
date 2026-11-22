@@ -18,6 +18,8 @@ export interface ValuableSellerCardProps {
     readonly onCancel: () => void | Promise<void>;
     readonly expanded: boolean;
     readonly onOpenChange: (open: boolean) => void;
+    readonly panelOpen: Readonly<Record<string, boolean>>;
+    readonly updatePanelOpen: (key: string, open: boolean) => void;
 }
 
 function phaseLabel(progress: ValuableProgress | MaintenanceForceProgress, tr: TranslateSource): string {
@@ -89,6 +91,8 @@ export function ValuableSellerCard({
     onCancel,
     expanded,
     onOpenChange,
+    panelOpen,
+    updatePanelOpen,
 }: ValuableSellerCardProps) {
     const tr = useT();
     const [selectedIds, setSelectedIds] = useState<readonly string[]>([]);
@@ -146,7 +150,11 @@ export function ValuableSellerCard({
             expanded={expanded}
             onOpenChange={onOpenChange}
         >
-            <details class="v2-debug-console v2-status-console" open>
+            <details
+                class="v2-debug-console v2-status-console"
+                open={panelOpen['valuable-seller.status'] ?? true}
+                onToggle={(event) => updatePanelOpen('valuable-seller.status', (event.currentTarget as HTMLDetailsElement).open)}
+            >
                 <summary class="v2-status-toggle">
                     <span class="v2-status-title">{tr('Status and report')}</span>
                 </summary>
@@ -180,7 +188,11 @@ export function ValuableSellerCard({
                 </div>
             </details>
 
-            <details class="v2-debug-console v2-status-console">
+            <details
+                class="v2-debug-console v2-status-console"
+                open={panelOpen['valuable-seller.maintenance'] ?? false}
+                onToggle={(event) => updatePanelOpen('valuable-seller.maintenance', (event.currentTarget as HTMLDetailsElement).open)}
+            >
                 <summary class="v2-status-toggle">
                     <span class="v2-status-title">{tr('Maintenance candidates')}</span>
                 </summary>

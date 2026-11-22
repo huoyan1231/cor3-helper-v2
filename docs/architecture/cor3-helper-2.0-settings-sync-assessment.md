@@ -48,6 +48,10 @@ The current `settings.update()` is already serialized by a write queue in `Setti
 4. Add `settingsSyncEnabled` (default true) and `settingsSyncUpdatedAt`.
 5. Never sync `panelOpenState` conflicts aggressively; last-write-wins is acceptable.
 
+### Current panel-state persistence (2026-11-23)
+
+`panelOpenState` is already authoritative for collapsible UI state in the local `v2.settings` envelope. `useSettings.updatePanelOpen(key, open)` writes through `settings.update`; every collapsible (Game sections, automation cards, Overview `InfoPanel` timers, `<details>` sub-sections, and Drone Mission step/diagnostics cards) reads and writes stable `page.area` keys. There is no separate UI-state store. Any future sync must carry this field as-is and keep the existing last-write-wins behaviour; do not add a parallel panel-state mirror.
+
 Alternative: keep local authoritative and provide “Push to sync / Pull from sync” buttons in Settings. This is easier to reason about but less seamless.
 
 ## Migration from v1

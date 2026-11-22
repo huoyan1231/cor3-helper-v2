@@ -291,7 +291,11 @@ export function AutoJobsCard(props: AutoJobsCardProps) {
                     ) : null}
                 </section>
 
-                <details class="v2-debug-console v2-status-console" open>
+                <details
+                    class="v2-debug-console v2-status-console"
+                    open={panelOpen['auto-jobs.status'] ?? true}
+                    onToggle={(event) => updatePanelOpen('auto-jobs.status', (event.currentTarget as HTMLDetailsElement).open)}
+                >
                     <summary class="v2-status-toggle">
                         <span class="v2-status-title">{tr('Status and report')}</span>
                     </summary>

@@ -152,6 +152,8 @@ export function AutomationPanel({
                 onCancel={valuable.cancelValuableOperation}
                 expanded={panelOpen['valuable-seller'] ?? false}
                 onOpenChange={(open) => settings.updatePanelOpen('valuable-seller', open)}
+                panelOpen={panelOpen}
+                updatePanelOpen={settings.updatePanelOpen}
             />
 
             <AutomationDebugCard

@@ -299,6 +299,7 @@ export function SidePanelApp({
                         inventoryStatus={inventory.inventoryStatus}
                         inventoryBusy={inventory.inventoryBusy}
                         onRefreshInventory={() => void inventory.loadInventory()}
+                        settings={settings}
                     />
                 ) : null}
 

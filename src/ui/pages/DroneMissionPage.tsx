@@ -9,6 +9,8 @@ export interface DroneMissionPageProps {
     readonly inventoryStatus: string;
     readonly inventoryBusy: boolean;
     readonly onRefreshInventory: () => void;
+    readonly panelOpen: Readonly<Record<string, boolean>>;
+    readonly onPanelOpenChange: (key: string, open: boolean) => void;
 }
 
 function formatWait(minutes: number | null, tr: (text: string) => string): string {
@@ -23,16 +25,26 @@ function StepCard({
     tracker,
     tr,
     ws,
+    expanded,
+    onOpenChange,
 }: {
     readonly step: MissionStepView;
     readonly tracker: DroneMissionTrackerState;
     readonly tr: TranslateSource;
     readonly ws: MissionWsStatus;
+    readonly expanded: boolean | undefined;
+    readonly onOpenChange: (open: boolean) => void;
 }) {
     const isCurrent = step.number === ws.currentStep;
-    const [open, setOpen] = useState(isCurrent);
-    // WS data may arrive after first render; auto-expand whichever step becomes current.
-    useEffect(() => { if (isCurrent) setOpen(true); }, [isCurrent]);
+    const [internalOpen, setInternalOpen] = useState(isCurrent);
+    const open = expanded ?? internalOpen;
+    const setOpen = (next: boolean) => {
+        if (expanded === undefined) setInternalOpen(next);
+        onOpenChange(next);
+    };
+    // WS data may arrive after first render; auto-expand whichever step becomes current,
+    // but never override a choice the user already made (persisted in panelOpen).
+    useEffect(() => { if (isCurrent && expanded === undefined) setInternalOpen(true); }, [isCurrent, expanded]);
     const variants = isCurrent && ws.automatic
         ? Object.entries(ws.currentSubtaskVariants).filter(([, value]) => value !== null)
         : [];
@@ -144,9 +156,9 @@ function StepCard({
     );
 }
 
-export function DroneMissionPage({ tracker, inventoryStatus, inventoryBusy, onRefreshInventory }: DroneMissionPageProps) {
+export function DroneMissionPage({ tracker, inventoryStatus, inventoryBusy, onRefreshInventory, panelOpen, onPanelOpenChange }: DroneMissionPageProps) {
     const tr = useT();
-    const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+    const diagnosticsOpen = panelOpen['drone-mission.diagnostics'] ?? false;
     const [sellSurplusOpen, setSellSurplusOpen] = useState(false);
     const { summary, shortages, steps, ws, diagnostics } = tracker.viewModel;
     const openSellSurplus = () => setSellSurplusOpen(true);
@@ -226,7 +238,18 @@ export function DroneMissionPage({ tracker, inventoryStatus, inventoryBusy, onRe
             </section>
 
             <section class="v2-dm-steps">
-                {steps.map((step) => <StepCard key={step.number} step={step} tracker={tracker} tr={tr} ws={ws} />)}
+                {steps.map((step) => {
+                    const key = `drone-mission.step.${step.number}`;
+                    return <StepCard
+                        key={step.number}
+                        step={step}
+                        tracker={tracker}
+                        tr={tr}
+                        ws={ws}
+                        expanded={panelOpen[key]}
+                        onOpenChange={(open) => onPanelOpenChange(key, open)}
+                    />;
+                })}
             </section>
 
             <section class="v2-dm-shortages">
@@ -259,7 +282,7 @@ export function DroneMissionPage({ tracker, inventoryStatus, inventoryBusy, onRe
                     class="v2-dm-diagnostics-toggle"
                     aria-expanded={diagnosticsOpen}
                     aria-label={diagnosticsOpen ? tr('Collapse {name}', { name: tr('Diagnostics') }) : tr('Expand {name}', { name: tr('Diagnostics') })}
-                    onClick={() => setDiagnosticsOpen(!diagnosticsOpen)}
+                    onClick={() => onPanelOpenChange('drone-mission.diagnostics', !diagnosticsOpen)}
                 >
                     <strong><span class="v2-dm-step-caret">{diagnosticsOpen ? '▾' : '▸'}</span>{tr('Diagnostics')}</strong>
                 </button>
