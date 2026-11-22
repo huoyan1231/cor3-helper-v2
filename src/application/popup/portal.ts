@@ -552,8 +552,8 @@ export interface PopupPortal {
     enableAutoMail(intervalMinutes: number): Promise<BridgeResult<unknown>>;
     disableAutoMail(): Promise<BridgeResult<unknown>>;
     droneView(): Promise<BridgeResult<DroneState>>;
-    /** Drone-build quest data: live capture, persisted snapshot, or none. */
-    droneBuildView(): Promise<BridgeResult<DroneBuildView>>;
+    /** Drone-build quest data: live capture, persisted snapshot, or none. `cachedOnly` serves the persisted snapshot immediately. */
+    droneBuildView(cachedOnly?: boolean): Promise<BridgeResult<DroneBuildView>>;
     droneAutoRun(): Promise<BridgeResult<DroneAutoResult>>;
     autoDroneStatus(): Promise<BridgeResult<AutoDroneStatus>>;
     enableAutoDrone(intervalMinutes: number): Promise<BridgeResult<unknown>>;

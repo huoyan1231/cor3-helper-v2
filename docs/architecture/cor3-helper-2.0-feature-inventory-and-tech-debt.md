@@ -1290,3 +1290,12 @@ A full verification run (typecheck, Vitest, oxlint, build) plus a review of the 
 - **Root cause:** `useDaily()` only called `loadAutoDaily()` on mount. `daily` (the `DailyOpsState` that drives `AutoDailyCard` and `hasOverviewTimerData`) stayed `null` until `runDailyHackNow()`, a `daily.auto.done` event, or the 15 s poll — and that poll was additionally gated on `autoDaily.enabled` and `activePage === 'automation'`.
 - **Fix:** mount now also calls `loadDaily(true)` (silent, so no busy flash). The 15 s poll is enabled on both `automation` and `overview` and no longer depends on the Auto Daily switch; `daily` is an independent view model that must refresh across the daily reset even when automation is off.
 - **No contract change:** `daily.view` / `daily.autoStatus` schemas, cache validity rules and persistence are untouched. typecheck, oxlint, 595 Vitest tests and production build pass.
+
+---
+
+# Part 59 — Paint persisted drone-build progress immediately on panel mount
+
+- **Symptom:** opening the Drone Mission page showed no WS progress for the first few seconds even though a persisted `droneBuild.view` snapshot existed.
+- **Root cause:** `droneBuild.view` always tried `V2_DRONE_BUILD_REFRESH` → `V2_DRONE_BUILD_VIEW` against the game tab before reading `DroneBuildSnapshotStore`. A slow game response delayed the persisted fallback, so the tracker opened empty.
+- **Fix:** `droneBuild.view` now accepts an optional `cachedOnly` flag. When true it returns only the persisted snapshot (`source: 'persisted' | 'none'`) with no game round-trip. `useDroneMissionTracker` mounts with a two-phase load: `cachedOnly=true` paints the saved snapshot first, then a normal call refreshes from the game. The page's manual refresh button still uses the full path, and ordinary callers keep the existing live → passive → persisted order.
+- **No contract change:** `DroneBuildView` shape and `droneBuild.view` command name are unchanged; the payload gained one optional boolean. New handler tests assert the cached path never calls the game tab and returns `persisted` / `none`. typecheck, oxlint, Vitest and production build pass.

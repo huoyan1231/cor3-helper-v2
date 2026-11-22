@@ -51,8 +51,8 @@ function setup(options: {
     return { handler, store, send };
 }
 
-async function call(handler: Handler): Promise<{ value: unknown }> {
-    const result = await handler({}, {}) as { value: unknown };
+async function call(handler: Handler, payload: Record<string, unknown> = {}): Promise<{ value: unknown }> {
+    const result = await handler(payload, {}) as { value: unknown };
     return result;
 }
 
@@ -105,5 +105,27 @@ describe('droneBuild.view persistence', () => {
         expect(droneBuildViewSchema.parse(value).source).toBe('live');
         expect(send).toHaveBeenCalledWith(1, { type: 'V2_DRONE_BUILD_REFRESH' });
         expect(send).toHaveBeenCalledWith(1, { type: 'V2_DRONE_BUILD_VIEW' });
+    });
+});
+
+describe('droneBuild.view cachedOnly', () => {
+    it('serves the persisted snapshot without touching the game tab', async () => {
+        const { handler, store, send } = setup({ tabId: 1, liveValue: snapshot });
+        await store.set(snapshot);
+        const { value } = await call(handler, { cachedOnly: true });
+        const parsed = droneBuildViewSchema.parse(value);
+        expect(parsed.source).toBe('persisted');
+        expect(parsed.snapshot?.currentStep).toBe(7);
+        expect(parsed.storedAt).toBeGreaterThan(0);
+        expect(send).not.toHaveBeenCalled();
+    });
+
+    it('returns source=none without a game round-trip when no snapshot is stored', async () => {
+        const { handler, send } = setup({ tabId: 1, liveValue: snapshot });
+        const { value } = await call(handler, { cachedOnly: true });
+        const parsed = droneBuildViewSchema.parse(value);
+        expect(parsed.source).toBe('none');
+        expect(parsed.snapshot).toBeNull();
+        expect(send).not.toHaveBeenCalled();
     });
 });

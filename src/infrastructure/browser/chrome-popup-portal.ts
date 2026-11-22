@@ -939,8 +939,9 @@ export class ChromePopupPortal implements PopupPortal {
         return this.client.request('drone.view', {}, droneStateSchema, 60000) as Promise<{ ok: true; value: DroneState } | { ok: false; error: { code: string; message: string } }>;
     }
 
-    droneBuildView(): Promise<{ ok: true; value: DroneBuildView } | { ok: false; error: { code: string; message: string } }> {
-        return this.client.request('droneBuild.view', {}, droneBuildViewSchema, 15000) as Promise<{ ok: true; value: DroneBuildView } | { ok: false; error: { code: string; message: string } }>;
+    droneBuildView(cachedOnly = false): Promise<{ ok: true; value: DroneBuildView } | { ok: false; error: { code: string; message: string } }> {
+        const payload = cachedOnly ? { cachedOnly: true } : {};
+        return this.client.request('droneBuild.view', payload, droneBuildViewSchema, 15000) as Promise<{ ok: true; value: DroneBuildView } | { ok: false; error: { code: string; message: string } }>;
     }
 
     droneAutoRun(): Promise<{ ok: true; value: DroneAutoResult } | { ok: false; error: { code: string; message: string } }> {

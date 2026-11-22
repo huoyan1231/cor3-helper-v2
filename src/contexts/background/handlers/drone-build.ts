@@ -45,7 +45,15 @@ export function registerDroneBuildHandlers(server: CoreRuntime['server'], deps: 
         }
     };
 
-    server.register('droneBuild.view', z.object({}).strict(), async () => {
+    server.register('droneBuild.view', z.object({ cachedOnly: z.boolean().optional() }).strict(), async ({ cachedOnly }) => {
+        // 0) Fast path for panel mount: serve the persisted snapshot without a
+        //    game round-trip, so the tracker never opens with empty progress.
+        if (cachedOnly) {
+            const stored = await store.get().catch(() => null);
+            if (stored) return ok({ snapshot: stored.value, source: 'persisted', storedAt: stored.at });
+            return ok({ snapshot: null, source: 'none', storedAt: null });
+        }
+
         // 1) Actively refresh from the game (authoritative, works even if the
         //    game has not pushed the frames recently).
         const refreshed = await askGame('V2_DRONE_BUILD_REFRESH');

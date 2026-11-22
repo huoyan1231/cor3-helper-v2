@@ -68,14 +68,22 @@ export function useDroneMissionTracker(
         [inventoryItems, trackerOptions],
     );
 
-    const reloadWs = useCallback(async () => {
-        const response = await portal.droneBuildView();
+    const loadWs = useCallback(async (cachedOnly: boolean) => {
+        const response = await portal.droneBuildView(cachedOnly);
         if (response.ok) setWsView(response.value);
     }, [portal]);
 
+    const reloadWs = useCallback(async () => {
+        await loadWs(false);
+    }, [loadWs]);
+
     useEffect(() => {
-        void reloadWs();
-    }, [reloadWs]);
+        void (async () => {
+            // Paint the persisted snapshot first, then refresh from the game.
+            await loadWs(true);
+            await loadWs(false);
+        })();
+    }, [loadWs]);
 
     const persist = useCallback(async (next: MissionProgress) => {
         setBusy(true);

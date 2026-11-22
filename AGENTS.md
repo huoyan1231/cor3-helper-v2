@@ -71,6 +71,7 @@ Inventory bulk sell:
 Wings of Mars tracker:
 
 - `useDroneMissionTracker()` is composed once in `SidePanelApp`, not inside `DroneMissionPanel`, so its WS snapshot survives tab switches. `DroneMissionPanel` is a pure display component that receives the tracker plus inventory status via props.
+- On mount the tracker paints the persisted snapshot via `droneBuild.view?cachedOnly=true` first, then refreshes from the game with a normal `droneBuild.view`; the manual refresh button always uses the full path. This keeps the live → passive → persisted fallback for ordinary calls.
 - `planMissionSurplusSell()` (domain) builds the "sell surplus" plan from the mission catalog, effective progress and live stash: keep the required quantity of each mission item (itemConfigId first, then name/aliases), sell the surplus plus every other COMMON/RARE sellable stack. Done/skipped groups reserve nothing. The page shows a confirm modal and executes via `portal.sellInventoryItem()` per stack.
 
 Force maintenance (v1 parity, inside Valuable Search & Sale):
