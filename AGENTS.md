@@ -113,6 +113,7 @@ Automatic page refresh:
 - The separate "Auto Refresh" tab configures `autoPageRefreshEnabled`, `autoPageRefreshIntervalMinutes` (1-1440, default 60) and `autoPageRefreshWaitWhileWorking`. `AutoPageRefreshCoordinator` uses a one-shot `AUTO_PAGE_REFRESH_ALARM` at `nextRefreshAt`; after a successful `chrome.tabs.reload` it writes `lastRefreshAt` and starts the next interval.
 - With "wait while working" enabled, the coordinator checks Auto Expedition, Auto Jobs/Auto Finish/job queue, Auto Daily and active minigame lock. If any are running it retries every 30 seconds for up to 10 minutes; it refreshes immediately once idle and force-refreshes when the timeout expires. Status/busy keys are exposed through `autoPageRefresh.status`.
 - The new feature is part of Helper Mode's saved/disabled automation snapshot. State is persisted in `AutoPageRefreshStateStore`; bridge/UI never call Chrome APIs directly.
+- `AutoRefreshPage` uses the same collapsible `GameSection` card as the other tabs (instead of a bare `v2-card`); its expanded state is persisted under the `auto-refresh` key in `settings.panelOpenState` and defaults to open.
 
 Complete-unknown claim recovery:
 

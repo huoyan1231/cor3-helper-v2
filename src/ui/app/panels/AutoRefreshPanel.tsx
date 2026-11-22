@@ -15,6 +15,8 @@ export function AutoRefreshPanel({ settings, autoRefresh, now }: AutoRefreshPane
             settings={settings.settings}
             status={autoRefresh.status}
             now={now}
+            panelOpen={settings.panelOpen}
+            onPanelOpenChange={settings.updatePanelOpen}
             onChangeEnabled={async (next) => {
                 await settings.changeAutoPageRefreshEnabled(next);
                 await autoRefresh.loadStatus();
