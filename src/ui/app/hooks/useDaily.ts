@@ -54,7 +54,8 @@ export function useDaily(portal: PopupPortal, deps: DailyDeps): DailyState {
 
     useEffect(() => {
         void loadAutoDaily();
-    }, [loadAutoDaily]);
+        void loadDaily(true);
+    }, [loadAutoDaily, loadDaily]);
 
     const toggleAutoDaily = useCallback(async () => {
         setDailyBusy(true);
@@ -90,7 +91,7 @@ export function useDaily(portal: PopupPortal, deps: DailyDeps): DailyState {
     }, [portal, loadDaily, loadAutoDaily, reportDetail, tt]);
 
     usePolling(() => Promise.all([loadAutoDaily(), loadDaily(true)]).then(() => undefined), 15000, {
-        enabled: activePage === 'automation' && (autoDaily?.enabled ?? false),
+        enabled: activePage === 'automation' || activePage === 'overview',
         immediate: false,
     });
 

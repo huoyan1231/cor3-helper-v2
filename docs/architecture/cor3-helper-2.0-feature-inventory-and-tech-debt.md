@@ -1281,3 +1281,12 @@ A full verification run (typecheck, Vitest, oxlint, build) plus a review of the 
 - **Select-all:** the candidate list gained a `Select all upcoming` checkbox that selects/deselects every selectable (upcoming) server and shows an indeterminate state for partial selection. Already-in-maintenance rows stay disabled and excluded. Styles `.v2-maint-select-all` / `.v2-maint-confirm-*` added to `src/html/popup.css`; new i18n Chinese messages added.
 - **Backward compatibility:** `valuable.forceMaintenance` still accepts an empty `serverIds`, which keeps the force-all-upcoming path in `MaintenanceForceService` intact even though the UI no longer exposes it.
 - **Verification:** typecheck, oxlint, 595 Vitest tests and production build pass.
+
+---
+
+# Part 58 — Load persisted daily-ops state on panel mount
+
+- **Symptom:** after reopening the panel, Auto Daily's "Today" card briefly showed `unclaimed` and Overview timers were empty, then corrected themselves after a delay. The saved data was never lost — `DailyOpsCacheStore` persists `v2.dailyOpsCache` and `DailyOpsCacheService.read()` serves it before hitting the game.
+- **Root cause:** `useDaily()` only called `loadAutoDaily()` on mount. `daily` (the `DailyOpsState` that drives `AutoDailyCard` and `hasOverviewTimerData`) stayed `null` until `runDailyHackNow()`, a `daily.auto.done` event, or the 15 s poll — and that poll was additionally gated on `autoDaily.enabled` and `activePage === 'automation'`.
+- **Fix:** mount now also calls `loadDaily(true)` (silent, so no busy flash). The 15 s poll is enabled on both `automation` and `overview` and no longer depends on the Auto Daily switch; `daily` is an independent view model that must refresh across the daily reset even when automation is off.
+- **No contract change:** `daily.view` / `daily.autoStatus` schemas, cache validity rules and persistence are untouched. typecheck, oxlint, 595 Vitest tests and production build pass.

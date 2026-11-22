@@ -80,6 +80,10 @@ Force maintenance (v1 parity, inside Valuable Search & Sale):
 - `valuable.forceMaintenance` is a bridge command sharing `valuableRunSchema`; `ValuableCoordinator.runMaintenance()` runs it through `networkOps`, publishes `valuable.progress` and logs to run logs. `ValuableRunState` now covers `operation: 'search' | 'sell' | 'maintenance'` and a union of the search/sale and maintenance progress shapes; `PopupPortal.forceMaintenance()` exposes it to `useValuable` / `ValuableSellerCard`.
 - Manual selection: `listMaintenanceCandidates()` lists every upcoming/active server via `valuable.maintenanceTargets`; `ValuableSellerCard` shows a "select all upcoming" checkbox (with indeterminate state) plus checkbox rows with countdown and status — only upcoming rows are selectable. The "Force maintenance on selected servers" button opens a confirmation modal listing the chosen servers before calling `onForceSelected` → `valuable.forceMaintenance` with `serverIds` (routed through `planSelectedMaintenanceTargets()`, furthest-first). There is no separate one-click force-all button; the domain/service keep the no-ids path as a backward-compatible fallback.
 
+Daily ops state loading:
+
+- `useDaily()` loads both `autoDailyStatus` and `dailyView` on mount. `dailyView` reads the persisted `v2.dailyOpsCache` first, so the Auto Daily "Today" card and Overview timers show the saved claimed/unclaimed state immediately instead of flashing "unclaimed" until a later poll. The 15 s poll runs on the automation and overview pages regardless of the Auto Daily switch, since `daily` is an independent view model.
+
 ## Definition of done
 
 - typecheck passes
