@@ -61,6 +61,7 @@ export function useSettings(portal: PopupPortal, deps: SettingsDeps): SettingsSt
     const [auth, setAuth] = useState<AuthStatus | null>(null);
     const languageInitStarted = useRef(false);
     const [panelOpen, setPanelOpen] = useState<Record<string, boolean>>({});
+    const panelOpenRef = useRef<Record<string, boolean>>({});
     const panelStateInitialized = useRef(false);
     const [updateResult, setUpdateResult] = useState<UpdateCheckResult | null>(null);
     const [updateStatusError, setUpdateStatusError] = useState<string | null>(null);
@@ -77,16 +78,16 @@ export function useSettings(portal: PopupPortal, deps: SettingsDeps): SettingsSt
     useEffect(() => {
         if (!settings || panelStateInitialized.current) return;
         panelStateInitialized.current = true;
+        panelOpenRef.current = settings.panelOpenState;
         setPanelOpen(settings.panelOpenState);
     }, [settings]);
 
     const updatePanelOpen = useCallback((key: string, open: boolean) => {
         panelStateInitialized.current = true;
-        setPanelOpen((current) => {
-            const panelOpenState = { ...current, [key]: open };
-            void portal.updateSettings({ panelOpenState });
-            return panelOpenState;
-        });
+        const next = { ...panelOpenRef.current, [key]: open };
+        panelOpenRef.current = next;
+        setPanelOpen(next);
+        void portal.updateSettings({ panelOpenState: next });
     }, [portal]);
 
     const loadSettings = useCallback(async () => {

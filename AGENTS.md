@@ -122,6 +122,7 @@ Complete-unknown claim recovery:
 Collapsible card/panel state persistence:
 
 - All collapsible UI cards and sub-sections must remember their expanded/collapsed state across side-panel restarts. The single source of truth is `settings.panelOpenState` (`Record<string, boolean>`), persisted via `settings.update`; there is no separate UI-state store. `useSettings.panelOpen` / `updatePanelOpen(key, open)` is the only UI access path — components receive `expanded` + `onOpenChange` (or `panelOpen` + `updatePanelOpen` for `<details>`) via props and never touch Chrome APIs.
+- `updatePanelOpen` must compute the next state synchronously from a `panelOpenRef` (initialized from persisted settings) and call `portal.updateSettings` **outside** any `setState` updater. Putting the write inside a `setState((current) => ...)` callback loses writes when Preact batches/skips the updater, which is why rapid toggles on multiple automation cards failed to persist.
 - Shared collapsibles (`GameSection`, `AutomationCard`, `InfoPanel`) use the controlled/uncontrolled pattern `expanded ?? internalOpen`: pass a `panelOpen[key]` value to persist, or omit it to keep local state. Use stable `page.area` keys (e.g. `overview.timer.daily`, `drone-mission.step.3`, `valuable-seller.status`); for dynamic items use a business id, never an array index.
 - `DroneMissionPage` step cards only auto-expand the current step while no persisted choice exists (`expanded === undefined`); an explicit saved choice is never overridden by incoming WS data.
 
