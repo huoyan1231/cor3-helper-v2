@@ -27,6 +27,7 @@ const EXPECTED_BRIDGE_TYPES = [
     'auto-jobs.enable',
     'auto-jobs.snapshot',
     'auto-jobs.status',
+    'autoPageRefresh.status',
     'automation.logs',
     'daily.autoDisable',
     'daily.autoEnable',

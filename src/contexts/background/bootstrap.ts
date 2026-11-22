@@ -68,6 +68,7 @@ export async function startSchedulers(core: CoreRuntime, automation: AutomationR
     if (current.dailyHackEnabled) {
         void automation.daily.scheduleNext();
     }
+    await automation.autoPageRefresh.restore();
 }
 
 export async function startBackground(core: CoreRuntime, automation: AutomationRuntime): Promise<void> {

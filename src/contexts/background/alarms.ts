@@ -11,6 +11,7 @@ import {
     AUTO_JOBS_INFO_REPAIR_ALARM,
     AUTO_MAIL_ALARM,
     AUTO_MAIL_RETRY_ALARM,
+    AUTO_PAGE_REFRESH_ALARM,
     AUTO_REFRESH_ALARM,
 } from './automation/alarm-ids.js';
 
@@ -168,6 +169,22 @@ export function alarmRoutes(automation: AutomationRuntime, logger: AutomationLog
                     await automation.daily.runExclusive();
                 } catch (error) {
                     logger.error('daily-hack', 'Scheduled Daily Hack failed', { message: errorText(error) });
+                }
+            },
+        },
+        {
+            id: 'auto-page-refresh',
+            alarm: AUTO_PAGE_REFRESH_ALARM,
+            scope: 'auto-page-refresh',
+            run: async () => {
+                try {
+                    const result = await automation.autoPageRefresh.run();
+                    if (!result.ok) logger.warn('auto-page-refresh', 'Scheduled page refresh did not run', {
+                        reason: result.reason,
+                        message: result.message,
+                    });
+                } catch (error) {
+                    logger.error('auto-page-refresh', 'Scheduled page refresh failed', { message: errorText(error) });
                 }
             },
         },

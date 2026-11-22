@@ -8,6 +8,7 @@ import type { BridgeClient } from '../bridge/bridge-client.js';
 import { UpdateChecker } from '../update/update-checker.js';
 import { toVersionCode } from '../../kernel/version.js';
 import { updateCheckResultSchema, type UpdateCheckResult } from '../../contracts/update-check.js';
+import { autoPageRefreshStatusSchema, type AutoPageRefreshStatus } from '../../contracts/auto-page-refresh.js';
 import type { AutoDailyStatus, AutoDroneStatus, AutoExpeditionStatus, AutoFinishRunResult, AutoFinishStatus, AutoJobsSnapshot, AutoJobsStatus, AutoMailStatus, BackgroundEvent, CachedMarketView, DailyHackResult, DebugLogLine, DismissFailedSummary, DroneAutoResult, InventoryFilterOptions, InventoryFilterResult, InventoryItemSellResult, InventoryPreviewResult, InventorySortResult, InventoryView, JobAllMarketsResult, JobHistoryEntry, JobMarketSyncResult, JobQueueResult, JobQueueState, LoadoutApplyResult, LoadoutView, MailClaimResult, MarketOptionsView, ActivityState, MaintenanceForceSummary, MaintenanceTarget, NetworkDiagnostics, NetworkServerSummary, OverviewState, PopupPortal, ValuableReport, ValuableRunState, ValuableSaleResult, ValuableSearchResult } from '../../application/popup/portal.js';
 import type { NetworkOperationQueueStatus } from '../../application/network/operation-queue.js';
 import { gameReadinessSchema } from '../../application/game/readiness.js';
@@ -1036,6 +1037,10 @@ export class ChromePopupPortal implements PopupPortal {
 
     activityState(): Promise<{ ok: true; value: ActivityState } | { ok: false; error: { code: string; message: string } }> {
         return this.client.request('activity.state', {}, activityStateSchema, 10000) as Promise<{ ok: true; value: ActivityState } | { ok: false; error: { code: string; message: string } }>;
+    }
+
+    autoPageRefreshStatus(): Promise<{ ok: true; value: AutoPageRefreshStatus } | { ok: false; error: { code: string; message: string } }> {
+        return this.client.request('autoPageRefresh.status', {}, autoPageRefreshStatusSchema, 10000) as Promise<{ ok: true; value: AutoPageRefreshStatus } | { ok: false; error: { code: string; message: string } }>;
     }
 
     claimPendingMail(): Promise<{ ok: true; value: MailClaimResult } | { ok: false; error: { code: string; message: string } }> {

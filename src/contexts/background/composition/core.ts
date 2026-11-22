@@ -21,6 +21,7 @@ import { ExpeditionConfigCacheStore } from '../../../infrastructure/storage/expe
 import { DroneDataCacheStore } from '../../../infrastructure/storage/drone-data-cache-store.js';
 import { DroneBuildSnapshotStore } from '../../../infrastructure/storage/drone-build-snapshot-store.js';
 import { AutomationStateStore } from '../../../infrastructure/storage/automation-state-store.js';
+import { AutoPageRefreshStateStore } from '../../../infrastructure/storage/auto-page-refresh-state-store.js';
 import { JobHistoryStore } from '../../../infrastructure/storage/job-history-store.js';
 import { JobStateStore } from '../../../infrastructure/storage/job-state-store.js';
 import { MarketCompletedJobsStore } from '../../../infrastructure/storage/market-completed-jobs-store.js';
@@ -86,6 +87,7 @@ export interface CoreRuntime {
         readonly droneDataCache: DroneDataCacheStore;
         readonly droneBuildSnapshot: DroneBuildSnapshotStore;
         readonly automationState: AutomationStateStore;
+        readonly autoPageRefresh: AutoPageRefreshStateStore;
         readonly dailyOpsCache: DailyOpsCacheStore;
         readonly jobHistory: JobHistoryStore;
         readonly jobState: JobStateStore;
@@ -205,6 +207,7 @@ export function createCoreRuntime(): CoreRuntime {
         droneDataCache: new DroneDataCacheStore(storageArea),
         droneBuildSnapshot: new DroneBuildSnapshotStore(storageArea),
         automationState: new AutomationStateStore(storageArea),
+        autoPageRefresh: new AutoPageRefreshStateStore(storageArea),
         dailyOpsCache: new DailyOpsCacheStore(storageArea),
         jobHistory: new JobHistoryStore(storageArea, undefined, logger),
         jobState: new JobStateStore(storageArea, undefined, logger),

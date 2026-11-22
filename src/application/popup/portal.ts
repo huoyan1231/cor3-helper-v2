@@ -25,10 +25,11 @@ export type { MaintenanceForceProgress, MaintenanceForceSummary, MaintenanceTarg
 
 import type { AutoFinishFailure, AutoFinishLastRun, AutoFinishMarketResult, AutoFinishRunResult, AutoFinishUnknownJob } from '../../contracts/auto-finish.js';
 import type { AutoJobsSnapshot } from '../../contracts/auto-jobs.js';
+import type { AutoPageRefreshStatus } from '../../contracts/auto-page-refresh.js';
 import type { MarketCompletedJobsState } from '../../contracts/market-completed-jobs.js';
 import type { UpdateCheckResult } from '../../contracts/update-check.js';
 
-export type { AutoFinishFailure, AutoFinishLastRun, AutoFinishMarketResult, AutoFinishRunResult, AutoFinishUnknownJob, AutoJobsSnapshot, MarketCompletedJobsState };
+export type { AutoFinishFailure, AutoFinishLastRun, AutoFinishMarketResult, AutoFinishRunResult, AutoFinishUnknownJob, AutoJobsSnapshot, AutoPageRefreshStatus, MarketCompletedJobsState };
 
 export interface JobRouteNode {
     readonly id: string;
@@ -578,6 +579,7 @@ export interface PopupPortal {
     cachedMarket(market: JobMarketDefinition): Promise<BridgeResult<CachedMarketView | null>>;
     marketOptions(market: JobMarketDefinition): Promise<BridgeResult<MarketOptionsView>>;
     activityState(): Promise<BridgeResult<ActivityState>>;
+    autoPageRefreshStatus(): Promise<BridgeResult<AutoPageRefreshStatus>>;
     expeditionView(): Promise<BridgeResult<ExpeditionOverview>>;
     respondExpeditionDecision(expeditionId: string, messageId: string, optionId: string): Promise<BridgeResult<void>>;
     autoExpeditionStatus(): Promise<BridgeResult<AutoExpeditionStatus>>;

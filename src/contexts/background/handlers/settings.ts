@@ -41,6 +41,7 @@ async function applySettingsPatch(deps: SettingsHandlerDeps, patch: SettingsPatc
                 autoExpeditionEnabled: current.autoExpeditionEnabled,
                 mailAutoClaimEnabled: current.mailAutoClaimEnabled,
                 dailyHackEnabled: current.dailyHackEnabled,
+                autoPageRefreshEnabled: current.autoPageRefreshEnabled,
             },
         };
     }
@@ -57,6 +58,7 @@ async function applySettingsPatch(deps: SettingsHandlerDeps, patch: SettingsPatc
             autoDecryptEnabled: false,
             autoIceWallEnabled: false,
             autoSimpleDecryptEnabled: false,
+            autoPageRefreshEnabled: false,
         };
     }
     if (patch.helperMode === false
@@ -82,6 +84,12 @@ async function applySettingsPatch(deps: SettingsHandlerDeps, patch: SettingsPatc
         };
     }
     const next = await core.settings.update(effective);
+    if ('autoPageRefreshEnabled' in effective
+        || 'autoPageRefreshIntervalMinutes' in effective
+        || 'helperMode' in effective
+        || 'helperModeSaved' in effective) {
+        await automation.autoPageRefresh.applySettings(current, next);
+    }
     if ('autoDecryptEnabled' in effective || 'autoIceWallEnabled' in effective || 'autoSimpleDecryptEnabled' in effective || 'helperMode' in effective) {
         void core.syncAutoSolvers(next);
     }
@@ -169,6 +177,7 @@ export function registerSettingsHandlers(server: CoreRuntime['server'], deps: Se
                 autoDecryptEnabled: false,
                 autoIceWallEnabled: false,
                 autoSimpleDecryptEnabled: false,
+                autoPageRefreshEnabled: false,
             }
             : parsed.data.settings;
         const result = await applySettingsPatch(deps, imported);

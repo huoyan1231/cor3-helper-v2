@@ -46,6 +46,9 @@ export interface SettingsState {
     ) => Promise<void>;
     readonly changeLanguage: (next: UiLanguage) => Promise<void>;
     readonly changeAutoExpeditionInterval: (minutes: number) => Promise<void>;
+    readonly changeAutoPageRefreshEnabled: (enabled: boolean) => Promise<void>;
+    readonly changeAutoPageRefreshInterval: (minutes: number) => Promise<void>;
+    readonly changeAutoPageRefreshWaitWhileWorking: (enabled: boolean) => Promise<void>;
     readonly toggleHack: (key: HackToggleKey) => Promise<void>;
     readonly exportSettings: () => Promise<string | null>;
     readonly importSettings: (json: string) => Promise<string | null>;
@@ -205,6 +208,25 @@ export function useSettings(portal: PopupPortal, deps: SettingsDeps): SettingsSt
         else reportDetail(response.error.message);
     }, [portal, reportDetail]);
 
+    const changeAutoPageRefreshEnabled = useCallback(async (enabled: boolean) => {
+        const response = await portal.updateSettings({ autoPageRefreshEnabled: enabled });
+        if (response.ok) setSettings(response.value);
+        else reportDetail(response.error.message);
+    }, [portal, reportDetail]);
+
+    const changeAutoPageRefreshInterval = useCallback(async (minutes: number) => {
+        const value = Math.min(1440, Math.max(1, Math.round(minutes)));
+        const response = await portal.updateSettings({ autoPageRefreshIntervalMinutes: value });
+        if (response.ok) setSettings(response.value);
+        else reportDetail(response.error.message);
+    }, [portal, reportDetail]);
+
+    const changeAutoPageRefreshWaitWhileWorking = useCallback(async (enabled: boolean) => {
+        const response = await portal.updateSettings({ autoPageRefreshWaitWhileWorking: enabled });
+        if (response.ok) setSettings(response.value);
+        else reportDetail(response.error.message);
+    }, [portal, reportDetail]);
+
     const exportSettings = useCallback(async (): Promise<string | null> => {
         const response = await portal.exportSettings();
         if (!response.ok) return response.error.message;
@@ -285,6 +307,9 @@ export function useSettings(portal: PopupPortal, deps: SettingsDeps): SettingsSt
         changeQol,
         changeLanguage,
         changeAutoExpeditionInterval,
+        changeAutoPageRefreshEnabled,
+        changeAutoPageRefreshInterval,
+        changeAutoPageRefreshWaitWhileWorking,
         toggleHack,
         exportSettings,
         importSettings,

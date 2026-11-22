@@ -19,6 +19,7 @@ export function buildNavPages({ language, helperMode, developerMode, hideWingsOf
         ['progress', t(language, 'nav.progress')],
         ...(helperMode ? [] : [['automation', t(language, 'nav.automation')] as const]),
         ['game', t(language, 'nav.game')],
+        ['autoRefresh', t(language, 'nav.autoRefresh')],
         ...(hideWingsOfMars ? [] : [['droneMission', t(language, 'nav.droneMission')] as const]),
         ['settings', t(language, 'nav.settings')],
         ...(developerMode ? [['developer', t(language, 'nav.developer')] as const] : []),

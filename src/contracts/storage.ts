@@ -35,6 +35,7 @@ const helperModeAutomationSchema = z.object({
     autoExpeditionEnabled: z.boolean(),
     mailAutoClaimEnabled: z.boolean(),
     dailyHackEnabled: z.boolean(),
+    autoPageRefreshEnabled: z.boolean(),
 }).strict();
 
 export type HelperModeAutomationSnapshot = z.infer<typeof helperModeAutomationSchema>;
@@ -100,6 +101,10 @@ export const settingsV1Schema = z.object({
     mailAutoClaimIntervalMinutes: z.number().int().min(1).max(1440).default(45),
     dailyHackEnabled: z.boolean().default(false),
     dailyHackIntervalMinutes: z.number().int().min(5).max(1440).default(240),
+    autoPageRefreshEnabled: z.boolean().default(false),
+    autoPageRefreshIntervalMinutes: z.number().int().min(1).max(1440).default(60),
+    /** Wait up to 10 minutes for selected automations before refreshing. */
+    autoPageRefreshWaitWhileWorking: z.boolean().default(false),
     disableNetworkFog: z.boolean().default(false),
     disableBackground: z.boolean().default(false),
     moveNotificationsLeft: z.boolean().default(false),

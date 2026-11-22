@@ -17,6 +17,8 @@ import { JobMarketSync } from '../automation/job-market-sync.js';
 import { ValuableCoordinator } from '../automation/valuable.js';
 import { MaintenanceForceService } from '../../../application/valuable/maintenance.js';
 import { AutoRefreshCoordinator } from '../automation/auto-refresh.js';
+import { AutoPageRefreshCoordinator } from '../../../application/automation/auto-page-refresh.js';
+import { AUTO_PAGE_REFRESH_ALARM } from '../automation/alarm-ids.js';
 import { AutoJobsCoordinator } from '../automation/auto-jobs.js';
 import { AutoFinishCoordinator } from '../automation/auto-finish.js';
 import { FailedJobDismisser } from '../automation/dismiss-failed.js';
@@ -40,6 +42,7 @@ export interface AutomationRuntime {
     readonly markets: JobMarketSync;
     readonly valuable: ValuableCoordinator;
     readonly autoRefresh: AutoRefreshCoordinator;
+    readonly autoPageRefresh: AutoPageRefreshCoordinator;
     readonly queue: JobQueueCoordinator;
     readonly autoJobs: AutoJobsCoordinator;
     readonly autoFinish: AutoFinishCoordinator;
@@ -327,6 +330,27 @@ export function createAutomationRuntime(core: CoreRuntime, game: GameRuntime): A
     queue.attachDismisser((owner, reason, marketKeys, shouldStop, runId, skipIds) =>
         autoJobs.dismissFailedJobs(owner, reason, marketKeys, shouldStop, runId, skipIds));
 
+    const autoPageRefresh = new AutoPageRefreshCoordinator({
+        settings,
+        scheduler,
+        state: stores.autoPageRefresh,
+        tabs: core.tabs,
+        logger,
+        events,
+        clock,
+        alarm: AUTO_PAGE_REFRESH_ALARM,
+        busy: {
+            check: async () => {
+                const keys: Array<'auto-expedition' | 'auto-jobs' | 'auto-daily' | 'auto-hack'> = [];
+                if (expedition.isRunning()) keys.push('auto-expedition');
+                if (autoJobs.isRunning() || autoFinish.isRunning() || queue.activeCount() > 0 || queue.runningCount() > 0) keys.push('auto-jobs');
+                if (daily.isRunning()) keys.push('auto-daily');
+                if (await game.jobActions.getMinigameLock() !== null) keys.push('auto-hack');
+                return keys;
+            },
+        },
+    });
+
     const readiness = new ReadinessRegistry({
         adapter: game.gameReadinessAdapter,
         tabs,
@@ -347,6 +371,7 @@ export function createAutomationRuntime(core: CoreRuntime, game: GameRuntime): A
         markets,
         valuable,
         autoRefresh,
+        autoPageRefresh,
         queue,
         autoJobs,
         autoFinish,

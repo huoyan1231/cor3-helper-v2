@@ -17,6 +17,7 @@ export const AUTO_EXPEDITION_RETRY_ALARM = 'v2-auto-expedition-retry';
 export const AUTO_MAIL_ALARM = 'v2-auto-mail';
 export const AUTO_MAIL_RETRY_ALARM = 'v2-auto-mail-retry';
 export const AUTO_DAILY_HACK_ALARM = 'v2-auto-daily-hack';
+export const AUTO_PAGE_REFRESH_ALARM = 'v2-auto-page-refresh';
 
 export const AUTOMATION_ALARM_IDS = {
     autoJobsInfo: AUTO_JOBS_INFO_ALARM,
@@ -30,6 +31,7 @@ export const AUTOMATION_ALARM_IDS = {
     autoMail: AUTO_MAIL_ALARM,
     autoMailRetry: AUTO_MAIL_RETRY_ALARM,
     autoDailyHack: AUTO_DAILY_HACK_ALARM,
+    autoPageRefresh: AUTO_PAGE_REFRESH_ALARM,
 } as const;
 
 export type AutomationAlarmId = typeof AUTOMATION_ALARM_IDS[keyof typeof AUTOMATION_ALARM_IDS];

@@ -4,6 +4,7 @@ import { LanguageProvider } from '../i18n-context.js';
 import { AppShell, type PopupPage } from './AppShell.js';
 import { useAutoFinish } from './hooks/useAutoFinish.js';
 import { useAutoJobs } from './hooks/useAutoJobs.js';
+import { useAutoRefresh } from './hooks/useAutoRefresh.js';
 import { useDaily } from './hooks/useDaily.js';
 import { useDebugLogs } from './hooks/useDebugLogs.js';
 import { useDrone } from './hooks/useDrone.js';
@@ -23,6 +24,7 @@ import { useSettings } from './hooks/useSettings.js';
 import { useValuable } from './hooks/useValuable.js';
 import { useWingsOfMarsVisibility } from './hooks/useWingsOfMarsVisibility.js';
 import { AutomationPanel } from './panels/AutomationPanel.js';
+import { AutoRefreshPanel } from './panels/AutoRefreshPanel.js';
 import { DeveloperPanel } from './panels/DeveloperPanel.js';
 import { DroneMissionPanel } from './panels/DroneMissionPanel.js';
 import { GamePanel } from './panels/GamePanel.js';
@@ -74,6 +76,7 @@ export function SidePanelApp({
     useWingsOfMarsVisibility(portal, settings);
 
     const network = useNetwork(portal, { reportDetail: connection.setDetail, tt: settings.tt, activePage });
+    const autoRefresh = useAutoRefresh(portal, activePage);
     const gameStatus = useGameStatus(portal, { activePage, loadNetwork: network.loadNetwork });
     const jobs = useJobs(portal, { tt: settings.tt, activePage });
     const jobQueue = useJobQueue(portal, { tt: settings.tt, jobs });
@@ -280,6 +283,10 @@ export function SidePanelApp({
                         settings={settings}
                         now={now}
                     />
+                ) : null}
+
+                {activePage === 'autoRefresh' ? (
+                    <AutoRefreshPanel settings={settings} autoRefresh={autoRefresh} now={now} />
                 ) : null}
 
                 {activePage === 'droneMission' ? (

@@ -173,6 +173,7 @@ export function registerSystemHandlers(server: CoreRuntime['server'], deps: Syst
     server.register('network.queueStatus', z.object({}).strict(), async () => ok(deps.core.networkOps.status()));
     server.register('network.readiness', z.object({}).strict(), async () => ok(deps.automation.readiness.summary()));
     server.register('activity.state', z.object({}).strict(), async () => ok(buildActivityState(deps)));
+    server.register('autoPageRefresh.status', z.object({}).strict(), async () => ok(await deps.automation.autoPageRefresh.status()));
     server.register('overview.state', z.object({}).strict(), async () => {
         const { core, game, automation } = deps;
         const currentSettings = await core.settings.get();

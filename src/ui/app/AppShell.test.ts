@@ -6,12 +6,12 @@ describe('buildNavPages', () => {
 
     it('hides Wings of Mars by default and places it right after Game when shown', () => {
         const hidden = buildNavPages({ ...base, hideWingsOfMars: true });
-        expect(hidden.map(([page]) => page)).toEqual(['overview', 'progress', 'automation', 'game', 'settings']);
+        expect(hidden.map(([page]) => page)).toEqual(['overview', 'progress', 'automation', 'game', 'autoRefresh', 'settings']);
 
         const shown = buildNavPages({ ...base, hideWingsOfMars: false });
         const order = shown.map(([page]) => page);
-        expect(order).toEqual(['overview', 'progress', 'automation', 'game', 'droneMission', 'settings']);
-        expect(order.indexOf('droneMission')).toBe(order.indexOf('game') + 1);
+        expect(order).toEqual(['overview', 'progress', 'automation', 'game', 'autoRefresh', 'droneMission', 'settings']);
+        expect(order.indexOf('droneMission')).toBe(order.indexOf('autoRefresh') + 1);
     });
 
     it('uses the localized names for Wings of Mars', () => {
@@ -27,6 +27,6 @@ describe('buildNavPages', () => {
         const order = pages.map(([page]) => page);
         expect(order).not.toContain('automation');
         expect(order).toContain('developer');
-        expect(order.indexOf('droneMission')).toBe(order.indexOf('game') + 1);
+        expect(order.indexOf('droneMission')).toBe(order.indexOf('autoRefresh') + 1);
     });
 });

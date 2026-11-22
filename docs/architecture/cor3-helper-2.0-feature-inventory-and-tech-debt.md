@@ -1344,3 +1344,12 @@ A full verification run (typecheck, Vitest, oxlint, build) plus a review of the 
 - **Safety:** one recovery per known reset; null/unknown resets and identity-less `'unknown'` sidecar barriers are never auto-released. If the recovery `Complete` is again unconfirmed, the barrier is restored and no second automatic attempt is made for that reset. Successful completion still writes the sidecar and Job State `completed`.
 - **Contracts/tests:** added optional `completeRecoveryAttemptedAt` to `JobStateRecord`, optional `releaseUnconfirmed()` to the completion store port, reconciler decision tests, storage CAS tests, and integration tests for single recovery plus exhaustion. `complete unknown → claimable → automatic claim` is now a supported, tested flow.
 - **Verification:** typecheck, oxlint, all 1101 Vitest tests and production build pass.
+
+---
+
+# Part 65 — Automatic cor3.gg page refresh tab (2026-11-22)
+
+- **Feature:** added a standalone "Auto Refresh" tab with an enable switch, a configurable 1-1440 minute timer (default 60), countdown/status, and an optional "Do not refresh while working" switch. The background reloads the preferred cor3.gg tab with `chrome.tabs.reload` when the timer expires and restarts the countdown after the reload.
+- **Busy handling:** when enabled, the coordinator checks Auto Expedition, Auto Jobs/Auto Finish/job queue, Auto Daily and the active minigame lock. If any are running it retries every 30 seconds for up to 10 minutes, refreshes immediately when idle, and force-refreshes if the 10-minute timeout expires. Missing tabs and reload failures are recorded and retried on the next interval.
+- **Architecture:** browser-free `AutoPageRefreshCoordinator` owns the state machine and depends on settings/scheduler/state/tab/busy ports. `AutoPageRefreshStateStore` persists `nextRefreshAt`, `lastRefreshAt`, wait window and last result. The UI reads `autoPageRefresh.status` via the bridge; Helper Mode saves and disables the new setting like other automations.
+- **Verification:** typecheck, oxlint, Vitest and production build pass.

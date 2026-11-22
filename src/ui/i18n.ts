@@ -38,6 +38,7 @@ const EN = {
     'nav.automation': 'Automation',
     'nav.droneMission': 'Wings of Mars',
     'nav.game': 'Game',
+    'nav.autoRefresh': 'Auto Refresh',
     'nav.settings': 'Settings',
     'nav.developer': 'Developer',
 
@@ -48,6 +49,30 @@ const EN = {
     'settings.language.description': 'Interface language for the 2.0 side panel and popup.',
     'settings.autoExpeditionInterval': 'Auto Expedition interval',
     'settings.autoExpeditionInterval.description': 'How often Auto Expedition checks for mercenaries and launches a new expedition (5-1440 minutes).',
+
+    'autoRefresh.title': 'Auto Refresh',
+    'autoRefresh.description': 'Reload the cor3.gg page automatically. The countdown restarts after every refresh.',
+    'autoRefresh.enabled': 'Enable auto refresh',
+    'autoRefresh.interval': 'Refresh interval',
+    'autoRefresh.interval.description': 'Time between page refreshes (1-1440 minutes).',
+    'autoRefresh.waitWhileWorking': 'Do not refresh while working',
+    'autoRefresh.waitWhileWorking.description': 'Wait up to 10 minutes for Auto Expedition, Auto Jobs, Auto Daily or auto hacking to finish. Refresh immediately when idle, or force refresh after the timeout.',
+    'autoRefresh.status': 'Status',
+    'autoRefresh.nextRefresh': 'Next refresh',
+    'autoRefresh.lastRefresh': 'Last refresh',
+    'autoRefresh.busy': 'Waiting for',
+    'autoRefresh.result.refreshed': 'Refreshed',
+    'autoRefresh.result.forced': 'Forced refresh after timeout',
+    'autoRefresh.result.failed': 'Refresh failed',
+    'autoRefresh.state.disabled': 'Disabled',
+    'autoRefresh.state.waiting': 'Waiting for automations',
+    'autoRefresh.state.scheduled': 'Scheduled',
+    'autoRefresh.never': 'Never',
+    'autoRefresh.helperMode': 'Disabled in Helper Mode',
+    'autoRefresh.busy.auto-expedition': 'Auto Expedition',
+    'autoRefresh.busy.auto-jobs': 'Auto Jobs',
+    'autoRefresh.busy.auto-daily': 'Auto Daily',
+    'autoRefresh.busy.auto-hack': 'Auto hacking',
     'settings.helperMode': 'Helper Mode',
     'settings.helperMode.description': 'While enabled, every automation is disabled and the Automation tab is hidden.',
     'settings.helperMode.info': 'About automation risk',
@@ -197,7 +222,7 @@ const EN = {
     'links.guide': 'Community game guide',
 } as const;
 
-type MessageKey = keyof typeof EN;
+export type MessageKey = keyof typeof EN;
 type Dictionary = Record<MessageKey, string>;
 
 const ZH: Dictionary = {
@@ -216,6 +241,7 @@ const ZH: Dictionary = {
     'nav.automation': '自动化',
     'nav.droneMission': '火星之翼',
     'nav.game': '游戏',
+    'nav.autoRefresh': '自动刷新',
     'nav.settings': '设置',
     'nav.developer': '开发者',
 
@@ -226,6 +252,30 @@ const ZH: Dictionary = {
     'settings.language.description': '2.0 侧边栏和弹窗的界面语言。',
     'settings.autoExpeditionInterval': '自动远征间隔',
     'settings.autoExpeditionInterval.description': '自动远征检查雇佣兵并派出新远征的周期（5-1440 分钟）。',
+
+    'autoRefresh.title': '自动刷新',
+    'autoRefresh.description': '自动重新加载 cor3.gg 页面。每次刷新后重新计时。',
+    'autoRefresh.enabled': '启用自动刷新',
+    'autoRefresh.interval': '刷新间隔',
+    'autoRefresh.interval.description': '两次页面刷新之间的时间（1-1440 分钟）。',
+    'autoRefresh.waitWhileWorking': '工作时暂不刷新',
+    'autoRefresh.waitWhileWorking.description': '最多等待 10 分钟，直到自动远征、自动任务、自动日常任务或自动黑客结束。空闲时立即刷新；超时后强制刷新。',
+    'autoRefresh.status': '状态',
+    'autoRefresh.nextRefresh': '下次刷新',
+    'autoRefresh.lastRefresh': '上次刷新',
+    'autoRefresh.busy': '正在等待',
+    'autoRefresh.result.refreshed': '已刷新',
+    'autoRefresh.result.forced': '超时后强制刷新',
+    'autoRefresh.result.failed': '刷新失败',
+    'autoRefresh.state.disabled': '已禁用',
+    'autoRefresh.state.waiting': '等待自动化结束',
+    'autoRefresh.state.scheduled': '已计划',
+    'autoRefresh.never': '从未',
+    'autoRefresh.helperMode': '在辅助模式下禁用',
+    'autoRefresh.busy.auto-expedition': '自动远征',
+    'autoRefresh.busy.auto-jobs': '自动任务',
+    'autoRefresh.busy.auto-daily': '自动日常任务',
+    'autoRefresh.busy.auto-hack': '自动黑客',
     'settings.helperMode': '辅助模式',
     'settings.helperMode.description': '开启后禁用所有自动化功能，并隐藏 Automation 面板。',
     'settings.helperMode.info': '关于自动化风险',
@@ -398,4 +448,3 @@ export function translate(language: UiLanguage, source: string, vars?: Readonly<
     return interpolate(template, vars);
 }
 
-export type { MessageKey };

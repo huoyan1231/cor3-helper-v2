@@ -101,6 +101,12 @@ Upstream `v2` merge (2026-11-22):
 - Mercenary decisions support both surfaces: fork flags (`mercGetRidOfVeterans`, `mercInsureVeterans`) and upstream decision mode/score weights (`mercDecisionMode`, `mercDecisionScoreLoot`, `mercDecisionScoreRisk`). `ExpeditionCycle.autoRespond()` passes them together; selection data carries both `insurance` and `insuranceCost`.
 - Upstream auto-job completion barriers, job-state store/reconciler/recorder and market-completed-jobs store are adopted. Background composition registers both the fork toolbar opener and upstream update lifecycle; `AppShell` still receives `ping` / `hasEndpoint` from `SidePanelApp`.
 
+Automatic page refresh:
+
+- The separate "Auto Refresh" tab configures `autoPageRefreshEnabled`, `autoPageRefreshIntervalMinutes` (1-1440, default 60) and `autoPageRefreshWaitWhileWorking`. `AutoPageRefreshCoordinator` uses a one-shot `AUTO_PAGE_REFRESH_ALARM` at `nextRefreshAt`; after a successful `chrome.tabs.reload` it writes `lastRefreshAt` and starts the next interval.
+- With "wait while working" enabled, the coordinator checks Auto Expedition, Auto Jobs/Auto Finish/job queue, Auto Daily and active minigame lock. If any are running it retries every 30 seconds for up to 10 minutes; it refreshes immediately once idle and force-refreshes when the timeout expires. Status/busy keys are exposed through `autoPageRefresh.status`.
+- The new feature is part of Helper Mode's saved/disabled automation snapshot. State is persisted in `AutoPageRefreshStateStore`; bridge/UI never call Chrome APIs directly.
+
 Complete-unknown claim recovery:
 
 - A fresh market row with `alreadyTaken && canComplete` is positive evidence that an unconfirmed `Complete` did not grant the reward. `JobStateReconciler` may release that exact-reset barrier once and transition to `ready-to-claim` with `completeRecoveryAttemptedAt`; Auto Finish then claims it through the normal claim-only path. Claim-only jobs are sorted first each run, matching v1's "claim rewards first" behavior.
