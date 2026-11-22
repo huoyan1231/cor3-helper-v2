@@ -73,6 +73,7 @@ Wings of Mars tracker:
 - `useDroneMissionTracker()` is composed once in `SidePanelApp`, not inside `DroneMissionPanel`, so its WS snapshot survives tab switches. `DroneMissionPanel` is a pure display component that receives the tracker plus inventory status via props.
 - On mount the tracker paints the persisted snapshot via `droneBuild.view?cachedOnly=true` first, then refreshes from the game with a normal `droneBuild.view`; the manual refresh button always uses the full path. This keeps the live → passive → persisted fallback for ordinary calls.
 - `planMissionSurplusSell()` (domain) builds the "sell surplus" plan from the mission catalog, effective progress and live stash: keep the required quantity of each mission item (itemConfigId first, then name/aliases), sell the surplus plus every other COMMON/RARE sellable stack. Done/skipped groups reserve nothing. The page shows a confirm modal and executes via `portal.sellInventoryItem()` per stack.
+- The active page is persisted in `v2.workspace-view` and restored on the next open. `shouldRedirectFromDroneMission()` must not redirect a restored `droneMission` page while settings are still `null`: the shell's pre-load `hideWingsOfMars` default is `true`, so redirecting early would send the user to `game` and persist that as their start page. Only a loaded setting with `hideWingsOfMars: true` (tracker finished / tab hidden) may perform the redirect.
 
 Force maintenance (v1 parity, inside Valuable Search & Sale):
 

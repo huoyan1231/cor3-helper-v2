@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import type { PopupPortal } from '../../application/popup/portal.js';
+import type { SettingsV1 } from '../../contracts/storage.js';
 import { LanguageProvider } from '../i18n-context.js';
 import { AppShell, type PopupPage } from './AppShell.js';
 import { useAutoFinish } from './hooks/useAutoFinish.js';
@@ -40,6 +41,19 @@ import { isAutomationDebugLive } from './view-models/automation-status.js';
  * and portal calls live in `hooks/`, pure calculations in `view-models/`, and
  * page wiring in `panels/`.
  */
+
+/**
+ * A restored `droneMission` page must survive until settings load: the UI's
+ * pre-load `hideWingsOfMars` default is `true`, which would otherwise redirect
+ * the page to `game` and persist that redirect as the user's next start page.
+ */
+export function shouldRedirectFromDroneMission(
+    settings: Pick<SettingsV1, 'hideWingsOfMars'> | null,
+    activePage: PopupPage,
+): boolean {
+    if (!settings) return false;
+    return settings.hideWingsOfMars && activePage === 'droneMission';
+}
 
 export interface SidePanelAppProps {
     readonly portal: PopupPortal;
@@ -224,9 +238,8 @@ export function SidePanelApp({
     }, [settings.helperMode, activePage]);
 
     useEffect(() => {
-        const hidden = settings.settings?.hideWingsOfMars ?? true;
-        if (hidden && activePage === 'droneMission') setActivePage('game');
-    }, [settings.settings?.hideWingsOfMars, activePage]);
+        if (shouldRedirectFromDroneMission(settings.settings, activePage)) setActivePage('game');
+    }, [settings.settings, activePage]);
 
     useEffect(() => {
         if (!pageChangeNotified.current) {
