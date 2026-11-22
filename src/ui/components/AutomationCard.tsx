@@ -45,9 +45,9 @@ export function AutomationCard({
     };
 
     useEffect(() => {
-        if (persistentSwitch && enabled && !previousEnabled.current) setOpen(true);
+        if (persistentSwitch && expanded === undefined && enabled && !previousEnabled.current) setOpen(true);
         previousEnabled.current = enabled;
-    }, [enabled, persistentSwitch]);
+    }, [enabled, persistentSwitch, expanded]);
 
     return (
         <section class={`v2-card v2-automation-card${available ? ' v2-automation-available' : ''}`}>
