@@ -55,6 +55,7 @@ export function usePortalConnection(portal: PopupPortal): PortalConnection {
 export interface PortalEventHandlers {
     readonly activePage: PopupPage;
     readonly reloadSettings: () => void | Promise<void>;
+    readonly reloadAuth: () => void | Promise<void>;
     readonly reloadNetwork: () => void | Promise<void>;
     readonly reloadAutoFinish: () => void | Promise<void>;
     readonly reloadDebugLogs: (silent?: boolean) => void | Promise<void>;
@@ -143,6 +144,11 @@ export function usePortalEvents(portal: PopupPortal, handlers: PortalEventHandle
         if (event.type === 'expeditions.auto.preparing' || event.type === 'expeditions.auto.done') {
             void current.reloadAutoExpedition();
             if (event.type === 'expeditions.auto.done') void current.reloadExpeditions();
+        }
+        if (event.type === 'game.readiness') {
+            // The content script emits this on every game page load, including
+            // a manual F5 and the Auto Refresh tab's scheduled reload.
+            void current.reloadAuth();
         }
         if (event.type === 'network.queue' || event.type === 'game.readiness') {
             void current.reloadNetwork();

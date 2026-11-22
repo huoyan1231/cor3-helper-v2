@@ -10,6 +10,7 @@ import { UpdateStatus } from '../components/UpdateStatus.js';
 import { RELATED_LINKS } from './fork-info.js';
 import { detectBrowserLanguage, t, type UiLanguage } from '../i18n.js';
 import { LanguageProvider } from '../i18n-context.js';
+import { usePolling } from './hooks/usePolling.js';
 
 export interface WelcomeAppProps {
     readonly portal: PopupPortal;
@@ -51,6 +52,17 @@ export function WelcomeApp({ portal }: WelcomeAppProps) {
             setUpdateStatusError(updateStatusResult.error.message);
         }
     }, [portal]);
+
+    const refreshAuth = useCallback(async () => {
+        const response = await portal.authStatus();
+        if (response.ok) setAuth(response.value);
+    }, [portal]);
+
+    usePolling(refreshAuth, 15000);
+
+    useEffect(() => portal.subscribeEvents((event) => {
+        if (event.type === 'game.readiness') void refreshAuth();
+    }), [portal, refreshAuth]);
 
     const checkUpdates = useCallback(async () => {
         if (updateChecking) return;

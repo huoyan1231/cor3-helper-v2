@@ -87,7 +87,7 @@ Daily ops state loading:
 
 Auth status display:
 
-- `useSettings()` polls `auth.status` every 15 s in addition to the initial load, because `ChromeTabAuthAdapter.status()` queries the live game tab. The top-right auth tag in `AppShell` is a button wired in `SidePanelApp` to `refreshSession` for an immediate re-check after refreshing the game page; no UI reload is needed.
+- `useSettings()` polls `auth.status` every 15 s in addition to the initial load, because `ChromeTabAuthAdapter.status()` queries the live game tab. The content script emits `game.readiness` on every game page load (manual reload or Auto Refresh), and `usePortalEvents` calls `reloadAuth` on that event so the top-right auth tag updates immediately. The toolbar `WelcomeApp` has the same 15 s poll plus `game.readiness` subscription. The tag remains clickable via `refreshSession` in `SidePanelApp`.
 
 Auto Expedition resilience:
 

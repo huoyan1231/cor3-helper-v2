@@ -1361,3 +1361,11 @@ A full verification run (typecheck, Vitest, oxlint, build) plus a review of the 
 - **Symptom:** after browser/background restart, a persisted `AutoFinish.last` report from an older run (for example all four markets "refresh failed") was shown in the Auto Jobs card even after a newer market snapshot had succeeded. This made it look as if Auto Finish started completing jobs while market refresh was still failing.
 - **Fix:** `selectShownJobReport()` now exposes report timestamps from `useAutoFinish` and compares them with `AutoJobsStatus.snapshotAt`. A live run always wins; a persisted `last` report is used only when it is at least as new as the snapshot. `loadAutoFinish()` no longer copies the persisted `last` report into the manual `jobReport`, so stale data cannot bypass the freshness check.
 - **Verification:** typecheck, oxlint, Vitest and production build pass.
+
+---
+
+# Part 67 — Automatic connection status refresh on game page load (2026-11-22)
+
+- **Behavior:** the top-right cor3.gg session tag now re-checks `auth.status` immediately when the game page reloads, whether the reload is manual or triggered by the Auto Refresh feature. The existing 15-second poll remains, and clicking the tag still performs an immediate full session refresh.
+- **Wiring:** the content script already emits `game.readiness` on page load. `usePortalEvents` now dispatches that event to `reloadAuth` in the side panel; `WelcomeApp` subscribes to the same event and keeps its own 15 s `auth.status` poll. Auth hints in EN/ZH describe both refresh paths.
+- **Verification:** typecheck, oxlint, Vitest and production build pass.

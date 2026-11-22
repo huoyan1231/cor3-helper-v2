@@ -30,7 +30,7 @@ const EN = {
     'status.endpoint': 'ENDPOINT',
     'status.noEndpoint': 'NO ENDPOINT',
     'status.pingHint': 'Background service worker is responding.',
-    'status.authHint': 'cor3.gg session status. Click to re-check after refreshing the game page.',
+    'status.authHint': 'cor3.gg session status. Re-checks automatically when the game page reloads and every 15 seconds. Click to re-check now.',
     'status.endpointHint': 'An endpoint-capable game server is available on the current network map.',
 
     'nav.overview': 'Overview',
@@ -233,7 +233,7 @@ const ZH: Dictionary = {
     'status.endpoint': '端点',
     'status.noEndpoint': '无端点',
     'status.pingHint': '后台服务工作线程正在响应。',
-    'status.authHint': 'cor3.gg 会话状态。刷新游戏网页后点击此标签可重新检测。',
+    'status.authHint': 'cor3.gg 会话状态。游戏网页刷新后和每 15 秒自动重新检测；点击此标签可立即检测。',
     'status.endpointHint': '当前网络地图中存在支持端点的游戏服务器。',
 
     'nav.overview': '总览',
