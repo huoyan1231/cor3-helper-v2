@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import type { PopupPortal } from '../../application/popup/portal.js';
 import type { SettingsV1 } from '../../contracts/storage.js';
+import type { WorkspaceBootstrap } from '../../contracts/workspace-bootstrap.js';
 import { LanguageProvider } from '../i18n-context.js';
 import { AppShell, type PopupPage } from './AppShell.js';
 import { useAutoFinish } from './hooks/useAutoFinish.js';
@@ -60,6 +61,7 @@ export interface SidePanelAppProps {
     readonly windowMode?: boolean;
     readonly popupMode?: boolean;
     readonly initialPage?: PopupPage;
+    readonly initialBootstrap?: WorkspaceBootstrap | null;
     readonly onPageChange?: ((page: PopupPage) => void) | undefined;
 }
 
@@ -68,6 +70,7 @@ export function SidePanelApp({
     windowMode = false,
     popupMode = false,
     initialPage = 'overview',
+    initialBootstrap = null,
     onPageChange,
 }: SidePanelAppProps) {
     const [activePage, setActivePage] = useState<PopupPage>(initialPage);
@@ -86,13 +89,13 @@ export function SidePanelApp({
         setActivePage,
         reloadAutomation: () => reloadAutomationRef.current(),
         reportDetail: connection.setDetail,
-    });
+    }, initialBootstrap);
     useWingsOfMarsVisibility(portal, settings);
 
-    const network = useNetwork(portal, { reportDetail: connection.setDetail, tt: settings.tt, activePage });
+    const network = useNetwork(portal, { reportDetail: connection.setDetail, tt: settings.tt, activePage }, initialBootstrap);
     const autoRefresh = useAutoRefresh(portal, activePage);
     const gameStatus = useGameStatus(portal, { activePage, loadNetwork: network.loadNetwork });
-    const jobs = useJobs(portal, { tt: settings.tt, activePage });
+    const jobs = useJobs(portal, { tt: settings.tt, activePage }, initialBootstrap?.autoJobs ?? null);
     const jobQueue = useJobQueue(portal, { tt: settings.tt, jobs });
     const autoJobs = useAutoJobs(portal, {
         tt: settings.tt,
@@ -140,7 +143,7 @@ export function SidePanelApp({
         reportDetail: connection.setDetail,
         reloadSettings: settings.loadSettings,
         dailyHackEnabled: settings.settings?.dailyHackEnabled,
-    });
+    }, initialBootstrap?.daily ?? null);
     const valuable = useValuable(portal, { activePage, tt: settings.tt, reportDetail: connection.setDetail });
     const debug = useDebugLogs(portal, {
         activePage,

@@ -18,6 +18,8 @@ export const AUTO_MAIL_ALARM = 'v2-auto-mail';
 export const AUTO_MAIL_RETRY_ALARM = 'v2-auto-mail-retry';
 export const AUTO_DAILY_HACK_ALARM = 'v2-auto-daily-hack';
 export const AUTO_PAGE_REFRESH_ALARM = 'v2-auto-page-refresh';
+/** UI warm cache; deliberately not an automation alarm, so Helper Mode keeps it. */
+export const WORKSPACE_WARM_ALARM = 'v2-workspace-warm';
 
 export const AUTOMATION_ALARM_IDS = {
     autoJobsInfo: AUTO_JOBS_INFO_ALARM,

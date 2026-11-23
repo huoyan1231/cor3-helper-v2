@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { jobMarketByKey, type JobOffer } from '../../../application/popup/catalog.js';
-import type { AutoJobsMarket } from '../../../contracts/auto-jobs.js';
+import type { AutoJobsMarket, AutoJobsSnapshot } from '../../../contracts/auto-jobs.js';
 import { jobIdentityKey } from '../../../contracts/jobs.js';
 import type { JobHistoryEntry, JobQueueProgress, PopupPortal } from '../../../application/popup/portal.js';
 import type { TranslateSource } from '../../i18n-context.js';
@@ -51,18 +51,34 @@ export interface JobsState {
     readonly toggleSelectMarket: (marketJobs: readonly JobOffer[]) => void;
 }
 
-export function useJobs(portal: PopupPortal, deps: JobsDeps): JobsState {
+function snapshotInitialState(snapshot: AutoJobsSnapshot, tt: TranslateSource) {
+    return {
+        jobs: snapshot.jobs,
+        jobsByMarket: groupJobsByMarket(snapshot.jobs),
+        autoJobsMarkets: snapshot.markets,
+        jobResetByMarket: resetAtByMarket(snapshot.markets),
+        marketReport: snapshot.markets as readonly AutoJobsMarket[],
+        selectedJobs: new Set(snapshot.jobs.map((job) => jobIdentityKey(job.marketKey, job.id))),
+        jobStatus: tt('Ready sync: {jobs} job(s) across {markets} market(s)', {
+            jobs: snapshot.jobs.length,
+            markets: snapshot.markets.filter((market) => market.ok).length,
+        }),
+    };
+}
+
+export function useJobs(portal: PopupPortal, deps: JobsDeps, initialSnapshot?: AutoJobsSnapshot | null): JobsState {
     const { tt, activePage } = deps;
+    const warm = initialSnapshot ? snapshotInitialState(initialSnapshot, tt) : null;
     const [marketKey, setMarketKey] = useState('home');
-    const [jobs, setJobs] = useState<readonly JobOffer[]>([]);
-    const [jobsByMarket, setJobsByMarket] = useState<Readonly<Record<string, readonly JobOffer[]>>>({});
-    const [autoJobsMarkets, setAutoJobsMarkets] = useState<readonly AutoJobsMarket[]>([]);
-    const [jobResetByMarket, setJobResetByMarket] = useState<Readonly<Record<string, string | null>>>({});
+    const [jobs, setJobs] = useState<readonly JobOffer[]>(warm?.jobs ?? []);
+    const [jobsByMarket, setJobsByMarket] = useState<Readonly<Record<string, readonly JobOffer[]>>>(warm?.jobsByMarket ?? {});
+    const [autoJobsMarkets, setAutoJobsMarkets] = useState<readonly AutoJobsMarket[]>(warm?.autoJobsMarkets ?? []);
+    const [jobResetByMarket, setJobResetByMarket] = useState<Readonly<Record<string, string | null>>>(warm?.jobResetByMarket ?? {});
     const [jobHistory, setJobHistory] = useState<readonly JobHistoryEntry[]>([]);
-    const [selectedJobs, setSelectedJobs] = useState<ReadonlySet<string>>(new Set());
-    const jobsSelectionInitialized = useRef(false);
-    const [marketReport, setMarketReport] = useState<readonly AutoJobsMarket[] | null>(null);
-    const [jobStatus, setJobStatus] = useState('No market synced yet');
+    const [selectedJobs, setSelectedJobs] = useState<ReadonlySet<string>>(warm?.selectedJobs ?? new Set());
+    const jobsSelectionInitialized = useRef(warm !== null);
+    const [marketReport, setMarketReport] = useState<readonly AutoJobsMarket[] | null>(warm?.marketReport ?? null);
+    const [jobStatus, setJobStatus] = useState(warm?.jobStatus ?? 'No market synced yet');
     const [jobBusy, setJobBusy] = useState(false);
     const [jobRunId, setJobRunId] = useState<string | null>(null);
     const [jobReport, setJobReport] = useState<readonly UiJobReport[]>([]);

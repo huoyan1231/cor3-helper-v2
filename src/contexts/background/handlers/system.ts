@@ -157,6 +157,9 @@ export function registerSystemHandlers(server: CoreRuntime['server'], deps: Syst
         void deps.automation.autoJobs.ensureInfo('popup-open');
         return ok({ version: VERSION, phase: PHASE });
     });
+    server.register('system.workspaceBootstrap', z.object({}).strict(), async () => {
+        return ok(await deps.automation.workspaceBootstrap.read());
+    });
     server.register('system.updateStatus', z.object({}).strict(), async () => {
         return ok(await deps.core.updateCheck.getStatus());
     });

@@ -3,6 +3,7 @@ import { droneBuildViewSchema, type DroneBuildView } from '../../contracts/drone
 import type { SettingsPatch } from '../../contracts/storage.js';
 import { authStatusSchema, settingsPatchSchema, settingsV1Schema } from '../../contracts/storage.js';
 import { DEFAULT_WORKSPACE_VIEW, WORKSPACE_VIEW_KEY, workspaceViewStateSchema, type WorkspaceViewState } from '../../contracts/workspace-view.js';
+import { workspaceBootstrapSchema, type WorkspaceBootstrap } from '../../contracts/workspace-bootstrap.js';
 import { networkMapSummarySchema } from '../../application/network/summary.js';
 import type { BridgeClient } from '../bridge/bridge-client.js';
 import { UpdateChecker } from '../update/update-checker.js';
@@ -725,6 +726,10 @@ export class ChromePopupPortal implements PopupPortal {
         } catch {
             // View state is best effort; a failed write must not break the UI.
         }
+    }
+
+    workspaceBootstrap(): Promise<{ ok: true; value: WorkspaceBootstrap | null } | { ok: false; error: { code: string; message: string } }> {
+        return this.client.request('system.workspaceBootstrap', {}, workspaceBootstrapSchema.nullable()) as Promise<{ ok: true; value: WorkspaceBootstrap | null } | { ok: false; error: { code: string; message: string } }>;
     }
 
     openSidePanel(): Promise<boolean> {

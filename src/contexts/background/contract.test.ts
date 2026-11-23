@@ -115,6 +115,7 @@ const EXPECTED_BRIDGE_TYPES = [
     'system.ping',
     'system.updateCheck',
     'system.updateStatus',
+    'system.workspaceBootstrap',
     'valuable.cancel',
     'valuable.forceMaintenance',
     'valuable.maintenanceTargets',

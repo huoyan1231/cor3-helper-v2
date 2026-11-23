@@ -1,6 +1,7 @@
 import type { BridgeResult } from '../../contracts/bridge.js';
 import type { DroneBuildView } from '../../contracts/drone-build.js';
 import type { WorkspaceViewState } from '../../contracts/workspace-view.js';
+import type { WorkspaceBootstrap } from '../../contracts/workspace-bootstrap.js';
 import type { AutoJobsSkippedJob } from '../../contracts/auto-jobs.js';
 import type { AuthStatus, SettingsPatch, SettingsV1 } from '../../contracts/storage.js';
 import type { NetworkMapSummary } from '../network/summary.js';
@@ -551,6 +552,8 @@ export interface PopupPortal {
     getWorkspaceView(): Promise<WorkspaceViewState>;
     /** Persists the current workspace page and scroll offset. */
     saveWorkspaceView(state: WorkspaceViewState): Promise<void>;
+    /** Reads the background-warmed snapshot used to paint the panel before live refreshes. */
+    workspaceBootstrap(): Promise<BridgeResult<WorkspaceBootstrap | null>>;
     openSidePanel(): Promise<boolean>;
     /** Opens the full workspace inside the current browser action popup. */
     openInPopup(): Promise<boolean>;

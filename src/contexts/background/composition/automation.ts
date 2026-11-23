@@ -1,4 +1,8 @@
 import { JobExecutionService } from '../../../application/auto-job/execution-service.js';
+import { WorkspaceBootstrapService } from '../../../application/workspace/bootstrap-service.js';
+import { summarizeNetworkSnapshot } from '../../../application/network/snapshot-summary.js';
+import type { MarketOptionsView } from '../../../application/popup/portal.js';
+import { JOB_MARKETS } from '../../../domains/jobs/markets.js';
 import { AutoJobRunner } from '../../../application/auto-job/runner.js';
 import { AutoJobQueueService } from '../../../application/auto-job/queue.js';
 import { decryptFileType } from '../../../domains/jobs/model.js';
@@ -53,6 +57,7 @@ export interface AutomationRuntime {
     readonly daily: AutoDailyCoordinator;
     readonly readiness: ReadinessRegistry;
     readonly inventoryLock: InventorySortLock;
+    readonly workspaceBootstrap: WorkspaceBootstrapService;
     readonly autoJobsRunner: AutoJobRunner;
     readonly autoJobsQueue: AutoJobQueueService;
 }
@@ -351,6 +356,38 @@ export function createAutomationRuntime(core: CoreRuntime, game: GameRuntime): A
         },
     });
 
+    const marketBootstrapProgress = async (): Promise<Record<string, MarketOptionsView>> => {
+        const entries = await Promise.all(JOB_MARKETS.map(async (market) => {
+            const cached = await stores.marketCache.get(market.key);
+            if (!cached) return null;
+            const view: MarketOptionsView = {
+                marketId: cached.view.marketId,
+                marketName: cached.view.marketName,
+                credits: cached.view.credits,
+                reputation: cached.view.reputation,
+            };
+            return [market.key, view] as const;
+        }));
+        return Object.fromEntries(entries.filter((entry): entry is readonly [string, MarketOptionsView] => entry !== null));
+    };
+    const workspaceBootstrap = new WorkspaceBootstrapService({
+        store: core.stores.workspaceBootstrap,
+        now: () => clock.now(),
+        settings: { get: () => core.settings.get() },
+        auth: { status: () => core.auth.status() },
+        network: async () => {
+            const snapshot = await game.snapshots.get();
+            return snapshot.ok ? summarizeNetworkSnapshot(snapshot.value) : null;
+        },
+        autoJobs: () => autoJobsRef?.snapshotView() ?? null,
+        daily: async () => {
+            const result = await dailyCache.read(false);
+            return result.ok ? result.value : null;
+        },
+        marketProgress: marketBootstrapProgress,
+        logger,
+    });
+
     const readiness = new ReadinessRegistry({
         adapter: game.gameReadinessAdapter,
         tabs,
@@ -382,6 +419,7 @@ export function createAutomationRuntime(core: CoreRuntime, game: GameRuntime): A
         daily,
         readiness,
         inventoryLock,
+        workspaceBootstrap,
         autoJobsRunner,
         autoJobsQueue,
     };

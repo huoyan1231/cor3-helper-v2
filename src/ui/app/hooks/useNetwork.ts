@@ -3,6 +3,7 @@ import { JOB_MARKETS } from '../../../application/popup/catalog.js';
 import type { DiscoveryResult } from '../../../application/network/discovery.js';
 import type { NetworkOperationQueueStatus } from '../../../application/network/operation-queue.js';
 import type { NetworkMapSummary } from '../../../application/network/summary.js';
+import type { WorkspaceBootstrap } from '../../../contracts/workspace-bootstrap.js';
 import type { MarketOptionsView, NetworkDiagnostics, NetworkServerSummary, PopupPortal } from '../../../application/popup/portal.js';
 import type { TranslateSource } from '../../i18n-context.js';
 import type { PopupPage } from '../AppShell.js';
@@ -38,17 +39,21 @@ export interface NetworkState {
     readonly loadDiagnostics: () => Promise<void>;
 }
 
-export function useNetwork(portal: PopupPortal, deps: NetworkDeps): NetworkState {
+export function useNetwork(portal: PopupPortal, deps: NetworkDeps, initial?: WorkspaceBootstrap | null): NetworkState {
     const { reportDetail, tt, activePage } = deps;
-    const [network, setNetwork] = useState<NetworkMapSummary | null>(null);
+    const warmProgress = initial?.marketProgress ?? {};
+    const warmProgressStatus = Object.keys(warmProgress).length > 0
+        ? tt('{loaded}/{total} market(s) loaded', { loaded: Object.keys(warmProgress).length, total: JOB_MARKETS.length })
+        : 'Market data not loaded';
+    const [network, setNetwork] = useState<NetworkMapSummary | null>(initial?.network ?? null);
     const [networkDiag, setNetworkDiag] = useState<NetworkDiagnostics | null>(null);
     const [networkQueue, setNetworkQueue] = useState<NetworkOperationQueueStatus | null>(null);
     const [servers, setServers] = useState<readonly NetworkServerSummary[]>([]);
     const [discovery, setDiscovery] = useState<DiscoveryResult | null>(null);
-    const [marketProgress, setMarketProgress] = useState<Readonly<Record<string, MarketOptionsView>>>({});
-    const marketProgressRef = useRef<Record<string, MarketOptionsView>>({});
+    const [marketProgress, setMarketProgress] = useState<Readonly<Record<string, MarketOptionsView>>>(warmProgress);
+    const marketProgressRef = useRef<Record<string, MarketOptionsView>>({ ...warmProgress });
     const marketProgressBusy = useRef(false);
-    const [marketProgressStatus, setMarketProgressStatus] = useState('Market data not loaded');
+    const [marketProgressStatus, setMarketProgressStatus] = useState(warmProgressStatus);
     const [diagnostics, setDiagnostics] = useState<Record<string, unknown> | null>(null);
     const [diagnosticsBusy, setDiagnosticsBusy] = useState(false);
 

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import type { Dispatch, StateUpdater } from 'preact/hooks';
 import type { PopupPortal } from '../../../application/popup/portal.js';
 import type { UpdateCheckResult } from '../../../contracts/update-check.js';
+import type { WorkspaceBootstrap } from '../../../contracts/workspace-bootstrap.js';
 import type { AuthStatus, SettingsPatch, SettingsV1 } from '../../../contracts/storage.js';
 import type { HackToggleKey } from '../../features/automation/HackingAutomationCard.js';
 import { detectBrowserLanguage, translate, type UiLanguage } from '../../i18n.js';
@@ -55,10 +56,10 @@ export interface SettingsState {
     readonly resetSettings: () => Promise<string | null>;
 }
 
-export function useSettings(portal: PopupPortal, deps: SettingsDeps): SettingsState {
+export function useSettings(portal: PopupPortal, deps: SettingsDeps, initial?: WorkspaceBootstrap | null): SettingsState {
     const { activePage, setActivePage, reloadAutomation, reportDetail } = deps;
-    const [settings, setSettings] = useState<SettingsV1 | null>(null);
-    const [auth, setAuth] = useState<AuthStatus | null>(null);
+    const [settings, setSettings] = useState<SettingsV1 | null>(initial?.settings ?? null);
+    const [auth, setAuth] = useState<AuthStatus | null>(initial?.auth ?? null);
     const languageInitStarted = useRef(false);
     const [panelOpen, setPanelOpen] = useState<Record<string, boolean>>({});
     const panelOpenRef = useRef<Record<string, boolean>>({});

@@ -13,6 +13,7 @@ import {
     AUTO_MAIL_RETRY_ALARM,
     AUTO_PAGE_REFRESH_ALARM,
     AUTO_REFRESH_ALARM,
+    WORKSPACE_WARM_ALARM,
 } from './automation/alarm-ids.js';
 
 export interface AlarmRoute {
@@ -191,6 +192,25 @@ export function alarmRoutes(automation: AutomationRuntime, logger: AutomationLog
     ];
 }
 
+/**
+ * The UI warm cache is not an automation: it only projects existing stores
+ * into a persisted bootstrap snapshot, so Helper Mode must not clear it.
+ */
+export function workspaceWarmRoute(automation: AutomationRuntime, logger: AutomationLogger): AlarmRoute {
+    return {
+        id: 'workspace-warm',
+        alarm: WORKSPACE_WARM_ALARM,
+        scope: 'workspace',
+        run: async () => {
+            try {
+                await automation.workspaceBootstrap.refresh();
+            } catch (error) {
+                logger.error('workspace', 'Scheduled workspace warm refresh failed', { message: errorText(error) });
+            }
+        },
+    };
+}
+
 export function automationAlarmNames(routes: readonly AlarmRoute[]): readonly string[] {
     return routes.map((route) => route.alarm);
 }
@@ -200,7 +220,7 @@ export async function clearAutomationAlarms(scheduler: SchedulerPort, routes: re
 }
 
 export function registerAlarmRouter(automation: AutomationRuntime, logger: AutomationLogger): void {
-    const routes = alarmRoutes(automation, logger);
+    const routes = [...alarmRoutes(automation, logger), workspaceWarmRoute(automation, logger)];
     chrome.alarms.onAlarm.addListener((alarm) => {
         const route = routes.find((entry) => entry.alarm === alarm.name);
         if (!route) return;

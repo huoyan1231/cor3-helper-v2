@@ -27,9 +27,9 @@ export interface DailyState {
     readonly runDailyHackNow: () => Promise<void>;
 }
 
-export function useDaily(portal: PopupPortal, deps: DailyDeps): DailyState {
+export function useDaily(portal: PopupPortal, deps: DailyDeps, initial?: DailyOpsState | null): DailyState {
     const { activePage, tt, reportDetail, reloadSettings, dailyHackEnabled } = deps;
-    const [daily, setDaily] = useState<DailyOpsState | null>(null);
+    const [daily, setDaily] = useState<DailyOpsState | null>(initial ?? null);
     const [autoDaily, setAutoDaily] = useState<AutoDailyStatus | null>(null);
     const [autoDailyInterval, setAutoDailyInterval] = useState(240);
     const [dailyBusy, setDailyBusy] = useState(false);

@@ -108,6 +108,12 @@ Auto Jobs report freshness:
 
 - `AutoFinish.last` is persisted and restored on background startup. It must not override a newer `AutoJobsSnapshot`: `selectShownJobReport()` prefers a live Auto Finish run, then a last report only when its timestamp is at least as new as `snapshotAt`, otherwise it falls back to the current snapshot. Do not copy the persisted `last` report into the manual `jobReport` on load.
 
+Workspace warm cache:
+
+- The side panel paints from a persisted `WorkspaceBootstrap` before live hook refreshes. `WorkspaceBootstrapService` only projects read-only sources the background already owns (settings, cached auth status, network summary, Auto Jobs snapshot, daily cache and cached market reputations); it must never send game commands or re-fetch markets. A failed source keeps its last known value so a transient game-tab error cannot make the panel cold.
+- `WORKSPACE_WARM_ALARM` refreshes the cache every two minutes and once at background startup. It is intentionally **not** in `AUTOMATION_ALARM_IDS`: Helper Mode clears automation alarms only, and the warm cache must remain active so the UI still opens instantly with automation disabled.
+- `system.workspaceBootstrap` is the only bridge command for this cache. The side-panel entry reads it in parallel with `getWorkspaceView()` and passes it to `useSettings`, `useNetwork`, `useJobs` and `useDaily`; those hooks initialize state from the snapshot and still run their normal silent live refresh on mount. The toolbar `WelcomeApp` uses the same snapshot for settings/auth. Do not move storage access into UI components.
+
 Decrypt loadout power:
 
 - `get.file.analysis.decryptPower` is the **currently equipped module's power**, not the file's required power. Do not feed it back as `requiredPower` unchanged: a targeted `strategy: 'best'` loadout keeps the current hardware when its power already meets that value, which can strand a file (e.g. `.12vvsh` encryption level `[20,24]`) one step below the threshold forever. When `canDecrypt=false` after a loadout and `decryptPower > 0`, `JobExecutionService` retries `beforeDecrypt` exactly once with `requiredPower = decryptPower + 1` so a stronger plan (better hardware for the same software) is considered, then re-reads the analysis; only a still-false result becomes `DECRYPT_POWER_INSUFFICIENT`. Keep this upgrade bounded to one attempt.

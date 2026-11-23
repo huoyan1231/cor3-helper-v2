@@ -26,6 +26,7 @@ import { JobHistoryStore } from '../../../infrastructure/storage/job-history-sto
 import { JobStateStore } from '../../../infrastructure/storage/job-state-store.js';
 import { MarketCompletedJobsStore } from '../../../infrastructure/storage/market-completed-jobs-store.js';
 import { NetworkSnapshotStore } from '../../../infrastructure/storage/network-snapshot-store.js';
+import { WorkspaceBootstrapStore } from '../../../infrastructure/storage/workspace-bootstrap-store.js';
 import { NetworkOperationQueue } from '../../../application/network/operation-queue.js';
 import type { EventPublisher } from '../../../application/automation/ports.js';
 import { toVersionCode } from '../../../kernel/version.js';
@@ -93,6 +94,7 @@ export interface CoreRuntime {
         readonly jobState: JobStateStore;
         readonly marketCompletedJobs: MarketCompletedJobsStore;
         readonly networkSnapshot: NetworkSnapshotStore;
+        readonly workspaceBootstrap: WorkspaceBootstrapStore;
     };
     readonly helperModeEnabled: () => Promise<boolean>;
     readonly helperModeError: { readonly code: 'HELPER_MODE'; readonly message: string };
@@ -213,6 +215,7 @@ export function createCoreRuntime(): CoreRuntime {
         jobState: new JobStateStore(storageArea, undefined, logger),
         marketCompletedJobs: new MarketCompletedJobsStore(storageArea, undefined, logger),
         networkSnapshot: new NetworkSnapshotStore(storageArea, undefined, logger),
+        workspaceBootstrap: new WorkspaceBootstrapStore(storageArea, undefined, logger),
     } as const;
 
     const tabs = new ChromeTabsMessagePort();

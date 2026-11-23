@@ -84,6 +84,14 @@ export function WelcomeApp({ portal }: WelcomeAppProps) {
     }, [portal, updateChecking]);
 
     useEffect(() => {
+        void portal.workspaceBootstrap().then((response) => {
+            if (!response.ok || !response.value) return;
+            if (response.value.auth) setAuth(response.value.auth);
+            if (response.value.settings) setSettings(response.value.settings);
+        }).catch(() => undefined);
+    }, [portal]);
+
+    useEffect(() => {
         void refresh();
     }, [refresh]);
 

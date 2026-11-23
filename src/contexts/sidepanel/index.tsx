@@ -1,6 +1,7 @@
 import { render } from 'preact';
 import { SidePanelApp } from '../../ui/app/SidePanelApp.js';
 import { DEFAULT_WORKSPACE_VIEW, type WorkspaceViewState } from '../../contracts/workspace-view.js';
+import type { WorkspaceBootstrap } from '../../contracts/workspace-bootstrap.js';
 import { BridgeClient } from '../../infrastructure/bridge/bridge-client.js';
 import { ChromeRuntimeBridgeTransport } from '../../infrastructure/bridge/chrome-runtime-transport.js';
 import { ChromePopupPortal } from '../../infrastructure/browser/chrome-popup-portal.js';
@@ -27,7 +28,7 @@ function writeScrollTop(value: number): void {
     document.body.scrollTop = value;
 }
 
-function start(view: WorkspaceViewState): void {
+function start(view: WorkspaceViewState, bootstrap: WorkspaceBootstrap | null): void {
     let currentPage = view.page;
     let saveTimer: number | undefined;
 
@@ -41,6 +42,7 @@ function start(view: WorkspaceViewState): void {
             windowMode={windowMode}
             popupMode={popupMode}
             initialPage={view.page}
+            initialBootstrap={bootstrap}
             onPageChange={(page) => {
                 currentPage = page;
                 requestAnimationFrame(() => saveView(readScrollTop()));
@@ -60,4 +62,16 @@ function start(view: WorkspaceViewState): void {
     }, { passive: true });
 }
 
-void portal.getWorkspaceView().then(start, () => start(DEFAULT_WORKSPACE_VIEW));
+async function readBootstrap(): Promise<WorkspaceBootstrap | null> {
+    try {
+        const response = await portal.workspaceBootstrap();
+        return response.ok ? response.value : null;
+    } catch {
+        return null;
+    }
+}
+
+void Promise.all([portal.getWorkspaceView(), readBootstrap()]).then(
+    ([view, bootstrap]) => start(view, bootstrap),
+    () => start(DEFAULT_WORKSPACE_VIEW, null),
+);

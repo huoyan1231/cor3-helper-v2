@@ -1,7 +1,7 @@
 import type { CoreRuntime } from './composition/core.js';
 import type { AutomationRuntime } from './composition/automation.js';
 import { alarmRoutes } from './alarms.js';
-import { AUTO_DRONE_ALARM, AUTO_EXPEDITION_ALARM, AUTO_JOBS_LEGACY_ALARM, AUTO_MAIL_ALARM, AUTO_REFRESH_ALARM } from './automation/alarm-ids.js';
+import { AUTO_DRONE_ALARM, AUTO_EXPEDITION_ALARM, AUTO_JOBS_LEGACY_ALARM, AUTO_MAIL_ALARM, AUTO_REFRESH_ALARM, WORKSPACE_WARM_ALARM } from './automation/alarm-ids.js';
 import { hasEnabledAutomation } from './automation/enabled.js';
 
 export async function restorePersistedState(core: CoreRuntime, automation: AutomationRuntime): Promise<void> {
@@ -38,6 +38,10 @@ export async function applyHelperMode(core: CoreRuntime, automation: AutomationR
 export async function startSchedulers(core: CoreRuntime, automation: AutomationRuntime, helperMode: boolean): Promise<void> {
     const current = await core.settings.get();
     void core.syncAutoSolvers(current);
+    // The UI warm cache is read-only projection work and stays active even in
+    // Helper Mode, so a panel opened after a browser restart paints instantly.
+    automation.scheduler.create(WORKSPACE_WARM_ALARM, { periodInMinutes: 2 });
+    void automation.workspaceBootstrap.refresh();
     if (helperMode) return;
     void automation.autoJobs.scheduleNextRefresh();
     void automation.autoJobs.ensureInfo('startup');
