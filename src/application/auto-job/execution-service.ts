@@ -522,16 +522,48 @@ export class JobExecutionService implements JobExecutionPort {
         if (analysis.ok && analysis.value.canDecrypt === false) {
             const zeroPower = analysis.value.decryptPower === null || analysis.value.decryptPower === 0;
             if (!zeroPower) {
-                this.trace?.('Decrypt power still insufficient after loadout', {
-                    jobId: job.id,
-                    fileId: file.id,
-                    fileName: file.name,
-                    decryptPower: analysis.value.decryptPower,
-                });
-                return err({
-                    code: 'DECRYPT_POWER_INSUFFICIENT',
-                    message: `Insufficient decrypt power${analysis.value.decryptPower !== null ? ` (${analysis.value.decryptPower})` : ''}`,
-                });
+                // `decryptPower` is the power of the currently equipped module,
+                // not the power the file requires. A targeted "best" loadout
+                // keeps the current hardware when its computed power already
+                // meets `requiredPower`, so reusing the reported power as the
+                // requirement can leave the module stuck one step below the
+                // file's encryption level across every auto-job run. Retry the
+                // loadout once with a strictly higher target so a stronger plan
+                // (e.g. better hardware for the same software) is considered.
+                let upgraded = false;
+                if (this.beforeDecrypt && analysis.value.decryptPower !== null) {
+                    const higherTarget = analysis.value.decryptPower + 1;
+                    this.trace?.('Decrypt power below file level; retrying loadout at higher power', {
+                        jobId: job.id,
+                        fileId: file.id,
+                        fileName: file.name,
+                        currentPower: analysis.value.decryptPower,
+                        targetPower: higherTarget,
+                    });
+                    const ready = await this.beforeDecrypt(job, file, higherTarget);
+                    if (!ready.ok) {
+                        return err({
+                            code: ready.error.code === 'DECRYPT_POWER_INSUFFICIENT' ? 'DECRYPT_POWER_INSUFFICIENT' : 'ACTION_FAILED',
+                            message: ready.error.message,
+                            ...(ready.error.retryable !== undefined ? { retryable: ready.error.retryable } : {}),
+                            stage: 'loadout',
+                        });
+                    }
+                    analysis = await this.analyzeFileAfterLoadout(file.id);
+                    upgraded = true;
+                }
+                if (!upgraded || !(analysis.ok && analysis.value.canDecrypt === true)) {
+                    this.trace?.('Decrypt power still insufficient after loadout', {
+                        jobId: job.id,
+                        fileId: file.id,
+                        fileName: file.name,
+                        decryptPower: analysis.ok ? analysis.value.decryptPower : null,
+                    });
+                    return err({
+                        code: 'DECRYPT_POWER_INSUFFICIENT',
+                        message: `Insufficient decrypt power${analysis.ok && analysis.value.decryptPower !== null ? ` (${analysis.value.decryptPower})` : ''}`,
+                    });
+                }
             }
             // power=0 with canDecrypt=false can mean "already decrypted", a
             // stale analysis, or no decrypt software. Try opening once and let

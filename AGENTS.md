@@ -108,6 +108,10 @@ Auto Jobs report freshness:
 
 - `AutoFinish.last` is persisted and restored on background startup. It must not override a newer `AutoJobsSnapshot`: `selectShownJobReport()` prefers a live Auto Finish run, then a last report only when its timestamp is at least as new as `snapshotAt`, otherwise it falls back to the current snapshot. Do not copy the persisted `last` report into the manual `jobReport` on load.
 
+Decrypt loadout power:
+
+- `get.file.analysis.decryptPower` is the **currently equipped module's power**, not the file's required power. Do not feed it back as `requiredPower` unchanged: a targeted `strategy: 'best'` loadout keeps the current hardware when its power already meets that value, which can strand a file (e.g. `.12vvsh` encryption level `[20,24]`) one step below the threshold forever. When `canDecrypt=false` after a loadout and `decryptPower > 0`, `JobExecutionService` retries `beforeDecrypt` exactly once with `requiredPower = decryptPower + 1` so a stronger plan (better hardware for the same software) is considered, then re-reads the analysis; only a still-false result becomes `DECRYPT_POWER_INSUFFICIENT`. Keep this upgrade bounded to one attempt.
+
 Automatic page refresh:
 
 - The separate "Auto Refresh" tab configures `autoPageRefreshEnabled`, `autoPageRefreshIntervalMinutes` (1-1440, default 60) and `autoPageRefreshWaitWhileWorking`. `AutoPageRefreshCoordinator` uses a one-shot `AUTO_PAGE_REFRESH_ALARM` at `nextRefreshAt`; after a successful `chrome.tabs.reload` it writes `lastRefreshAt` and starts the next interval.

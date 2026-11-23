@@ -359,6 +359,61 @@ describe('JobExecutionService', () => {
         expect(fake.calls).toEqual(['take']);
     });
 
+    it('retries the loadout at higher power when the equipped power is one step below the file level', async () => {
+        const fake = actions();
+        let loadoutCalls = 0;
+        // The module is sufficient only after the higher-power retry.
+        fake.port.getFileAnalysis = async () => ({
+            ok: true as const,
+            value: {
+                canDecrypt: loadoutCalls >= 2,
+                decryptPower: loadoutCalls >= 2 ? 33 : loadoutCalls === 1 ? 20 : 0,
+                tags: [],
+                source: null,
+            },
+        });
+        const requestedPowers: number[] = [];
+        const service = new JobExecutionService(
+            fake.port,
+            undefined,
+            async (_job, _file, requiredPower = 0) => {
+                requestedPowers.push(requiredPower);
+                loadoutCalls += 1;
+                return { ok: true as const, value: undefined };
+            },
+            {
+                solve: async () => ({ ok: true as const, value: { kind: 'config-hack' as const, solved: true } }),
+                cancel: async () => ({ ok: true as const, value: undefined }),
+            },
+        );
+        const result = await service.executeDetailed(job('File Decryption'));
+        expect(result.ok).toBe(true);
+        expect(requestedPowers).toEqual([0, 21]);
+        expect(fake.calls).toEqual(['take', 'decrypt-file', 'complete']);
+    });
+
+    it('reports insufficient power when the higher-power loadout retry still fails', async () => {
+        const fake = actions();
+        fake.port.getFileAnalysis = async () => ({ ok: true as const, value: { canDecrypt: false, decryptPower: 20, tags: [], source: null } });
+        const requestedPowers: number[] = [];
+        const service = new JobExecutionService(
+            fake.port,
+            undefined,
+            async (_job, _file, requiredPower = 0) => {
+                requestedPowers.push(requiredPower);
+                return { ok: true as const, value: undefined };
+            },
+            {
+                solve: async () => ({ ok: true as const, value: { kind: 'config-hack' as const, solved: true } }),
+                cancel: async () => ({ ok: true as const, value: undefined }),
+            },
+        );
+        const result = await service.executeDetailed(job('File Decryption'));
+        expect(result).toEqual({ ok: false, error: { code: 'DECRYPT_POWER_INSUFFICIENT', message: 'Insufficient decrypt power (20)' } });
+        expect(requestedPowers).toEqual([20, 21]);
+        expect(fake.calls).toEqual(['take']);
+    });
+
     it('reports an unsolved minigame without completing the job', async () => {
         const fake = actions();
         const service = new JobExecutionService(fake.port, undefined, undefined, {

@@ -6,7 +6,7 @@
 - **Status legend for v1 → v2:** `Implemented` = equivalent user capability exists; `Partial` = core exists but visible scope/behavior differs; `Missing` = no counterpart found; `Unknown` = cannot confirm without runtime QA
 - **Caveat:** this is not a runtime parity sign-off. The 2.0 release line is complete; the displayed version is now the plain `<version>` (no `-salta` suffix, no local build counter), while release tags and artifact names still use `<version>-salta`. Historical sections retain their original development labels.
 - **Last verified:** 2026-11-23 against `2.5.2` (Part 47 records the v2.3.x drone-tab work; Part 49 records the v2.4.0 inventory bulk-sell addition; Part 50 records the tracker tab-switch fix; Part 51 records the per-item quantity modal; Part 52 records the mission-surplus sale; Part 53 records the full-test bug-fix pass; Part 54 records the versionCode-based update detection restore; Parts 55-62 record the fork's maintenance, config, cache-loading and UI fixes; older Parts keep their original version labels)
-- **Current verification:** `npm run typecheck`, `npm run lint`, `npm test` (141 files / 1132 tests) and `npm run build` all pass.
+- **Current verification:** `npm run typecheck`, `npm run lint`, `npm test` (141 files / 1134 tests) and `npm run build` all pass.
 
 ## Current completion snapshot (`2.5.2`)
 
@@ -1379,3 +1379,11 @@ A full verification run (typecheck, Vitest, oxlint, build) plus a review of the 
 - The reconciler releases an aged (15 minutes) unconfirmed completion when the remote row is claimable; the fork strict `expectedStoredResetAt` CAS still applies, so null/unknown-reset barriers are never auto-released. The fallback barrier is marked attempted and restored if the state write fails.
 - The completion store gains `clearUnconfirmed` so one fallback barrier can be released without touching completion records or other resets.
 - Verification: typecheck, oxlint, Vitest and production build pass.
+
+---
+
+# Part 69 — Decrypt loadout power escalation (2.5.2)
+
+- `get.file.analysis.decryptPower` reports the currently equipped module's power, not the required power. Feeding it back as `requiredPower` let a targeted `strategy: 'best'` loadout keep the current hardware and strand files one step below their encryption level (e.g. `.12vvsh` `[20,24]` stuck at 20) across every auto-job run.
+- When the post-loadout analysis still reports `canDecrypt=false` with a non-zero power, `JobExecutionService` retries `beforeDecrypt` once with `requiredPower = decryptPower + 1`, then re-reads the analysis. The upgrade is bounded to one attempt; a still-false result is reported as `DECRYPT_POWER_INSUFFICIENT`.
+- Verification: typecheck, oxlint, Vitest (141 files / 1134 tests) and production build pass.
