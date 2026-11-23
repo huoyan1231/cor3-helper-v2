@@ -378,13 +378,24 @@ export class JobStateReconciler implements JobStateReconcilerPort {
             let completionStatus: CompletionBridgeStatus | undefined;
             let completionError: string | undefined;
             let releasedForRecovery = false;
-            if (decision.reason === 'remote-claimable-recovery') {
+            let releasedBarrier = false;
+            // The uncertain path always probes the barrier (the store reports
+            // `absent` when there is none). For a non-uncertain record such as
+            // `failed`, only probe when this market/job actually has a fallback
+            // barrier; otherwise a store without `releaseUnconfirmed` would
+            // regress ordinary claimable reconciliation.
+            const hasBarrier = marketBarriers[record.jobId] !== undefined;
+            const releaseBarrier = decision.reason === 'remote-claimable-recovery'
+                || (decision.reason === 'remote-taken-claimable' && decision.recoverable && hasBarrier && resetAt !== null);
+            if (releaseBarrier) {
                 const released = await this.releaseClaimRecoveryBarrier(record.marketKey, record.jobId, resetAt);
                 if (!released.ok) {
                     decision = { outcome: 'pending', recoverable: false, reason: released.reason };
                     completionFailures += 1;
-                } else {
+                } else if (decision.reason === 'remote-claimable-recovery') {
                     releasedForRecovery = true;
+                } else {
+                    releasedBarrier = true;
                 }
             }
             if (observation === 'completed') {
@@ -418,7 +429,7 @@ export class JobStateReconciler implements JobStateReconcilerPort {
                 if (persisted) updated += 1;
                 else {
                     failedWrites += 1;
-                    if (releasedForRecovery) {
+                    if (releasedForRecovery || releasedBarrier) {
                         await this.restoreClaimRecoveryBarrier(record.marketKey, record.jobId, resetAt);
                     }
                 }

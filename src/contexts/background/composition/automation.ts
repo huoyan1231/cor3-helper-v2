@@ -205,7 +205,7 @@ export function createAutomationRuntime(core: CoreRuntime, game: GameRuntime): A
 
     const jobExecution = new JobExecutionService(
         game.jobActions,
-        (job) => routing.routeJobToMarket(job, 'complete'),
+        (job, options) => routing.routeJobToMarket(job, 'complete', options?.force === true),
         async (job, file, requiredPower = 0) => {
             const target = decryptFileType(job, file.name, { preferFileName: true });
             if (!target) return ok(undefined);

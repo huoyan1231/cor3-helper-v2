@@ -135,7 +135,10 @@ function retryMetadata(source: { readonly message: string; readonly retryAt?: nu
     return {};
 }
 
-export type JobCompletionHook = (job: JobOffer) => Promise<Result<void, GameError>>;
+export type JobCompletionHook = (
+    job: JobOffer,
+    options?: { readonly force?: boolean },
+) => Promise<Result<void, GameError>>;
 export type JobDecryptHook = (job: JobOffer, file: DownloadFile, requiredPower?: number) => Promise<Result<void, GameError>>;
 export type JobPreflightHook = (job: JobOffer) => Promise<Result<void, GameError>>;
 
@@ -813,18 +816,23 @@ export class JobExecutionService implements JobExecutionPort {
             });
             await this.sleep(TRANSIENT_COMPLETE_RETRY_DELAY_MS);
             current = await this.refreshForCompletion(current);
-            last = await this.complete(current, state, executionResetAt);
+            last = await this.complete(current, state, executionResetAt, { forceRoute: true });
         }
         return last;
     }
 
-    private async complete(job: JobOffer, state: JobStateSession | null, executionResetAt: string | null): Promise<Result<JobReward, JobExecutionError>> {
+    private async complete(
+        job: JobOffer,
+        state: JobStateSession | null,
+        executionResetAt: string | null,
+        options: { readonly forceRoute?: boolean } = {},
+    ): Promise<Result<JobReward, JobExecutionError>> {
         await this.pace?.();
         await state?.transition('ready-to-claim');
         // The complete request may mutate remote state; record the intent first.
         await state?.transition('claiming');
         if (this.beforeComplete) {
-            const hook = await this.beforeComplete(job);
+            const hook = await this.beforeComplete(job, { force: options.forceRoute === true });
             if (!hook.ok) return err({ code: 'COMPLETE_FAILED', message: hook.error.message, ...retryMetadata(hook.error) });
         }
         const result = await this.actions.complete(job);

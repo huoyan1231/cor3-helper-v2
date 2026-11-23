@@ -47,6 +47,54 @@ function routing(send: JobRoutingDeps['tabs']['send']) {
     } as unknown as JobRoutingDeps);
 }
 
+describe('JobRouting.routeJobToMarket', () => {
+    function cachedRouting() {
+        const get = vi.fn(async (_force?: boolean) => ({
+            ok: true as const,
+            value: { endpointId: 'server-market' },
+        }));
+        const setEndpoint = vi.fn(async () => ({ ok: true as const, value: undefined }));
+        const service = new JobRouting({
+            snapshots: { get },
+            endpointCommands: { setEndpoint },
+            endpointMutex: { run: async (run: () => Promise<unknown>) => run() },
+            routeExecutor: {},
+            serverAccess: {},
+            tabs: { findCor3Tab: async () => 1, send: async () => ({}) },
+            logger: { debug: () => undefined, info: () => undefined, warn: () => undefined, error: () => undefined },
+        } as unknown as JobRoutingDeps);
+        return { service, get, setEndpoint };
+    }
+
+    it('skips a cached endpoint on the normal path', async () => {
+        const { service, get, setEndpoint } = cachedRouting();
+
+        const result = await service.routeJobToMarket(job({
+            marketKey: 'dark',
+            alreadyTaken: true,
+            canComplete: true,
+        }), 'complete');
+
+        expect(result.ok).toBe(true);
+        expect(get).toHaveBeenCalledWith(false);
+        expect(setEndpoint).not.toHaveBeenCalled();
+    });
+
+    it('refreshes and re-applies the endpoint on the forced retry path', async () => {
+        const { service, get, setEndpoint } = cachedRouting();
+
+        const result = await service.routeJobToMarket(job({
+            marketKey: 'dark',
+            alreadyTaken: true,
+            canComplete: true,
+        }), 'complete', true);
+
+        expect(result.ok).toBe(true);
+        expect(get).toHaveBeenCalledWith(true);
+        expect(setEndpoint).toHaveBeenCalledTimes(1);
+    });
+});
+
 describe('JobRouting.refreshJobAfterTake', () => {
     it('returns a fresh outcome only when the response contains the job', async () => {
         const resetAt = '2026-11-20T11:00:00.000Z';

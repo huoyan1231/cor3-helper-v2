@@ -36,9 +36,14 @@ export interface JobRoutingDeps {
 export class JobRouting {
     constructor(private readonly deps: JobRoutingDeps) {}
 
-    async setEndpointIfNeeded(serverId: string, owner: string, reason: string): Promise<Result<void, GameError>> {
-        const snapshot = await this.deps.snapshots.get();
-        if (snapshot.ok && snapshot.value.endpointId === serverId) return ok(undefined);
+    async setEndpointIfNeeded(
+        serverId: string,
+        owner: string,
+        reason: string,
+        force = false,
+    ): Promise<Result<void, GameError>> {
+        const snapshot = await this.deps.snapshots.get(force);
+        if (!force && snapshot.ok && snapshot.value.endpointId === serverId) return ok(undefined);
         const direct = await this.deps.endpointMutex.run(() => this.deps.endpointCommands.setEndpoint(asServerId(serverId)));
         if (direct.ok) return direct;
         if (!snapshot.ok) return direct;
@@ -57,11 +62,11 @@ export class JobRouting {
         return { ok: false as const, error: { code: route.error?.code ?? direct.error.code, message } };
     }
 
-    async routeJobToMarket(job: JobOffer, reason: string): Promise<Result<void, GameError>> {
+    async routeJobToMarket(job: JobOffer, reason: string, force = false): Promise<Result<void, GameError>> {
         // HOME jobs do not require an endpoint change. v1 never routed home jobs and
         // doing so made serverless File Decryption depend on a network-map refresh.
         if (!job.marketServerId || job.marketKey === 'home') return ok(undefined);
-        return this.setEndpointIfNeeded(job.marketServerId, 'auto-job', `job:${job.id}:${reason}`);
+        return this.setEndpointIfNeeded(job.marketServerId, 'auto-job', `job:${job.id}:${reason}`, force);
     }
 
     async routeToServer(serverId: string, owner: string, reason: string): Promise<Result<void, GameError>> {

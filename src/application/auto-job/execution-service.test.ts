@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { JobOffer } from '../../domains/jobs/model.js';
-import { JobExecutionService } from './execution-service.js';
+import { JobExecutionService, type JobCompletionHook } from './execution-service.js';
 import type { JobActionPort } from './job-actions.js';
 import type { JobStateRecorderPort } from './job-state-recorder.js';
 import type { MarketCompletionStorePort } from './market-completion.js';
@@ -1152,10 +1152,11 @@ describe('JobExecutionService Complete classification', () => {
         port: JobActionPort,
         recorder: import('./job-state-recorder.js').JobStateRecorderPort,
         completions?: MarketCompletionStorePort,
+        beforeComplete?: JobCompletionHook,
     ): JobExecutionService {
         return new JobExecutionService(
             port,
-            undefined,
+            beforeComplete,
             undefined,
             {
                 solve: async () => ({ ok: true as const, value: { kind: 'ice-wall' as const, solved: true } }),
@@ -1376,6 +1377,34 @@ describe('JobExecutionService Complete classification', () => {
         expect(result.ok).toBe(true);
         expect(fake.calls).toEqual(['complete', 'complete']);
         expect(lifecycle.transitions).not.toContain('unknown');
+    });
+
+    it('forces the Complete route to refresh after a transient market error', async () => {
+        const fake = actions();
+        let attempts = 0;
+        fake.port.complete = async () => {
+            fake.calls.push('complete');
+            attempts += 1;
+            return attempts === 1
+                ? { ok: false as const, error: { code: 'GAME_JOB_FAILED', message: 'market-not-reachable' } }
+                : { ok: true as const, value: { credits: 1, reputation: 1, renown: 0 } };
+        };
+        const hookOptions: Array<unknown> = [];
+        const beforeComplete: JobCompletionHook = async (_job, options) => {
+            hookOptions.push(options);
+            return { ok: true as const, value: undefined };
+        };
+        const lifecycle = lifecycleRecorder();
+        const service = serviceWithComplete(fake.port, lifecycle.recorder, undefined, beforeComplete);
+
+        const result = await service.executeDetailed(job('File Decryption', {
+            alreadyTaken: true,
+            canComplete: true,
+        }));
+
+        expect(result.ok).toBe(true);
+        expect(fake.calls.filter((call) => call === 'complete')).toHaveLength(2);
+        expect(hookOptions).toEqual([{ force: false }, { force: true }]);
     });
 
     it('keeps a transient Complete retryable after the bounded retries are exhausted', async () => {
