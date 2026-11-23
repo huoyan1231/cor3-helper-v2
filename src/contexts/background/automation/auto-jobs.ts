@@ -10,6 +10,7 @@ import { isCompletedForMarketReset } from '../../../application/auto-job/market-
 import type { MarketCompletedJobsState } from '../../../contracts/market-completed-jobs.js';
 import type { NetworkOperationQueue } from '../../../application/network/operation-queue.js';
 import type { AutomationLogger, EventPublisher, RunLogSink, SchedulerPort, SettingsPort } from '../../../application/automation/ports.js';
+import { hasActiveMinigameLock } from '../../../application/automation/minigame-lock.js';
 import type { AutoJobsSnapshotStore } from '../../../infrastructure/storage/auto-jobs-snapshot-store.js';
 import { AUTO_JOBS_INFO_ALARM, AUTO_JOBS_INFO_REPAIR_ALARM } from './alarm-ids.js';
 import type { DismissFailedJobsSummary, FailedJobDismisser } from './dismiss-failed.js';
@@ -53,6 +54,8 @@ export interface AutoJobsDeps {
     readonly networkOps: Pick<NetworkOperationQueue, 'enqueue'>;
     readonly tabs: Pick<TabRequestPort, 'findCor3Tab'>;
     readonly isAutoRefreshRunning: () => boolean;
+    /** Global, user-started minigame lock; null when none is active. */
+    readonly getMinigameLock?: () => Promise<number | null>;
 }
 
 export interface AutoJobsStatus {
@@ -422,6 +425,11 @@ export class AutoJobsCoordinator {
         if (this.deps.isAutoRefreshRunning()) {
             this.lastSkipReason = 'data-refresh-running';
             if (reason === 'scheduled') await this.scheduleNextRefresh();
+            return;
+        }
+        if (await hasActiveMinigameLock(this.deps.getMinigameLock, this.deps.clock.now())) {
+            this.lastSkipReason = 'minigame-lock';
+            await this.scheduleNextRefresh();
             return;
         }
         if (!force && this.snapshot && (reason === 'popup-open' || reason === 'startup')) {

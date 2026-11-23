@@ -49,6 +49,8 @@ export interface AutoFinishDeps {
     readonly snapshots: Pick<NetworkSnapshotService, 'get'>;
     readonly networkOps: Pick<import('../../../application/network/operation-queue.js').NetworkOperationQueue, 'enqueue'>;
     readonly humanDelay?: (minMs?: number, maxMs?: number) => Promise<void>;
+    /** Global, user-started minigame lock; null when none is active. */
+    readonly getMinigameLock?: () => Promise<number | null>;
 }
 
 export interface AutoFinishStatus {

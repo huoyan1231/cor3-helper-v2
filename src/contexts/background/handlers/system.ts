@@ -158,7 +158,11 @@ export function registerSystemHandlers(server: CoreRuntime['server'], deps: Syst
         return ok({ version: VERSION, phase: PHASE });
     });
     server.register('system.workspaceBootstrap', z.object({}).strict(), async () => {
-        return ok(await deps.automation.workspaceBootstrap.read());
+        const cached = await deps.automation.workspaceBootstrap.read();
+        // Refresh after returning the cached panel so the next open is warm
+        // without creating a timer that wakes the MV3 worker.
+        void deps.automation.workspaceBootstrap.refresh();
+        return ok(cached);
     });
     server.register('system.updateStatus', z.object({}).strict(), async () => {
         return ok(await deps.core.updateCheck.getStatus());

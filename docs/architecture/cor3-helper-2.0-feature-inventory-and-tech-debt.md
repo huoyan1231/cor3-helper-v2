@@ -5,8 +5,8 @@
 - **Method:** static source review of popup, content scripts, MAIN-world hooks, background scheduler, bridge contracts, tests, build/release config, and architecture docs
 - **Status legend for v1 → v2:** `Implemented` = equivalent user capability exists; `Partial` = core exists but visible scope/behavior differs; `Missing` = no counterpart found; `Unknown` = cannot confirm without runtime QA
 - **Caveat:** this is not a runtime parity sign-off. The 2.0 release line is complete; the displayed version is now the plain `<version>` (no `-salta` suffix, no local build counter), while release tags and artifact names still use `<version>-salta`. Historical sections retain their original development labels.
-- **Last verified:** 2026-11-23 against `2.5.4` (Part 47 records the v2.3.x drone-tab work; Part 49 records the v2.4.0 inventory bulk-sell addition; Part 50 records the tracker tab-switch fix; Part 51 records the per-item quantity modal; Part 52 records the mission-surplus sale; Part 53 records the full-test bug-fix pass; Part 54 records the versionCode-based update detection restore; Parts 55-62 record the fork's maintenance, config, cache-loading and UI fixes; older Parts keep their original version labels)
-- **Current verification:** `npm run typecheck`, `npm run lint`, `npm test` (143 files / 1144 tests) and `npm run build` all pass.
+- **Last verified:** 2026-11-24 against `2.5.4` (Part 47 records the v2.3.x drone-tab work; Part 49 records the v2.4.0 inventory bulk-sell addition; Part 50 records the tracker tab-switch fix; Part 51 records the per-item quantity modal; Part 52 records the mission-surplus sale; Part 53 records the full-test bug-fix pass; Part 54 records the versionCode-based update detection restore; Parts 55-62 record the fork's maintenance, config, cache-loading and UI fixes; older Parts keep their original version labels)
+- **Current verification:** `npm run typecheck`, `npm run lint`, `npm test` (145 files / 1148 tests) and `npm run build` all pass.
 
 ## Current completion snapshot (`2.5.4`)
 
@@ -1413,3 +1413,12 @@ A full verification run (typecheck, Vitest, oxlint, build) plus a review of the 
 - The "Sell all except Artificial milk" button originally used a two-click label toggle ("Confirm sell all except Artificial milk") plus a status line. That was easy to miss and read as if the second click had already sold the items; the expected second-confirmation dialog was absent.
 - `useInventory` now keeps `sellAllExceptMilkPreview` alongside the confirm flag. The first click previews the COMMON/RARE, `tag: 'any'`, `excludeNames: ['Artificial milk']`, `allowCraft: true` filter and opens a `Modal` showing item count, estimated income and protected stacks. The button label stays constant. Cancel, Escape and backdrop click close the dialog without selling; only the dialog's Confirm invokes `sellInventoryFilter()`. A fresh `loadInventory()` clears both preview and confirm state.
 - Verification: typecheck, oxlint, Vitest (143 files / 1144 tests) and production build pass.
+
+---
+
+# Part 73 — No warm-cache timer and manual minigame yield (2.5.4)
+
+- Part 71's two-minute `WORKSPACE_WARM_ALARM` woke the MV3 service worker on a fixed cadence. Every wake re-ran `startSchedulers()`, including `autoJobs.ensureInfo('startup')`, which refreshed all four markets and changed the game endpoint. During a manually started `data-partition` minigame this endpoint switch interrupted the user. The warm cache itself only reads stores; the wake-up side effects were the problem.
+- `startSchedulers()` now clears any legacy `v2-workspace-warm` alarm on every worker start and never recreates it. `WorkspaceBootstrapService.refresh()` still runs at natural worker wakes, and `system.workspaceBootstrap` returns the cached snapshot first then refreshes asynchronously for the next open. The legacy alarm route remains registered only so a stale alarm fires harmlessly during upgrade.
+- `hasActiveMinigameLock()` now guards only automation entry points: `AutoJobsCoordinator.ensureInfo()` skips market refresh/routing and reschedules, and `AutoFinishCoordinator.run()` returns a `stopped` result while the game's global lock is unexpired. The game records that lock only for `start.minigame` frames without a token, so plugin-driven minigames do not block themselves; jobs already in flight are never cancelled and resume through the normal schedule after `lockExpiresAt`.
+- Verification: typecheck, oxlint, Vitest (145 files / 1148 tests) and production build pass.

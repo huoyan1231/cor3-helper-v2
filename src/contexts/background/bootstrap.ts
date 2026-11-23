@@ -38,9 +38,11 @@ export async function applyHelperMode(core: CoreRuntime, automation: AutomationR
 export async function startSchedulers(core: CoreRuntime, automation: AutomationRuntime, helperMode: boolean): Promise<void> {
     const current = await core.settings.get();
     void core.syncAutoSolvers(current);
-    // The UI warm cache is read-only projection work and stays active even in
-    // Helper Mode, so a panel opened after a browser restart paints instantly.
-    automation.scheduler.create(WORKSPACE_WARM_ALARM, { periodInMinutes: 2 });
+    // The UI warm cache is refreshed when the worker wakes for real work and
+    // when the panel reads it. It must not own an alarm: a periodic alarm
+    // restarts the MV3 worker and re-runs startup automation, which can switch
+    // the game endpoint while the user is inside a manually started minigame.
+    void automation.scheduler.clear(WORKSPACE_WARM_ALARM);
     void automation.workspaceBootstrap.refresh();
     if (helperMode) return;
     void automation.autoJobs.scheduleNextRefresh();

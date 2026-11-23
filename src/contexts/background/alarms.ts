@@ -193,8 +193,8 @@ export function alarmRoutes(automation: AutomationRuntime, logger: AutomationLog
 }
 
 /**
- * The UI warm cache is not an automation: it only projects existing stores
- * into a persisted bootstrap snapshot, so Helper Mode must not clear it.
+ * Legacy route kept only so a stale `v2-workspace-warm` alarm fires harmlessly
+ * after upgrade; `startSchedulers()` clears that alarm on every worker start.
  */
 export function workspaceWarmRoute(automation: AutomationRuntime, logger: AutomationLogger): AlarmRoute {
     return {

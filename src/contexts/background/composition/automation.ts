@@ -302,6 +302,7 @@ export function createAutomationRuntime(core: CoreRuntime, game: GameRuntime): A
         snapshots: game.snapshots,
         networkOps,
         humanDelay,
+        getMinigameLock: () => game.jobActions.getMinigameLock(),
     });
     autoFinishRef = autoFinish;
 
@@ -318,6 +319,7 @@ export function createAutomationRuntime(core: CoreRuntime, game: GameRuntime): A
         networkOps,
         tabs,
         isAutoRefreshRunning: () => autoRefresh.isRunning(),
+        getMinigameLock: () => game.jobActions.getMinigameLock(),
     });
     autoJobs.attachAutoFinish(autoFinish);
     autoFinish.attachAutoJobs(autoJobs);

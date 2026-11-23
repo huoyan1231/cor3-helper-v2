@@ -16,6 +16,7 @@ import { humanDelay as defaultHumanDelay } from './delay.js';
 import { failureOf, jobLocation, outcomeInputOf, countsAgainstRetryBudget } from './job-outcome.js';
 import { resolveAutoFinishRunState, shouldUsePrefetched, type AutoFinishRunOptions } from './auto-finish-options.js';
 import { isCompletedForMarketReset } from '../../../application/auto-job/market-completion.js';
+import { hasActiveMinigameLock } from '../../../application/automation/minigame-lock.js';
 import { isCompletionUncertainRecord, jobActiveKey, jobStateKeyId, JOB_STATE_UNKNOWN_RESET, type JobStateRecord } from '../../../contracts/job-state.js';
 import { CompletionRecordWriter } from '../../../application/auto-job/completion-record.js';
 import { EMPTY_MARKET_COMPLETED_JOBS, type MarketCompletedJobsState } from '../../../contracts/market-completed-jobs.js';
@@ -466,6 +467,9 @@ export class AutoFinishCoordinator {
         prefetched?: { readonly jobs: readonly JobOffer[]; readonly markets: readonly JobMarketSyncEntry[] },
     ): Promise<AutoFinishRunResult | { readonly busy: true }> {
         if (this.running) return { busy: true };
+        if (await hasActiveMinigameLock(this.deps.getMinigameLock, this.deps.clock.now())) {
+            return { jobs: 0, done: 0, failed: 0, stopped: true, markets: [], failures: [] };
+        }
         if (prefetched && shouldUsePrefetched(options, prefetched)) {
             const preSettings = await this.deps.settings.get();
             const preStored = await this.deps.store.get();

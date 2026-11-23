@@ -112,8 +112,9 @@ Auto Jobs report freshness:
 Workspace warm cache:
 
 - The side panel paints from a persisted `WorkspaceBootstrap` before live hook refreshes. `WorkspaceBootstrapService` only projects read-only sources the background already owns (settings, cached auth status, network summary, Auto Jobs snapshot, daily cache and cached market reputations); it must never send game commands or re-fetch markets. A failed source keeps its last known value so a transient game-tab error cannot make the panel cold.
-- `WORKSPACE_WARM_ALARM` refreshes the cache every two minutes and once at background startup. It is intentionally **not** in `AUTOMATION_ALARM_IDS`: Helper Mode clears automation alarms only, and the warm cache must remain active so the UI still opens instantly with automation disabled.
+- The warm cache must **never own a timer**. `startSchedulers()` clears any legacy `v2-workspace-warm` alarm on every worker start and refreshes the snapshot from already-loaded stores instead. `system.workspaceBootstrap` returns the cached value first and triggers a fire-and-forget refresh for the next open. A periodic alarm restarts the MV3 worker, which re-runs startup automation and can switch the game endpoint while the user is in a manually started minigame.
 - `system.workspaceBootstrap` is the only bridge command for this cache. The side-panel entry reads it in parallel with `getWorkspaceView()` and passes it to `useSettings`, `useNetwork`, `useJobs` and `useDaily`; those hooks initialize state from the snapshot and still run their normal silent live refresh on mount. The toolbar `WelcomeApp` uses the same snapshot for settings/auth. Do not move storage access into UI components.
+- Global minigame lock: `hasActiveMinigameLock()` is checked only at automation entry points (`AutoJobsCoordinator.ensureInfo()` and `AutoFinishCoordinator.run()`). The game records that lock only for `start.minigame` frames without a token, so plugin-driven minigames do not block themselves; an in-flight auto job is never cancelled, only new cycles/refreshes yield until `lockExpiresAt`, then resume via the normal schedule.
 
 Decrypt loadout power:
 
