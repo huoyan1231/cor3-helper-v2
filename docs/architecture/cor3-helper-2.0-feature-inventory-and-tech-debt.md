@@ -5,10 +5,10 @@
 - **Method:** static source review of popup, content scripts, MAIN-world hooks, background scheduler, bridge contracts, tests, build/release config, and architecture docs
 - **Status legend for v1 → v2:** `Implemented` = equivalent user capability exists; `Partial` = core exists but visible scope/behavior differs; `Missing` = no counterpart found; `Unknown` = cannot confirm without runtime QA
 - **Caveat:** this is not a runtime parity sign-off. The 2.0 release line is complete; the displayed version is now the plain `<version>` (no `-salta` suffix, no local build counter), while release tags and artifact names still use `<version>-salta`. Historical sections retain their original development labels.
-- **Last verified:** 2026-11-23 against `2.5.2` (Part 47 records the v2.3.x drone-tab work; Part 49 records the v2.4.0 inventory bulk-sell addition; Part 50 records the tracker tab-switch fix; Part 51 records the per-item quantity modal; Part 52 records the mission-surplus sale; Part 53 records the full-test bug-fix pass; Part 54 records the versionCode-based update detection restore; Parts 55-62 record the fork's maintenance, config, cache-loading and UI fixes; older Parts keep their original version labels)
+- **Last verified:** 2026-11-23 against `2.5.4` (Part 47 records the v2.3.x drone-tab work; Part 49 records the v2.4.0 inventory bulk-sell addition; Part 50 records the tracker tab-switch fix; Part 51 records the per-item quantity modal; Part 52 records the mission-surplus sale; Part 53 records the full-test bug-fix pass; Part 54 records the versionCode-based update detection restore; Parts 55-62 record the fork's maintenance, config, cache-loading and UI fixes; older Parts keep their original version labels)
 - **Current verification:** `npm run typecheck`, `npm run lint`, `npm test` (143 files / 1144 tests) and `npm run build` all pass.
 
-## Current completion snapshot (`2.5.2`)
+## Current completion snapshot (`2.5.4`)
 
 | Metric | Value |
 |---|---|
@@ -1408,7 +1408,7 @@ A full verification run (typecheck, Vitest, oxlint, build) plus a review of the 
 
 ---
 
-# Part 72 — Sell-except-milk confirmation modal (2.5.3)
+# Part 72 — Sell-except-milk confirmation modal (2.5.4)
 
 - The "Sell all except Artificial milk" button originally used a two-click label toggle ("Confirm sell all except Artificial milk") plus a status line. That was easy to miss and read as if the second click had already sold the items; the expected second-confirmation dialog was absent.
 - `useInventory` now keeps `sellAllExceptMilkPreview` alongside the confirm flag. The first click previews the COMMON/RARE, `tag: 'any'`, `excludeNames: ['Artificial milk']`, `allowCraft: true` filter and opens a `Modal` showing item count, estimated income and protected stacks. The button label stays constant. Cancel, Escape and backdrop click close the dialog without selling; only the dialog's Confirm invokes `sellInventoryFilter()`. A fresh `loadInventory()` clears both preview and confirm state.
