@@ -1,5 +1,5 @@
 import type { JobLifecycleStatus, JobStateKey, JobStateRecord } from '../../contracts/job-state.js';
-import { canRecoverClaimableAfterUnknown, isCompletionUncertainRecord, JOB_STATE_UNKNOWN_RESET, normalizeJobStateResetAt } from '../../contracts/job-state.js';
+import { isCompletionUncertainRecord, JOB_STATE_UNKNOWN_RESET, normalizeJobStateResetAt } from '../../contracts/job-state.js';
 import type { JobOffer } from '../../domains/jobs/model.js';
 import type { AutomationLogger } from '../automation/ports.js';
 import type { SkippedJob } from './market-mapper.js';
@@ -110,6 +110,14 @@ const PROTECTED_ABSENT_STATUSES: ReadonlySet<JobLifecycleStatus> = new Set([
     'unknown',
 ]);
 
+/**
+ * How long an unconfirmed Complete must remain unresolved before a remote
+ * claimable row may release it for one more claim-only attempt. This keeps the
+ * safety barrier for genuinely ambiguous results without stranding a job until
+ * the market reset.
+ */
+const CLAIMABLE_RECOVERY_COOLDOWN_MS = 15 * 60_000;
+
 interface ReconciliationDecision {
     readonly outcome: JobReconciliationOutcome;
     readonly nextStatus?: JobLifecycleStatus;
@@ -151,25 +159,20 @@ export function decideJobStateReconciliation(
     observation: RemoteJobObservation,
     completionUnconfirmed = false,
     recoveryRecord?: Pick<JobStateRecord, 'resetAt' | 'completeRecoveryAttemptedAt' | 'status' | 'errorCode' | 'unconfirmed'>,
+    allowClaimableRecovery = false,
 ): ReconciliationDecision {
     // A Complete whose result was never confirmed cannot be cleared by the job
     // merely still existing (taken/claimable/available/absent). One exception:
     // a fresh claimable row for a known reset proves the reward is still owed,
     // so a single bounded recovery may release that exact barrier.
     if (completionUnconfirmed && observation !== 'completed' && observation !== 'expired' && observation !== 'failed') {
-        if (observation === 'taken-claimable' && recoveryRecord && canRecoverClaimableAfterUnknown(recoveryRecord)) {
-            return {
-                outcome: 'claim-recovery',
-                nextStatus: 'ready-to-claim',
-                recoverable: true,
-                reason: 'claimable-after-unconfirmed-complete',
-            };
+        // A claimable row proves the reward is still unclaimed. After a cooling
+        // period, allow the existing claim-only path one more attempt instead of
+        // stranding the job until the market reset.
+        if (observation === 'taken-claimable' && allowClaimableRecovery) {
+            return { outcome: 'recoverable', nextStatus: 'ready-to-claim', recoverable: true, reason: 'remote-claimable-recovery' };
         }
-        return {
-            outcome: 'pending',
-            recoverable: false,
-            reason: recoveryRecord?.completeRecoveryAttemptedAt !== undefined ? 'claim-recovery-exhausted' : 'complete-result-unknown',
-        };
+        return { outcome: 'pending', recoverable: false, reason: 'complete-result-unknown' };
     }
     if (observation === 'completed') {
         if (previousStatus === 'completed') return { outcome: 'unchanged', recoverable: false, reason: 'already-completed' };
@@ -367,12 +370,15 @@ export class JobStateReconciler implements JobStateReconcilerPort {
                 continue;
             }
 
+            const recordUpdatedAt = Date.parse(record.updatedAt);
+            const recoveryCooledDown = Number.isFinite(recordUpdatedAt)
+                && this.now() - recordUpdatedAt >= CLAIMABLE_RECOVERY_COOLDOWN_MS;
             const uncertain = isCompletionUncertainRecord(record);
-            let decision = decideJobStateReconciliation(record.status, observation, uncertain, record);
+            let decision = decideJobStateReconciliation(record.status, observation, uncertain, record, recoveryCooledDown);
             let completionStatus: CompletionBridgeStatus | undefined;
             let completionError: string | undefined;
             let releasedForRecovery = false;
-            if (decision.outcome === 'claim-recovery') {
+            if (decision.reason === 'remote-claimable-recovery') {
                 const released = await this.releaseClaimRecoveryBarrier(record.marketKey, record.jobId, resetAt);
                 if (!released.ok) {
                     decision = { outcome: 'pending', recoverable: false, reason: released.reason };
@@ -610,6 +616,30 @@ export class JobStateReconciler implements JobStateReconcilerPort {
                 message: error instanceof Error ? error.message : String(error),
             });
             return { status: 'unavailable', barriers: {} };
+        }
+    }
+
+    /**
+     * Removes a completion-store fallback barrier before releasing a claimable
+     * recovery. Test doubles without the optional port are treated as clear.
+     */
+    private async clearFallbackBarrier(
+        marketKey: string,
+        jobId: string,
+        resetAt: string | null,
+    ): Promise<boolean> {
+        const clear = this.deps.completions?.clearUnconfirmed;
+        if (!clear) return true;
+        try {
+            await clear.call(this.deps.completions, { marketKey, jobId, resetAt });
+            return true;
+        } catch (error) {
+            this.deps.logger.warn('job-state', 'Failed to clear completion fallback barrier', {
+                marketKey,
+                jobId,
+                message: error instanceof Error ? error.message : String(error),
+            });
+            return false;
         }
     }
 

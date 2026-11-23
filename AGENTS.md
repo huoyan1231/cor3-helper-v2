@@ -118,8 +118,9 @@ Automatic page refresh:
 Complete-unknown claim recovery:
 
 - A fresh market row with `alreadyTaken && canComplete` is positive evidence that an unconfirmed `Complete` did not grant the reward. `JobStateReconciler` may release that exact-reset barrier once and transition to `ready-to-claim` with `completeRecoveryAttemptedAt`; Auto Finish then claims it through the normal claim-only path. Claim-only jobs are sorted first each run, matching v1's "claim rewards first" behavior.
-- The recovery is bounded: one attempt per known reset; null/unknown resets and identity-less sidecar barriers are never auto-released. If the recovery `Complete` is again unconfirmed, the barrier is restored and no further automatic attempt is made for that reset.
-- `JobStateRecord.completeRecoveryAttemptedAt` and `MarketCompletionStorePort.releaseUnconfirmed()` are the contract surface. Do not weaken the expected-reset CAS check or allow null-reset auto-release.
+- Since the upstream v2.0.8 merge, the reconciler's decision is time-gated: `taken-claimable` only becomes `recoverable` (`reason: 'remote-claimable-recovery'`) after the record's `updatedAt` is at least `CLAIMABLE_RECOVERY_COOLDOWN_MS` (15 minutes) old. The decision function receives both the full `recoveryRecord` and the `allowClaimableRecovery` boolean; `recoveryRecord` is retained as contract surface but does not gate the decision, so a cooled-down record may be retried again after a later failed recovery.
+- The execution path keeps the fork's safety: `releaseClaimRecoveryBarrier()` uses `MarketCompletionStorePort.releaseUnconfirmed()` with an exact `expectedStoredResetAt` CAS; null/unknown-reset and identity-less sidecar barriers are never auto-released. `completionFailures` is incremented on release failure, `completeRecoveryAttemptedAt` is written on success, and `restoreClaimRecoveryBarrier()` re-arms the barrier if the state write fails.
+- `JobStateRecord.completeRecoveryAttemptedAt` and `MarketCompletionStorePort.releaseUnconfirmed()` remain the contract surface. Do not weaken the expected-reset CAS check or allow null-reset auto-release.
 
 Collapsible card/panel state persistence:
 

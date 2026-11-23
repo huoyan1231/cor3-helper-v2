@@ -5,10 +5,10 @@
 - **Method:** static source review of popup, content scripts, MAIN-world hooks, background scheduler, bridge contracts, tests, build/release config, and architecture docs
 - **Status legend for v1 → v2:** `Implemented` = equivalent user capability exists; `Partial` = core exists but visible scope/behavior differs; `Missing` = no counterpart found; `Unknown` = cannot confirm without runtime QA
 - **Caveat:** this is not a runtime parity sign-off. The 2.0 release line is complete; the displayed version is now the plain `<version>` (no `-salta` suffix, no local build counter), while release tags and artifact names still use `<version>-salta`. Historical sections retain their original development labels.
-- **Last verified:** 2026-11-22 against `2.4.3` (Part 47 records the v2.3.x drone-tab work; Part 49 records the v2.4.0 inventory bulk-sell addition; Part 50 records the tracker tab-switch fix; Part 51 records the per-item quantity modal; Part 52 records the mission-surplus sale; Part 53 records the full-test bug-fix pass; Part 54 records the versionCode-based update detection restore; Parts 55-62 record the fork's maintenance, config, cache-loading and UI fixes; older Parts keep their original version labels)
-- **Current verification:** `npm run typecheck`, `npm run lint`, `npm test` and `npm run build` all pass.
+- **Last verified:** 2026-11-23 against `2.5.2` (Part 47 records the v2.3.x drone-tab work; Part 49 records the v2.4.0 inventory bulk-sell addition; Part 50 records the tracker tab-switch fix; Part 51 records the per-item quantity modal; Part 52 records the mission-surplus sale; Part 53 records the full-test bug-fix pass; Part 54 records the versionCode-based update detection restore; Parts 55-62 record the fork's maintenance, config, cache-loading and UI fixes; older Parts keep their original version labels)
+- **Current verification:** `npm run typecheck`, `npm run lint`, `npm test` (141 files / 1132 tests) and `npm run build` all pass.
 
-## Current completion snapshot (`2.4.3`)
+## Current completion snapshot (`2.5.2`)
 
 | Metric | Value |
 |---|---|
@@ -609,8 +609,8 @@ Residual risk: these changes have unit coverage but still need a live-game smoke
 
 - `npm run typecheck` — pass
 - `npm run lint` — pass
-- `npm test` — 122 files / 986 tests pass
-- `npm run build` — pass, `2.0.7-salta.311`
+- `npm test` — 122 files / 995 tests pass
+- `npm run build` — pass, `2.0.8-salta.312`
 
 ---
 
@@ -1369,3 +1369,13 @@ A full verification run (typecheck, Vitest, oxlint, build) plus a review of the 
 - **Behavior:** the top-right cor3.gg session tag now re-checks `auth.status` immediately when the game page reloads, whether the reload is manual or triggered by the Auto Refresh feature. The existing 15-second poll remains, and clicking the tag still performs an immediate full session refresh.
 - **Wiring:** the content script already emits `game.readiness` on page load. `usePortalEvents` now dispatches that event to `reloadAuth` in the side panel; `WelcomeApp` subscribes to the same event and keeps its own 15 s `auth.status` poll. Auth hints in EN/ZH describe both refresh paths.
 - **Verification:** typecheck, oxlint, Vitest and production build pass.
+
+# Part 68 — Transient Complete recovery and claim-only liveness (from upstream v2.0.8)
+
+- `market-not-reachable` and similar server-side busy/rate-limit rejections are treated as transient Complete failures, not unconfirmed results; they no longer create a durable Complete-Unknown barrier.
+- Direct Complete paths refresh the job row after a 2s pause and retry up to two times. If a delayed first ACK makes the retry answer "already completed", the result is recorded as a successful completion instead of `unknown`/`expired`.
+- `lifecycleStatusForFailure` no longer turns "not reachable" text into an unknown lifecycle record on its own.
+- Force run releases stale completion barriers only for jobs whose fresh market row is `alreadyTaken && canComplete`, then runs the normal claim-only path; non-claimable jobs stay blocked.
+- The reconciler releases an aged (15 minutes) unconfirmed completion when the remote row is claimable; the fork strict `expectedStoredResetAt` CAS still applies, so null/unknown-reset barriers are never auto-released. The fallback barrier is marked attempted and restored if the state write fails.
+- The completion store gains `clearUnconfirmed` so one fallback barrier can be released without touching completion records or other resets.
+- Verification: typecheck, oxlint, Vitest and production build pass.

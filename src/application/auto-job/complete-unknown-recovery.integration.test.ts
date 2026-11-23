@@ -123,13 +123,13 @@ async function executeSuccessfulAck(made: ReturnType<typeof makeHarness>) {
     return made.service.executeDetailed(job({ alreadyTaken: true, canComplete: true }));
 }
 
-function reconcilerFor(made: ReturnType<typeof makeHarness>, completions: MarketCompletionStorePort = made.completionStore) {
+function reconcilerFor(made: ReturnType<typeof makeHarness>, completions: MarketCompletionStorePort = made.completionStore, now = 1) {
     return new JobStateReconciler({
         store: made.jobStore,
         writer: made.recorder,
         completions,
         logger: made.log,
-        now: () => 1,
+        now: () => now,
     });
 }
 
@@ -193,10 +193,10 @@ describe('Complete unknown recovery integration', () => {
 
     it('recovers a remote claimable row once after an unconfirmed Complete', async () => {
         const made = await makeUnknownJob();
-        const result = await reconcilerFor(made).reconcile({
+        const result = await reconcilerFor(made, made.completionStore, 16 * 60_000).reconcile({
             marketKey: 'home',
             resetAt: resetA,
-            observedAt: 2,
+            observedAt: 16 * 60_000,
             jobs: [job({ alreadyTaken: true, canComplete: true })],
         });
         expect(result.updated).toBe(1);
