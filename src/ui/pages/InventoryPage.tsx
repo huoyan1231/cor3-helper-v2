@@ -4,6 +4,7 @@ import type { SpecialistPurchase, SpecialistState } from '../../domains/speciali
 import { formatRemaining } from '../format.js';
 import { InfoTip } from '../components/InfoTip.js';
 import { Modal } from '../components/Modal.js';
+import { SELL_EXCLUDED_ITEM_NAME } from '../app/hooks/useInventory.js';
 import { useT, type TranslateSource } from '../i18n-context.js';
 
 const SELL_TIERS = [
@@ -47,6 +48,8 @@ export interface InventoryPageProps {
     readonly sellConfirm: boolean;
     readonly onSellAllExceptMilk: () => void | Promise<void>;
     readonly sellAllExceptMilkConfirm: boolean;
+    readonly sellAllExceptMilkPreview: InventoryPreviewResult | null;
+    readonly onCancelSellAllExceptMilk: () => void;
     readonly autoMail: AutoMailStatus | null;
     readonly autoMailBusy: boolean;
     readonly onToggleAutoMail: () => void | Promise<void>;
@@ -128,6 +131,8 @@ export function InventoryPage({
     sellConfirm,
     onSellAllExceptMilk,
     sellAllExceptMilkConfirm,
+    sellAllExceptMilkPreview,
+    onCancelSellAllExceptMilk,
     autoMail,
     autoMailBusy,
     onToggleAutoMail,
@@ -311,9 +316,7 @@ export function InventoryPage({
                         disabled={busy}
                         onClick={() => void onSellAllExceptMilk()}
                     >
-                        {sellAllExceptMilkConfirm
-                            ? tr('Confirm sell all except Artificial milk')
-                            : tr('Sell all except Artificial milk')}
+                        {tr('Sell all except Artificial milk')}
                     </button>
                 </div>
             </details>
@@ -493,6 +496,49 @@ export function InventoryPage({
                     {tr('Show more ({count} remaining)', { count: filteredGroups.length - visibleLimit })}
                 </button>
             ) : null}
+
+            <Modal
+                open={sellAllExceptMilkConfirm}
+                title={tr('Sell all except Artificial milk')}
+                onClose={onCancelSellAllExceptMilk}
+            >
+                {sellAllExceptMilkPreview ? (
+                    <div class="v2-stash-sell-modal">
+                        <p>
+                            {tr('Review {count} item(s) except {name} before selling. Items above RARE are kept.', {
+                                count: sellAllExceptMilkPreview.quantity,
+                                name: SELL_EXCLUDED_ITEM_NAME,
+                            })}
+                        </p>
+                        <p class="v2-muted">
+                            {tr('Estimated income: {value} cr', { value: sellAllExceptMilkPreview.value.toLocaleString() })}
+                            {tr(' · {stacks} stack(s) · {quantity} item(s)', {
+                                stacks: sellAllExceptMilkPreview.stacks,
+                                quantity: sellAllExceptMilkPreview.quantity,
+                            })}
+                        </p>
+                        {sellAllExceptMilkPreview.protectedStacks > 0 ? (
+                            <p class="v2-text-warn">
+                                {tr('{count} item(s) cannot be sold automatically ({value} cr).', {
+                                    count: sellAllExceptMilkPreview.protectedStacks,
+                                    value: sellAllExceptMilkPreview.protectedValue.toLocaleString(),
+                                })}
+                            </p>
+                        ) : null}
+                        <div class="v2-actions">
+                            <button type="button" disabled={busy} onClick={onCancelSellAllExceptMilk}>{tr('Cancel')}</button>
+                            <button
+                                type="button"
+                                class="v2-stash-sell-button"
+                                disabled={busy}
+                                onClick={() => void onSellAllExceptMilk()}
+                            >
+                                {tr('Confirm')}
+                            </button>
+                        </div>
+                    </div>
+                ) : null}
+            </Modal>
 
             <Modal open={sellGroup !== null} title={tr('Sell item')} onClose={() => setSellGroup(null)}>
                 {sellGroup ? (

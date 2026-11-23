@@ -1405,3 +1405,11 @@ A full verification run (typecheck, Vitest, oxlint, build) plus a review of the 
 - `WorkspaceBootstrapService` now projects read-only background sources (settings, last known auth status, network summary, Auto Jobs snapshot, daily cache and the four cached market reputations) into one versioned `v2.workspace.bootstrap` store. A failing source keeps its previous value; the `WORKSPACE_WARM_ALARM` refreshes it every two minutes and once on background startup. This alarm is deliberately outside `AUTOMATION_ALARM_IDS`, so Helper Mode does not clear it and the cache stays warm even while automation is disabled.
 - `system.workspaceBootstrap` returns the validated snapshot over the bridge. The side-panel entry reads workspace view and bootstrap in parallel before render; `SidePanelApp` passes the snapshot into `useSettings`, `useNetwork`, `useJobs` and `useDaily`, which initialize their state from it and still perform their normal silent live refresh on mount. The toolbar `WelcomeApp` also paints cached settings/auth immediately.
 - Verification: typecheck, oxlint, Vitest (143 files / 1144 tests) and production build pass.
+
+---
+
+# Part 72 — Sell-except-milk confirmation modal (2.5.3)
+
+- The "Sell all except Artificial milk" button originally used a two-click label toggle ("Confirm sell all except Artificial milk") plus a status line. That was easy to miss and read as if the second click had already sold the items; the expected second-confirmation dialog was absent.
+- `useInventory` now keeps `sellAllExceptMilkPreview` alongside the confirm flag. The first click previews the COMMON/RARE, `tag: 'any'`, `excludeNames: ['Artificial milk']`, `allowCraft: true` filter and opens a `Modal` showing item count, estimated income and protected stacks. The button label stays constant. Cancel, Escape and backdrop click close the dialog without selling; only the dialog's Confirm invokes `sellInventoryFilter()`. A fresh `loadInventory()` clears both preview and confirm state.
+- Verification: typecheck, oxlint, Vitest (143 files / 1144 tests) and production build pass.

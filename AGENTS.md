@@ -65,6 +65,7 @@ Inventory bulk sell:
 
 - `PopupPortal.previewInventoryFilter()` / `sellInventoryFilter()` accept optional `excludeNames` and `allowCraft` options passed through the `inventory.previewFilter` / `inventory.sellFilter` bridge commands.
 - The Game → Inventory "Sell all except Artificial milk" action uses `tiers: ['COMMON', 'RARE']`, `tag: 'any'`, `excludeNames: ['Artificial milk']`, `allowCraft: true`.
+- That action's first click previews the filter and opens a `Modal` with eligible quantity, estimated income and protected stacks. Cancel, Escape or backdrop closes it; only the modal's Confirm calls `sellInventoryFilter()`. The button itself keeps a fixed label and no longer uses two-click label toggling as its second confirmation.
 - The per-item quick Sell opens a `Modal` to pick a quantity (1..group total) with a "sell all same items" shortcut. `useInventory.sellInventoryItem()` walks the group's stacks in order, calling `portal.sellInventoryItem()` per stack until the requested quantity is sold; `sellingGroupKey` guards concurrent sales.
 - `planInventoryBatchSell()` remains the single safety gate: items above RARE, non-sellable items and zero-price items are always reported as protected.
 

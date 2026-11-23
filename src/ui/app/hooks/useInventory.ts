@@ -41,6 +41,8 @@ export interface InventoryState {
     readonly sellInventoryFilter: () => Promise<void>;
     readonly sellAllExceptMilk: () => Promise<void>;
     readonly sellAllExceptMilkConfirm: boolean;
+    readonly sellAllExceptMilkPreview: InventoryPreviewResult | null;
+    readonly cancelSellAllExceptMilk: () => void;
     readonly sellInventoryItem: (stacks: readonly InventoryItemView[], quantity: number, groupKey: string) => Promise<void>;
     readonly purchaseSpecialist: (purchase: SpecialistPurchase) => Promise<void>;
     readonly sortInventory: (mode: 'smart' | 'compact') => Promise<void>;
@@ -54,6 +56,7 @@ export function useInventory(portal: PopupPortal, tt: TranslateSource): Inventor
     const [specialistError, setSpecialistError] = useState<string | null>(null);
     const [sellConfirm, setSellConfirm] = useState(false);
     const [sellAllExceptMilkConfirm, setSellAllExceptMilkConfirm] = useState(false);
+    const [sellAllExceptMilkPreview, setSellAllExceptMilkPreview] = useState<InventoryPreviewResult | null>(null);
     const [sellingGroupKey, setSellingGroupKey] = useState<string | null>(null);
     const sellingGroupKeyRef = useRef<string | null>(null);
     const [inventoryStatus, setInventoryStatus] = useState('Inventory not loaded');
@@ -80,9 +83,10 @@ export function useInventory(portal: PopupPortal, tt: TranslateSource): Inventor
             setInventory(view.value.summary);
             setInventoryItems(view.value.items);
             setSortingTableItems(view.value.sortingTableItems);
-            // A fresh stash invalidates any pending two-step sell confirmation.
+            // A fresh stash invalidates any pending sell confirmation.
             setSellConfirm(false);
             setSellAllExceptMilkConfirm(false);
+            setSellAllExceptMilkPreview(null);
             setInventoryStatus('');
         } else {
             setInventoryStatus(view.error.message);
@@ -176,14 +180,16 @@ export function useInventory(portal: PopupPortal, tt: TranslateSource): Inventor
                 setInventoryStatus(tt('No sellable items match the selected filters'));
                 return;
             }
+            setSellAllExceptMilkPreview(preview.value);
             setSellAllExceptMilkConfirm(true);
-            setInventoryStatus(tt('Click again to sell {count} item(s) except {name}. Items above RARE are kept.', {
+            setInventoryStatus(tt('Review {count} item(s) except {name} before selling. Items above RARE are kept.', {
                 count: preview.value.quantity,
                 name: SELL_EXCLUDED_ITEM_NAME,
             }));
             return;
         }
         setSellAllExceptMilkConfirm(false);
+        setSellAllExceptMilkPreview(null);
         setInventoryBusy(true);
         setInventoryStatus(tt('Selling all items except {name}...', { name: SELL_EXCLUDED_ITEM_NAME }));
         const response = await portal.sellInventoryFilter([...SELL_ALL_TIERS], 'any', options);
@@ -266,6 +272,11 @@ export function useInventory(portal: PopupPortal, tt: TranslateSource): Inventor
         }
     }, [portal, loadInventory, tt]);
 
+    const cancelSellAllExceptMilk = useCallback(() => {
+        setSellAllExceptMilkConfirm(false);
+        setSellAllExceptMilkPreview(null);
+    }, []);
+
     return {
         inventory,
         inventoryItems,
@@ -290,6 +301,8 @@ export function useInventory(portal: PopupPortal, tt: TranslateSource): Inventor
         sellInventoryFilter,
         sellAllExceptMilk,
         sellAllExceptMilkConfirm,
+        sellAllExceptMilkPreview,
+        cancelSellAllExceptMilk,
         sellInventoryItem,
         purchaseSpecialist,
         sortInventory,

@@ -545,6 +545,7 @@ export const ZH_MESSAGES: Readonly<Record<string, string>> = {
     'Sell all except Artificial milk': '出售除牛奶之外的所有物品',
     'Confirm sell all except Artificial milk': '确认出售除牛奶之外的所有物品',
     'Click again to sell {count} item(s) except {name}. Items above RARE are kept.': '再次点击以出售除 {name} 之外的 {count} 个物品。高于 RARE 的物品会保留。',
+    'Review {count} item(s) except {name} before selling. Items above RARE are kept.': '确认出售除 {name} 之外的 {count} 个物品。高于 RARE 的物品会保留。',
     'Selling all items except {name}...': '正在出售除 {name} 之外的所有物品...',
     'Filter items by name / tier / tag': '按名称 / 等级 / 标签筛选物品',
     'Selling…': '出售中…',

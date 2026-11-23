@@ -77,6 +77,8 @@ export function GamePanel({ portal, inventory, loadout, mail, settings, now }: G
                     sellConfirm={inventory.sellConfirm}
                     onSellAllExceptMilk={inventory.sellAllExceptMilk}
                     sellAllExceptMilkConfirm={inventory.sellAllExceptMilkConfirm}
+                    sellAllExceptMilkPreview={inventory.sellAllExceptMilkPreview}
+                    onCancelSellAllExceptMilk={inventory.cancelSellAllExceptMilk}
                     autoMail={mail.autoMail}
                     autoMailBusy={mail.autoMailBusy}
                     onToggleAutoMail={mail.toggleAutoMail}
