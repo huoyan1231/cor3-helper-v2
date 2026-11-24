@@ -6,7 +6,7 @@
 - **Status legend for v1 → v2:** `Implemented` = equivalent user capability exists; `Partial` = core exists but visible scope/behavior differs; `Missing` = no counterpart found; `Unknown` = cannot confirm without runtime QA
 - **Caveat:** this is not a runtime parity sign-off. The 2.0 release line is complete; the displayed version is now the plain `<version>` (no `-salta` suffix, no local build counter), while release tags and artifact names still use `<version>-salta`. Historical sections retain their original development labels.
 - **Last verified:** 2026-11-24 against `2.5.6` (Part 47 records the v2.3.x drone-tab work; Part 49 records the v2.4.0 inventory bulk-sell addition; Part 50 records the tracker tab-switch fix; Part 51 records the per-item quantity modal; Part 52 records the mission-surplus sale; Part 53 records the full-test bug-fix pass; Part 54 records the versionCode-based update detection restore; Parts 55-62 record the fork's maintenance, config, cache-loading and UI fixes; older Parts keep their original version labels)
-- **Current verification:** `npm run typecheck`, `npm run lint`, `npm test` (146 files / 1152 tests) and `npm run build` all pass.
+- **Current verification:** `npm run typecheck`, `npm run lint`, `npm test` (147 files / 1155 tests) and `npm run build` all pass.
 
 ## Current completion snapshot (`2.5.6`)
 
@@ -1431,3 +1431,11 @@ A full verification run (typecheck, Vitest, oxlint, build) plus a review of the 
 - `listMaintenanceCandidates()`, `planMaintenanceTargets()` and `planSelectedMaintenanceTargets()` now keep only catalog servers that are currently forceable (`!active && !endsAt && timeUntil`), drop every other server, and sort strictly by `maintenance_id` ascending regardless of checkbox order or route distance.
 - `MaintenanceTarget` exposes `ip` and `maintenanceOrder`; the bridge schema, maintenance candidate rows and confirmation modal show `#n` labels. `MaintenanceForceService.force()` keeps its existing sequential/cancellable loop, 50-attempt cap and failure reporting: a failed server is recorded and the next catalog server still runs.
 - Verification: typecheck, oxlint, Vitest (146 files / 1152 tests) and production build pass.
+
+---
+
+# Part 75 — Valuable run state liveness (2.5.6)
+
+- The force-maintenance confirmation could become permanently unclickable: `ValuableSellerCard` derives `running` from `runId !== null`, but `useValuable` only adopted `valuableReport.active` when it was non-null. When a background run finished with `active: null`, or `valuableProgress()` returned no record, the local `runId` was never cleared, so the action button stayed disabled and the confirm dialog could not be opened.
+- `resolveReportRunState()` now maps a null active run to a cleared run state and returns `null` while a local operation is starting, so the optimistic local `runId` is never clobbered by a 5-second report poll. `pollValuableProgress()` also clears the run state when the progress record disappears and refreshes both the report and maintenance candidates.
+- Verification: typecheck, oxlint, Vitest (147 files / 1155 tests) and production build pass.

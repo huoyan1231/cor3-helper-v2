@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
+import { resolveReportRunState } from './valuable-run-state.js';
 import type { MaintenanceForceProgress, MaintenanceTarget, PopupPortal, ValuableOperation, ValuableProgress, ValuableReport } from '../../../application/popup/portal.js';
 import type { TranslateSource } from '../../i18n-context.js';
 import type { PopupPage } from '../AppShell.js';
@@ -47,10 +48,13 @@ export function useValuable(portal: PopupPortal, deps: ValuableDeps): ValuableSt
         }
         setValuableReport(response.value);
         const active = response.value.active;
+        const runState = resolveReportRunState(active, valuableStartLock.current);
+        if (!runState) return;
+        setValuableRunId(runState.runId);
+        setValuableOperation(runState.operation);
+        setValuableProgress(runState.progress);
+        if (runState.runId === null) setValuableCanceling(false);
         if (active) {
-            setValuableRunId(active.runId);
-            setValuableOperation(active.operation);
-            setValuableProgress(active.progress);
             setValuableStatus((current) => current === tt('Idle')
                 ? active.operation === 'search'
                     ? tt('Searching all servers...')
@@ -152,17 +156,27 @@ export function useValuable(portal: PopupPortal, deps: ValuableDeps): ValuableSt
     const pollValuableProgress = useCallback(async () => {
         if (valuableRunId === null) return;
         const response = await portal.valuableProgress(valuableRunId);
-        if (response.ok && response.value) {
-            setValuableProgress(response.value.progress);
-            if (response.value.status !== 'running') {
-                setValuableRunId(null);
-                setValuableOperation(null);
-                setValuableProgress(null);
-                setValuableCanceling(false);
-                await loadValuableReport();
-            }
+        if (!response.ok) return;
+        if (!response.value) {
+            if (valuableStartLock.current) return;
+            setValuableRunId(null);
+            setValuableOperation(null);
+            setValuableProgress(null);
+            setValuableCanceling(false);
+            await loadValuableReport();
+            await loadMaintenanceTargets();
+            return;
         }
-    }, [portal, valuableRunId, loadValuableReport]);
+        setValuableProgress(response.value.progress);
+        if (response.value.status !== 'running') {
+            setValuableRunId(null);
+            setValuableOperation(null);
+            setValuableProgress(null);
+            setValuableCanceling(false);
+            await loadValuableReport();
+            await loadMaintenanceTargets();
+        }
+    }, [portal, valuableRunId, loadValuableReport, loadMaintenanceTargets]);
 
     usePolling(pollValuableProgress, 1000, { enabled: valuableRunId !== null });
     usePolling(loadValuableReport, 5000, { enabled: activePage === 'automation' });
