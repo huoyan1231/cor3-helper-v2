@@ -1,11 +1,11 @@
 {
     "name": "cor3-helper",
-    "version": "2.5.6",
+    "version": "2.5.7",
     "private": true,
     "description": "COR3 Helper 2.0 — Chrome extension for cor3.gg",
     "cor3Fork": {
         "releaseLabel": "huoyan1231",
-        "versionCode": 359
+        "versionCode": 360
     },
     "engines": {
         "node": ">=24"

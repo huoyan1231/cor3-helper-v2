@@ -5,10 +5,10 @@
 - **Method:** static source review of popup, content scripts, MAIN-world hooks, background scheduler, bridge contracts, tests, build/release config, and architecture docs
 - **Status legend for v1 → v2:** `Implemented` = equivalent user capability exists; `Partial` = core exists but visible scope/behavior differs; `Missing` = no counterpart found; `Unknown` = cannot confirm without runtime QA
 - **Caveat:** this is not a runtime parity sign-off. The 2.0 release line is complete; the displayed version is now the plain `<version>` (no `-salta` suffix, no local build counter), while release tags and artifact names still use `<version>-salta`. Historical sections retain their original development labels.
-- **Last verified:** 2026-11-24 against `2.5.6` (Part 47 records the v2.3.x drone-tab work; Part 49 records the v2.4.0 inventory bulk-sell addition; Part 50 records the tracker tab-switch fix; Part 51 records the per-item quantity modal; Part 52 records the mission-surplus sale; Part 53 records the full-test bug-fix pass; Part 54 records the versionCode-based update detection restore; Parts 55-62 record the fork's maintenance, config, cache-loading and UI fixes; Parts 74-76 cover the ordered force-maintenance catalog, run-state liveness and event-driven speedup; older Parts keep their original version labels)
+- **Last verified:** 2026-11-24 against `2.5.7` (Part 47 records the v2.3.x drone-tab work; Part 49 records the v2.4.0 inventory bulk-sell addition; Part 50 records the tracker tab-switch fix; Part 51 records the per-item quantity modal; Part 52 records the mission-surplus sale; Part 53 records the full-test bug-fix pass; Part 54 records the versionCode-based update detection restore; Parts 55-62 record the fork's maintenance, config, cache-loading and UI fixes; Parts 74-76 cover the ordered force-maintenance catalog, run-state liveness and event-driven speedup; older Parts keep their original version labels)
 - **Current verification:** `npm run typecheck`, `npm run lint`, `npm test` (147 files / 1159 tests) and `npm run build` all pass.
 
-## Current completion snapshot (`2.5.6`)
+## Current completion snapshot (`2.5.7`)
 
 | Metric | Value |
 |---|---|
