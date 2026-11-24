@@ -516,11 +516,13 @@ const maintenanceForceProgressSchema = z.object({
 const maintenanceTargetSchema = z.object({
     id: z.string(),
     name: z.string(),
+    ip: z.string().nullable(),
     typeName: z.string().nullable(),
     timeUntil: z.string().nullable(),
     endsAt: z.string().nullable(),
     active: z.boolean(),
     distance: z.number(),
+    maintenanceOrder: z.number().int().positive().nullable(),
 }).strict();
 const maintenanceForceSummarySchema = z.object({
     stopped: z.boolean(),

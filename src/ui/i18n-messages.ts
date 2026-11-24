@@ -160,6 +160,8 @@ export const ZH_MESSAGES: Readonly<Record<string, string>> = {
     'Done': '完成',
     'Maintenance candidates': '维护候选服务器',
     'No upcoming or active maintenance found. Run server search first.': '未发现即将或正在维护的服务器。请先执行服务器搜索。',
+    'No listed upcoming maintenance found. Run server search first.': '未发现清单中即将维护的服务器。请先执行服务器搜索。',
+    'Servers are processed in the built-in maintenance order (#1 first).': '服务器将按内置维护顺序处理（从 #1 开始）。',
     'UPCOMING': '即将维护',
     'IN MAINTENANCE': '维护中',
     'Force selected!': '强制选中项！',

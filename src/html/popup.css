@@ -786,6 +786,7 @@ button.v2-icon-button:hover { color: var(--v2-accent); border-color: var(--v2-ac
 .v2-maint-row input[type="checkbox"] { width: 13px; height: 13px; margin: 0; accent-color: var(--v2-accent); }
 .v2-maint-row input[type="checkbox"]:disabled { cursor: default; opacity: .45; }
 .v2-maint-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--v2-text); }
+.v2-maint-order { display: inline-block; min-width: 22px; margin-right: 5px; color: var(--v2-accent); font-weight: 700; }
 .v2-maint-timer { font-variant-numeric: tabular-nums; text-align: right; }
 .v2-maint-status { padding: 2px 4px; border-radius: 4px; font-size: 8px; font-weight: 700; text-align: center; }
 .v2-maint-status.is-upcoming { background: rgba(229, 181, 103, .16); color: #e5b567; }

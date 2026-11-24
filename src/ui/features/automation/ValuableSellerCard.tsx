@@ -198,7 +198,7 @@ export function ValuableSellerCard({
                 </summary>
                 <div class="v2-status-body">
                     {maintenanceTargets.length === 0 ? (
-                        <p class="v2-muted">{tr('No upcoming or active maintenance found. Run server search first.')}</p>
+                        <p class="v2-muted">{tr('No listed upcoming maintenance found. Run server search first.')}</p>
                     ) : (
                         <>
                             <label class="v2-maint-select-all">
@@ -222,7 +222,12 @@ export function ValuableSellerCard({
                                                 disabled={inMaintenance || running}
                                                 onChange={() => toggleTarget(target.id)}
                                             />
-                                            <span class="v2-maint-name">{target.name}</span>
+                                            <span class="v2-maint-name">
+                                                {target.maintenanceOrder !== null ? (
+                                                    <span class="v2-maint-order">#{target.maintenanceOrder}</span>
+                                                ) : null}
+                                                {target.name}
+                                            </span>
                                             <span class="v2-maint-timer">{formatCountdown(target.timeUntil ?? target.endsAt, now, tr)}</span>
                                             <span class={inMaintenance ? 'v2-maint-status is-active' : 'v2-maint-status is-upcoming'}>
                                                 {inMaintenance ? tr('IN MAINTENANCE') : tr('UPCOMING')}
@@ -297,10 +302,16 @@ export function ValuableSellerCard({
             <Modal open={confirmForceOpen} title={tr('Confirm force maintenance')} onClose={() => setConfirmForceOpen(false)}>
                 <div class="v2-maint-confirm">
                     <p>{tr('The selected servers will be forced into maintenance by repeated valuable searches. This cannot be undone.')}</p>
+                    <p class="v2-muted">{tr('Servers are processed in the built-in maintenance order (#1 first).')}</p>
                     <div class="v2-maint-confirm-list">
                         {selectedTargets.map((target) => (
                             <div key={target.id} class="v2-maint-confirm-row">
-                                <span>{target.name}</span>
+                                <span>
+                                    {target.maintenanceOrder !== null ? (
+                                        <span class="v2-maint-order">#{target.maintenanceOrder}</span>
+                                    ) : null}
+                                    {target.name}
+                                </span>
                                 <span class="v2-muted">{formatCountdown(target.timeUntil ?? target.endsAt, now, tr)}</span>
                             </div>
                         ))}

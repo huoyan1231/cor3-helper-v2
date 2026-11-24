@@ -1,17 +1,35 @@
 import { describe, expect, it } from 'vitest';
 import { asServerId } from '../../kernel/ids.js';
 import type { NetworkServer, NetworkSnapshot } from '../network/model.js';
+import { MAINTENANCE_ORDER } from './maintenance-order.js';
 import { listMaintenanceCandidates, maintenanceStarted, planMaintenanceTargets, planSelectedMaintenanceTargets } from './maintenance.js';
+
+function listedServer(orderId: number, overrides: Partial<NetworkServer> = {}): NetworkServer {
+    const entry = MAINTENANCE_ORDER.find((item) => item.maintenanceId === orderId)!;
+    return {
+        id: asServerId(`server-${orderId}`),
+        name: entry.server,
+        ip: entry.ip,
+        typeName: null,
+        cluster: null,
+        faction: null,
+        maintenance: { active: false, endsAt: null, timeUntil: '00:02:00' },
+        access: { kind: 'none', active: false },
+        endpointCapable: false,
+        reachableNow: true,
+        ...overrides,
+    };
+}
 
 function server(id: string, overrides: Partial<NetworkServer> = {}): NetworkServer {
     return {
         id: asServerId(id),
         name: id,
-        ip: null,
+        ip: '999.999.9.9',
         typeName: null,
         cluster: null,
         faction: null,
-        maintenance: { active: false, endsAt: null, timeUntil: null },
+        maintenance: { active: false, endsAt: null, timeUntil: '00:02:00' },
         access: { kind: 'none', active: false },
         endpointCapable: false,
         reachableNow: true,
@@ -32,25 +50,28 @@ function snapshot(servers: readonly NetworkServer[]): NetworkSnapshot {
 }
 
 describe('planMaintenanceTargets', () => {
-    it('picks only upcoming-maintenance servers, excluding active and unknown', () => {
+    it('keeps only listed upcoming servers and skips unlisted, active and unknown', () => {
         const result = planMaintenanceTargets(snapshot([
-            server('home'),
-            server('upcoming', { maintenance: { active: false, endsAt: null, timeUntil: '00:02:00' } }),
-            server('active', { maintenance: { active: true, endsAt: '2026-11-22T00:00:00Z', timeUntil: null } }),
-            server('unknown', { maintenance: { active: false, endsAt: null, timeUntil: null } }),
+            listedServer(10),
+            listedServer(2),
+            listedServer(3, { maintenance: { active: true, endsAt: '2026-11-22T00:00:00Z', timeUntil: null } }),
+            listedServer(4, { maintenance: { active: false, endsAt: '2026-11-22T00:00:00Z', timeUntil: '00:02:00' } }),
+            listedServer(5, { maintenance: { active: false, endsAt: null, timeUntil: null } }),
+            server('outside'),
+            server('wrong-ip', { name: MAINTENANCE_ORDER[0]!.server, ip: '000.000.0.0' }),
         ]));
-        expect(result.map((target) => target.id)).toEqual(['upcoming']);
-        expect(result[0]?.timeUntil).toBe('00:02:00');
+        expect(result.map((target) => target.maintenanceOrder)).toEqual([2, 10]);
+        expect(result.map((target) => target.name)).toEqual([MAINTENANCE_ORDER[1]!.server, MAINTENANCE_ORDER[9]!.server]);
+        expect(result.every((target) => !target.active && !target.endsAt)).toBe(true);
     });
 
-    it('orders furthest servers first, then by name', () => {
+    it('orders strictly by maintenance_id, ignoring route distance and selection order', () => {
         const result = planMaintenanceTargets(snapshot([
-            server('home'),
-            server('near', { maintenance: { active: false, endsAt: null, timeUntil: '00:01:00' } }),
-            server('far', { maintenance: { active: false, endsAt: null, timeUntil: '00:03:00' } }),
+            listedServer(35),
+            listedServer(6),
+            listedServer(23),
         ]));
-        // With no edges all routes are length 1, so the name tie-break applies.
-        expect(result.map((target) => target.id)).toEqual(['far', 'near']);
+        expect(result.map((target) => target.maintenanceOrder)).toEqual([6, 23, 35]);
     });
 });
 
@@ -77,30 +98,29 @@ describe('maintenanceStarted', () => {
 });
 
 describe('manual selection', () => {
-    it('lists both upcoming and active servers with active first', () => {
+    it('lists only listed upcoming servers in maintenance_id order', () => {
         const result = listMaintenanceCandidates(snapshot([
-            server('home'),
-            server('upcoming', { maintenance: { active: false, endsAt: null, timeUntil: '2026-11-21T00:02:00Z' } }),
-            server('active', { maintenance: { active: true, endsAt: '2026-11-21T00:10:00Z', timeUntil: null } }),
-            server('unknown'),
+            listedServer(44),
+            listedServer(1),
+            listedServer(2, { maintenance: { active: true, endsAt: '2026-11-21T00:10:00Z', timeUntil: null } }),
+            server('outside'),
         ]));
-        expect(result.map((target) => target.id)).toEqual(['active', 'upcoming']);
-        expect(result[0]?.active).toBe(true);
-        expect(result[0]?.endsAt).toBe('2026-11-21T00:10:00Z');
-        expect(result[1]?.timeUntil).toBe('2026-11-21T00:02:00Z');
+        expect(result.map((target) => target.maintenanceOrder)).toEqual([1, 44]);
+        expect(result[0]?.active).toBe(false);
+        expect(result[0]?.ip).toBe(MAINTENANCE_ORDER[0]!.ip);
     });
 
-    it('forces only the selected ids, furthest first', () => {
+    it('forces only the selected listed ids in catalog order, not selection order', () => {
         const result = planSelectedMaintenanceTargets(snapshot([
-            server('home'),
-            server('near', { maintenance: { active: false, endsAt: null, timeUntil: '00:01:00' } }),
-            server('far', { maintenance: { active: false, endsAt: null, timeUntil: '00:03:00' } }),
-            server('skip', { maintenance: { active: false, endsAt: null, timeUntil: '00:05:00' } }),
-        ]), ['near', 'far']);
-        expect(result.map((target) => target.id)).toEqual(['far', 'near']);
+            listedServer(9),
+            listedServer(2),
+            listedServer(4),
+            server('outside'),
+        ]), ['server-9', 'server-2', 'outside']);
+        expect(result.map((target) => target.maintenanceOrder)).toEqual([2, 9]);
     });
 
     it('returns no targets for an empty selection', () => {
-        expect(planSelectedMaintenanceTargets(snapshot([server('home')]), [])).toEqual([]);
+        expect(planSelectedMaintenanceTargets(snapshot([listedServer(1)]), [])).toEqual([]);
     });
 });
