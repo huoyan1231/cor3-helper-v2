@@ -5,10 +5,10 @@
 - **Method:** static source review of popup, content scripts, MAIN-world hooks, background scheduler, bridge contracts, tests, build/release config, and architecture docs
 - **Status legend for v1 → v2:** `Implemented` = equivalent user capability exists; `Partial` = core exists but visible scope/behavior differs; `Missing` = no counterpart found; `Unknown` = cannot confirm without runtime QA
 - **Caveat:** this is not a runtime parity sign-off. The 2.0 release line is complete; the displayed version is now the plain `<version>` (no `-salta` suffix, no local build counter), while release tags and artifact names still use `<version>-salta`. Historical sections retain their original development labels.
-- **Last verified:** 2026-11-24 against `2.5.5` (Part 47 records the v2.3.x drone-tab work; Part 49 records the v2.4.0 inventory bulk-sell addition; Part 50 records the tracker tab-switch fix; Part 51 records the per-item quantity modal; Part 52 records the mission-surplus sale; Part 53 records the full-test bug-fix pass; Part 54 records the versionCode-based update detection restore; Parts 55-62 record the fork's maintenance, config, cache-loading and UI fixes; older Parts keep their original version labels)
+- **Last verified:** 2026-11-24 against `2.5.6` (Part 47 records the v2.3.x drone-tab work; Part 49 records the v2.4.0 inventory bulk-sell addition; Part 50 records the tracker tab-switch fix; Part 51 records the per-item quantity modal; Part 52 records the mission-surplus sale; Part 53 records the full-test bug-fix pass; Part 54 records the versionCode-based update detection restore; Parts 55-62 record the fork's maintenance, config, cache-loading and UI fixes; older Parts keep their original version labels)
 - **Current verification:** `npm run typecheck`, `npm run lint`, `npm test` (146 files / 1152 tests) and `npm run build` all pass.
 
-## Current completion snapshot (`2.5.5`)
+## Current completion snapshot (`2.5.6`)
 
 | Metric | Value |
 |---|---|
@@ -1425,7 +1425,7 @@ A full verification run (typecheck, Vitest, oxlint, build) plus a review of the 
 
 ---
 
-# Part 74 — Ordered force maintenance catalog (2.5.5)
+# Part 74 — Ordered force maintenance catalog (2.5.6)
 
 - Force maintenance no longer uses v1's furthest-first route order. `MAINTENANCE_ORDER` embeds the supplied 44-server list verbatim (`maintenance_id`, `server`, `ip`); matching requires exact `name` + `ip` equality, and IP strings such as `855.529.2.04` are never normalized.
 - `listMaintenanceCandidates()`, `planMaintenanceTargets()` and `planSelectedMaintenanceTargets()` now keep only catalog servers that are currently forceable (`!active && !endsAt && timeUntil`), drop every other server, and sort strictly by `maintenance_id` ascending regardless of checkbox order or route distance.
