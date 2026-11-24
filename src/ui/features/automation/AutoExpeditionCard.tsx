@@ -46,7 +46,6 @@ const MERC_MARKET_LABEL: Record<string, string> = {
 
 const MERC_DECISION_OPTIONS = [
     { value: 'off', label: 'Off (let the system decide)' },
-    { value: 'veterans', label: 'Get rid of veterans (highest risk)' },
     { value: 'loot', label: 'Highest loot first' },
     { value: 'risk', label: 'Lowest risk first' },
 ] as const;
