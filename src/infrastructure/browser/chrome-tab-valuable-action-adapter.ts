@@ -153,7 +153,7 @@ export class ChromeTabValuableActionAdapter implements ValuableServerPort, Valua
     private async search(kind: 'searchFiles' | 'searchLogs', serverId: string): Promise<Result<ValuableSearchResult, GameError>> {
         const result = await this.action(kind, { serverId });
         if (!result.ok) return result;
-        const data = result.value as { found?: unknown; searchPowerUsed?: unknown } | null;
+        const data = result.value as { found?: unknown; searchPowerUsed?: unknown; maintenanceStarted?: unknown } | null;
         const found: ValuableSearchHit[] = [];
         if (Array.isArray(data?.found)) {
             for (const raw of data.found) {
@@ -167,6 +167,7 @@ export class ChromeTabValuableActionAdapter implements ValuableServerPort, Valua
         return ok({
             found,
             ...(typeof data?.searchPowerUsed === 'number' ? { searchPowerUsed: data.searchPowerUsed } : {}),
+            ...(data?.maintenanceStarted === true ? { maintenanceStarted: true } : {}),
         });
     }
 

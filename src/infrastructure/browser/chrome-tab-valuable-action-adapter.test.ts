@@ -31,6 +31,18 @@ describe('ChromeTabValuableActionAdapter', () => {
         }
     });
 
+    it('preserves the maintenance push flag on search results', async () => {
+        const adapter = new ChromeTabValuableActionAdapter({
+            findCor3Tab: async () => 1,
+            send: async () => ({ ok: true, value: { found: [], maintenanceStarted: true } }),
+        });
+
+        const search = await adapter.searchFiles('s');
+
+        expect(search.ok).toBe(true);
+        if (search.ok) expect(search.value.maintenanceStarted).toBe(true);
+    });
+
     it('counts successful sell calls', async () => {
         const sent: unknown[] = [];
         const adapter = new ChromeTabValuableActionAdapter({

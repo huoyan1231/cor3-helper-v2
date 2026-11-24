@@ -13,6 +13,8 @@ import type { ValuableServerPort } from './seller.js';
 export const DEFAULT_MAINTENANCE_MAX_ATTEMPTS = 50;
 export const DEFAULT_MAINTENANCE_ATTEMPT_DELAY_MS = 600;
 export const DEFAULT_MAINTENANCE_SERVER_DELAY_MS = 1500;
+/** Fallback map checks when the game does not emit a maintenance push. */
+export const DEFAULT_MAINTENANCE_MAP_CHECK_EVERY = 10;
 
 export interface PreSearchHook {
     (serverId: string, serverTypeName: string | null): Promise<Result<void, GameError>>;
@@ -41,6 +43,7 @@ export interface MaintenanceForceControl {
     readonly maxAttempts?: number;
     readonly attemptDelayMs?: number;
     readonly serverDelayMs?: number;
+    readonly mapCheckEvery?: number;
     readonly sleep?: (ms: number) => Promise<void>;
 }
 
@@ -80,6 +83,7 @@ export class MaintenanceForceService {
         const maxAttempts = control.maxAttempts ?? DEFAULT_MAINTENANCE_MAX_ATTEMPTS;
         const attemptDelayMs = control.attemptDelayMs ?? DEFAULT_MAINTENANCE_ATTEMPT_DELAY_MS;
         const serverDelayMs = control.serverDelayMs ?? DEFAULT_MAINTENANCE_SERVER_DELAY_MS;
+        const mapCheckEvery = Math.max(1, control.mapCheckEvery ?? DEFAULT_MAINTENANCE_MAP_CHECK_EVERY);
 
         const initial = await this.deps.snapshots.get(true);
         if (!initial.ok) return { ok: false, error: initial.error };
@@ -114,15 +118,27 @@ export class MaintenanceForceService {
                 const search = await this.deps.servers.searchFiles(target.id);
                 lastError = search.ok ? null : search.error.message;
 
-                const refreshed = await this.deps.snapshots.get(true);
-                if (refreshed.ok) {
-                    const current = refreshed.value.servers.get(asServerId(target.id));
-                    if (current && maintenanceStarted(current, this.clock.now())) {
-                        started = true;
-                        break;
+                // v1 listened for the game's maintenance push instead of
+                // re-fetching the whole map after every successful search.
+                if (search.ok && search.value.maintenanceStarted === true) {
+                    started = true;
+                    break;
+                }
+
+                // Keep a bounded fallback for game builds that do not emit the
+                // push, and still probe immediately on access-denied like v1.
+                const accessDenied = !search.ok && /access-denied/i.test(search.error.message);
+                if (accessDenied || attempts % mapCheckEvery === 0 || attempts === maxAttempts) {
+                    const refreshed = await this.deps.snapshots.get(true);
+                    if (refreshed.ok) {
+                        const current = refreshed.value.servers.get(asServerId(target.id));
+                        if (current && maintenanceStarted(current, this.clock.now())) {
+                            started = true;
+                            break;
+                        }
+                    } else {
+                        lastError = refreshed.error.message;
                     }
-                } else {
-                    lastError = refreshed.error.message;
                 }
 
                 await sleep(attemptDelayMs);
@@ -139,6 +155,9 @@ export class MaintenanceForceService {
             if (index < targets.length - 1) await sleep(serverDelayMs);
         }
 
+        // One live map refresh for the whole batch keeps the UI/Auto Jobs
+        // snapshot current without paying a full get.map on every attempt.
+        if (forced.length > 0 && !stopped) await this.deps.snapshots.get(true);
         control.onProgress?.({ phase: 'done', target: '', index: targets.length, total: targets.length, attempts: 0 });
         return ok({ stopped, targets, forced, failed });
     }

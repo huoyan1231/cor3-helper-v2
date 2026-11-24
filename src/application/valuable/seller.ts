@@ -18,6 +18,8 @@ export interface ValuableSearchHit {
 export interface ValuableSearchResult {
     readonly found: readonly ValuableSearchHit[];
     readonly searchPowerUsed?: number;
+    /** Set when the game pushes a `network-map:maintenance` frame during this search. */
+    readonly maintenanceStarted?: boolean;
 }
 
 export interface SellableItem {

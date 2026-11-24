@@ -179,6 +179,14 @@ export function parseOutgoingMarketRequest(data: unknown): OutgoingMarketRequest
     return { action, marketId };
 }
 
+/** Attach the v1-equivalent maintenance signal to a valuable search response. */
+export function withMaintenanceStartedFlag(data: unknown): unknown {
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+        return { ...(data as Record<string, unknown>), maintenanceStarted: true };
+    }
+    return { maintenanceStarted: true };
+}
+
 export interface SocketCandidate {
     readonly url: string;
     readonly minigame: boolean;
@@ -359,6 +367,8 @@ export class GameSocketHub {
     private pendingMapPromise: Promise<RawNetworkMap> | null = null;
     private pendingRequests = new Map<string, PendingRequest>();
     private readonly requestChains = new Map<string, Promise<GameResponse>>();
+    /** Timestamp of the latest `network-map:maintenance` push; used by force-maintenance searches. */
+    private maintenanceSignalAt = 0;
     private readonly expeditionEventCache = new Map<string, { readonly at: number; readonly value: Record<string, unknown> }>();
     private readonly expeditionDecisionCache: { readonly at: number; readonly value: unknown }[] = [];
     private pendingStash: PendingStash | null = null;
@@ -1336,9 +1346,13 @@ export class GameSocketHub {
         };
         const action = actions[kind];
         if (!action) return err({ code: 'GAME_UNKNOWN_ACTION', message: `Unknown valuable action: ${kind}` });
+        const searchStartedAt = kind === 'searchFiles' ? Date.now() : 0;
         const response = await this.request(action.event, action.action, payload, action.timeoutMs).catch((error) => error);
         if (response instanceof Error) return err({ code: 'GAME_TIMEOUT', message: response.message });
         if (response.error) return err(gameError(response.error, 'GAME_VALUABLE_ACTION_FAILED'));
+        if (kind === 'searchFiles' && this.maintenanceSignalAt >= searchStartedAt) {
+            return ok(withMaintenanceStartedFlag(response.data));
+        }
         return ok(response.data);
     }
 
@@ -1745,6 +1759,10 @@ export class GameSocketHub {
             }
         }
         if (!action) return;
+
+        if (eventName === 'network-map' && action === 'maintenance') {
+            this.maintenanceSignalAt = Date.now();
+        }
 
         if (eventName === 'network-map' && action === 'get.map') {
             const map = payload.data as RawNetworkMap | undefined;

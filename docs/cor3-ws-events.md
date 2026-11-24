@@ -1,6 +1,6 @@
 # COR3 WS / mailbox / stash protocol notes
 
-Last updated: 2026-11-21 (v2.3.1: drone-build quest frames, active refresh, shared-socket room note); game captures 2026-11-03
+Last updated: 2026-11-24 (v2.5.6: `network-map:maintenance` push used for event-driven force maintenance); game captures 2026-11-03
 Source captures: `cor3-ws-export_1.json` … `cor3-ws-export_5.json` (headers contain the recorded player actions).
 
 > **Security note:** the capture files are local-only and are ignored by git
@@ -30,6 +30,16 @@ Game events use Socket.IO v5 / Engine.IO 4 framing; binary payloads are msgpack-
 Server pushes (e.g. `mail update.state`) use the same frame without a request.
 
 > **Shared-socket room rule:** the helper's MAIN-world hub proxies the game's **own** WebSocket; it does not open a separate socket. `join-room` is idempotent and safe to re-assert, but `leave-room` on a namespace the game is using evicts the shared socket while the game still believes it is joined — the game then gets `not-joined` on its next command. Force-leave is only safe for rooms the helper owns (`mail`, `stash`, `specialists`). See §5.1.
+
+### 1.1 `network-map:maintenance` push (force maintenance)
+
+```text
+42["network-map",{"event":{"name":"network-map","action":"maintenance"},"data":{...}}]
+```
+
+- This is a server push without a `requestId`; the helper only needs its arrival time, not the `data` payload.
+- `GameSocketHub` records the push timestamp. When a `sai file.search-valuable` response completes at or after that timestamp, the response is annotated with `maintenanceStarted: true`; `ChromeTabValuableActionAdapter` forwards it as `ValuableSearchResult.maintenanceStarted`.
+- `MaintenanceForceService` stops the current server immediately on that flag. Without a push it falls back to a throttled `network.map` refresh (every 10 attempts by default, immediately on `access-denied`) and performs one final refresh after the batch.
 
 ---
 

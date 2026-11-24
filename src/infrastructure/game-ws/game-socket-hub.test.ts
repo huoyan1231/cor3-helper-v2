@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { gameError, interpretJobCommandResponse, parseGameFrame, collectDecisionObjects, collectExpeditionObjects, isMinigameSocketUrl, looksLikeExpeditionData, looksLikeSpecialistState, parseOutgoingMarketRequest, pickActiveSocket } from './game-socket-hub.js';
+import { gameError, interpretJobCommandResponse, parseGameFrame, collectDecisionObjects, collectExpeditionObjects, isMinigameSocketUrl, looksLikeExpeditionData, looksLikeSpecialistState, parseOutgoingMarketRequest, pickActiveSocket, withMaintenanceStartedFlag } from './game-socket-hub.js';
 
 describe('isMinigameSocketUrl', () => {
     it('excludes minigame sockets from active selection', () => {
@@ -120,6 +120,17 @@ describe('parseOutgoingMarketRequest', () => {
         ]))).toBeNull();
         expect(parseOutgoingMarketRequest('42not-json')).toBeNull();
         expect(parseOutgoingMarketRequest('40{"token":"x"}')).toBeNull();
+    });
+});
+
+describe('withMaintenanceStartedFlag', () => {
+    it('adds the flag to object responses without dropping existing fields', () => {
+        expect(withMaintenanceStartedFlag({ found: [] })).toEqual({ found: [], maintenanceStarted: true });
+    });
+
+    it('wraps empty or non-object responses', () => {
+        expect(withMaintenanceStartedFlag(null)).toEqual({ maintenanceStarted: true });
+        expect(withMaintenanceStartedFlag('ok')).toEqual({ maintenanceStarted: true });
     });
 });
 

@@ -49,21 +49,19 @@ function snapshot(servers: readonly NetworkServer[]): NetworkSnapshot {
 }
 
 describe('MaintenanceForceService', () => {
-    it('searches a listed upcoming server until its snapshot shows maintenance', async () => {
-        const base = snapshot([listedServer(1)]);
-        const active = snapshot([
-            listedServer(1, { maintenance: { active: true, endsAt: null, timeUntil: null } }),
-        ]);
-        let snap = base;
+    it('stops as soon as the search response carries the maintenance push', async () => {
+        const snap = snapshot([listedServer(1)]);
+        let mapGets = 0;
         const searches: string[] = [];
         const progress: string[] = [];
         const service = new MaintenanceForceService({
-            snapshots: { get: async () => ({ ok: true, value: snap }) },
+            snapshots: { get: async () => { mapGets += 1; return { ok: true, value: snap }; } },
             servers: {
                 searchFiles: async (id) => {
                     searches.push(id);
-                    if (searches.length === 2) snap = active;
-                    return { ok: true, value: { found: [] } };
+                    return searches.length === 2
+                        ? { ok: true, value: { found: [], maintenanceStarted: true } }
+                        : { ok: true, value: { found: [] } };
                 },
             },
         });
@@ -76,9 +74,38 @@ describe('MaintenanceForceService', () => {
             expect(result.value.stopped).toBe(false);
         }
         expect(searches).toEqual(['server-1', 'server-1']);
+        // Initial target planning + one final batch refresh; no per-attempt map.
+        expect(mapGets).toBe(2);
         expect(progress).toContain('prepare');
         expect(progress).toContain('searching');
         expect(progress).toContain('done');
+    });
+
+    it('falls back to a bounded map check when no maintenance push arrives', async () => {
+        const base = snapshot([listedServer(1)]);
+        const active = snapshot([
+            listedServer(1, { maintenance: { active: true, endsAt: null, timeUntil: null } }),
+        ]);
+        let snap = base;
+        let mapGets = 0;
+        let searches = 0;
+        const service = new MaintenanceForceService({
+            snapshots: { get: async () => { mapGets += 1; return { ok: true, value: snap }; } },
+            servers: {
+                searchFiles: async () => {
+                    searches += 1;
+                    if (searches === 2) snap = active;
+                    return { ok: true, value: { found: [] } };
+                },
+            },
+        });
+
+        const result = await service.force({ mapCheckEvery: 2, sleep: async () => {} });
+
+        expect(result.ok).toBe(true);
+        if (result.ok) expect(result.value.forced).toEqual([MAINTENANCE_ORDER[0]!.server]);
+        expect(searches).toBe(2);
+        expect(mapGets).toBe(3);
     });
 
     it('stops after maxAttempts and reports the failure', async () => {

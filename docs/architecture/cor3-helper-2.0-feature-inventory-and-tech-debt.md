@@ -5,8 +5,8 @@
 - **Method:** static source review of popup, content scripts, MAIN-world hooks, background scheduler, bridge contracts, tests, build/release config, and architecture docs
 - **Status legend for v1 → v2:** `Implemented` = equivalent user capability exists; `Partial` = core exists but visible scope/behavior differs; `Missing` = no counterpart found; `Unknown` = cannot confirm without runtime QA
 - **Caveat:** this is not a runtime parity sign-off. The 2.0 release line is complete; the displayed version is now the plain `<version>` (no `-salta` suffix, no local build counter), while release tags and artifact names still use `<version>-salta`. Historical sections retain their original development labels.
-- **Last verified:** 2026-11-24 against `2.5.6` (Part 47 records the v2.3.x drone-tab work; Part 49 records the v2.4.0 inventory bulk-sell addition; Part 50 records the tracker tab-switch fix; Part 51 records the per-item quantity modal; Part 52 records the mission-surplus sale; Part 53 records the full-test bug-fix pass; Part 54 records the versionCode-based update detection restore; Parts 55-62 record the fork's maintenance, config, cache-loading and UI fixes; older Parts keep their original version labels)
-- **Current verification:** `npm run typecheck`, `npm run lint`, `npm test` (147 files / 1155 tests) and `npm run build` all pass.
+- **Last verified:** 2026-11-24 against `2.5.6` (Part 47 records the v2.3.x drone-tab work; Part 49 records the v2.4.0 inventory bulk-sell addition; Part 50 records the tracker tab-switch fix; Part 51 records the per-item quantity modal; Part 52 records the mission-surplus sale; Part 53 records the full-test bug-fix pass; Part 54 records the versionCode-based update detection restore; Parts 55-62 record the fork's maintenance, config, cache-loading and UI fixes; Parts 74-76 cover the ordered force-maintenance catalog, run-state liveness and event-driven speedup; older Parts keep their original version labels)
+- **Current verification:** `npm run typecheck`, `npm run lint`, `npm test` (147 files / 1159 tests) and `npm run build` all pass.
 
 ## Current completion snapshot (`2.5.6`)
 
@@ -1439,3 +1439,12 @@ A full verification run (typecheck, Vitest, oxlint, build) plus a review of the 
 - The force-maintenance confirmation could become permanently unclickable: `ValuableSellerCard` derives `running` from `runId !== null`, but `useValuable` only adopted `valuableReport.active` when it was non-null. When a background run finished with `active: null`, or `valuableProgress()` returned no record, the local `runId` was never cleared, so the action button stayed disabled and the confirm dialog could not be opened.
 - `resolveReportRunState()` now maps a null active run to a cleared run state and returns `null` while a local operation is starting, so the optimistic local `runId` is never clobbered by a 5-second report poll. `pollValuableProgress()` also clears the run state when the progress record disappears and refreshes both the report and maintenance candidates.
 - Verification: typecheck, oxlint, Vitest (147 files / 1155 tests) and production build pass.
+
+---
+
+# Part 76 — Event-driven force maintenance speedup (2.5.6)
+
+- v2 called `NetworkSnapshotService.get(true)` after every `sai file.search-valuable` attempt, which fetches the full `network.map` every time. v1 instead listened for `COR3_WS_MAINTENANCE_STARTED` and only queried the map on `access-denied`; this made v2 force maintenance substantially slower than v1.
+- `GameSocketHub` now records the arrival of a `network-map:maintenance` push and marks any `file.search-valuable` response completed at or after that timestamp with `maintenanceStarted: true`. The flag travels through `ChromeTabValuableActionAdapter` as `ValuableSearchResult.maintenanceStarted`, and `MaintenanceForceService.force()` stops the current server as soon as it appears.
+- Without a push, the service still checks the map as a bounded fallback: immediately on `access-denied`, otherwise every `mapCheckEvery` attempts (default 10) and on the last allowed attempt, plus one final refresh for the batch. The 50-attempt cap, cancellation, catalog order and failure-continue semantics are unchanged.
+- Verification: typecheck, oxlint, Vitest (147 files / 1159 tests) and production build pass.
