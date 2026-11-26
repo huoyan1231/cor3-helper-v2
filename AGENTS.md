@@ -107,6 +107,13 @@ Upstream `v2` merge (2026-11-22):
 - Mercenary decisions support both surfaces: fork flags (`mercGetRidOfVeterans`, `mercInsureVeterans`) and upstream decision mode/score weights (`mercDecisionMode`, `mercDecisionScoreLoot`, `mercDecisionScoreRisk`). `ExpeditionCycle.autoRespond()` passes them together; selection data carries both `insurance` and `insuranceCost`.
 - Upstream auto-job completion barriers, job-state store/reconciler/recorder and market-completed-jobs store are adopted. Background composition registers both the fork toolbar opener and upstream update lifecycle; `AppShell` still receives `ping` / `hasEndpoint` from `SidePanelApp`.
 
+Upstream `v2` merge (2026-11-26, v2.0.9/v2.0.10):
+
+- Fork identity stays authoritative: `version: 2.5.7`, `releaseLabel: huoyan1231`, `cor3Fork.versionCode` and `bump.mjs`. Upstream `build` / `bump:build` are not adopted because `src/tools/release/bump.ts` was removed from this fork.
+- The 10 conflicts were resolved as a union. Fork keeps direct `update.json` + `versionCode` checking, maintenance force, warm workspace cache, minigame lock, v1 already-claimable ordering, inventory filter options, drone-build view, auto page refresh and `enableAutoExpedition()`'s optional interval. Upstream adds `dumpLoadout`, market-selection/skip-reason status, target-access preflight, route access recovery, HACK error recovery, requirement modes (`none`/`known`/`unknown`), monotonic `useJobs` snapshot guards, and every-run claimable barrier release restricted to `unconfirmed` records.
+- The bounded `+1` decrypt loadout retry remains only as a fallback after an insufficient post-loadout analysis; the primary plan passes the observed power with requirement mode `unknown`. `useJobs` keeps warm bootstrap initialization and adds the upstream sequence/timestamp guards.
+- The upstream v2.0.9/v2.0.10 feature-inventory Parts 71/72 are recorded as Parts 78/79 in the fork to avoid the original numbering collision with the fork's Parts 71/72.
+
 Auto Jobs report freshness:
 
 - `AutoFinish.last` is persisted and restored on background startup. It must not override a newer `AutoJobsSnapshot`: `selectShownJobReport()` prefers a live Auto Finish run, then a last report only when its timestamp is at least as new as `snapshotAt`, otherwise it falls back to the current snapshot. Do not copy the persisted `last` report into the manual `jobReport` on load.

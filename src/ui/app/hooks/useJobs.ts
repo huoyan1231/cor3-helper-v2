@@ -77,6 +77,8 @@ export function useJobs(portal: PopupPortal, deps: JobsDeps, initialSnapshot?: A
     const [jobHistory, setJobHistory] = useState<readonly JobHistoryEntry[]>([]);
     const [selectedJobs, setSelectedJobs] = useState<ReadonlySet<string>>(warm?.selectedJobs ?? new Set());
     const jobsSelectionInitialized = useRef(warm !== null);
+    const snapshotSequence = useRef(0);
+    const lastSnapshotAt = useRef(initialSnapshot?.at ?? 0);
     const [marketReport, setMarketReport] = useState<readonly AutoJobsMarket[] | null>(warm?.marketReport ?? null);
     const [jobStatus, setJobStatus] = useState(warm?.jobStatus ?? 'No market synced yet');
     const [jobBusy, setJobBusy] = useState(false);
@@ -133,13 +135,20 @@ export function useJobs(portal: PopupPortal, deps: JobsDeps, initialSnapshot?: A
 
     const loadAutoJobsSnapshot = useCallback(async () => {
         if (jobRunId !== null) return;
+        const sequence = ++snapshotSequence.current;
         const response = await portal.autoJobsSnapshot();
+        // A newer request (poll or event-driven reload) already started; do not
+        // let this slower response overwrite it.
+        if (sequence !== snapshotSequence.current) return;
         if (!response.ok) {
             setJobStatus(tt('Auto Jobs snapshot failed'));
             return;
         }
         if (!response.value) return;
         const snapshot = response.value;
+        // Snapshots are monotonic; never apply an older one over a newer one.
+        if (snapshot.at < lastSnapshotAt.current) return;
+        lastSnapshotAt.current = snapshot.at;
         setJobs(snapshot.jobs);
         setJobsByMarket(groupJobsByMarket(snapshot.jobs));
         setAutoJobsMarkets(snapshot.markets);

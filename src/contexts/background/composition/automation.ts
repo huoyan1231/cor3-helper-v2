@@ -112,6 +112,7 @@ export function createAutomationRuntime(core: CoreRuntime, game: GameRuntime): A
         snapshots: game.snapshots,
         loadout: game.loadout,
         locks,
+        access: game.serverAccess,
         logger,
         now: () => clock.now(),
     });
@@ -222,11 +223,16 @@ export function createAutomationRuntime(core: CoreRuntime, game: GameRuntime): A
                 target,
                 requiredPower,
                 strategy: 'best',
+                // A failed analysis tells us the current power, not the real
+                // requirement. Select the strongest attainable plan instead of
+                // keeping hardware that merely satisfies `requiredPower`.
+                requirement: 'unknown',
             });
             if (result.ok) {
                 logger.info('auto-job', 'Decrypt loadout ready', {
                     target,
                     requiredPower,
+                    requirementSource: requiredPower === undefined ? 'unknown' : 'derived-from-current',
                     power: result.value.power,
                     feasible: result.value.feasible,
                     switchCost: result.value.switchCost,
