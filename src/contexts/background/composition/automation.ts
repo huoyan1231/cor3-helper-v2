@@ -74,6 +74,7 @@ export function createAutomationRuntime(core: CoreRuntime, game: GameRuntime): A
     let queueRef: JobQueueCoordinator | null = null;
     let autoJobsRef: AutoJobsCoordinator | null = null;
     let autoJobsRunnerRef: AutoJobRunner | null = null;
+    let expeditionRef: AutoExpeditionCoordinator | null = null;
     const resetAtForMarket = (marketKey: string): string | null => {
         const market = autoJobsRef?.snapshotView()?.markets.find((entry) => entry.marketKey === marketKey);
         return market?.ok && market.stale !== true && typeof market.resetAt === 'string' && market.resetAt.length > 0
@@ -129,6 +130,9 @@ export function createAutomationRuntime(core: CoreRuntime, game: GameRuntime): A
         reconciler: jobStateReconciler,
         completions: stores.marketCompletedJobs,
         onCompletionsChanged: (state) => autoFinishRef?.applyCompletedByMarket(state),
+        onCreditsUpdated: (marketId, credits) => {
+            void expeditionRef?.recheckCredits(marketId, credits);
+        },
         now: () => clock.now(),
         humanDelay,
     });
@@ -196,6 +200,7 @@ export function createAutomationRuntime(core: CoreRuntime, game: GameRuntime): A
         routing,
         runAutoMail: () => mail.run(),
     });
+    expeditionRef = expedition;
 
     const dailyCache = new DailyOpsCacheService({
         adapter: game.dailyOpsAdapter,

@@ -1,11 +1,12 @@
 import type { SettingsV1 } from '../../../contracts/storage.js';
 import { expeditionMysteryEggSchema } from '../../../contracts/expedition.js';
 import type { ActiveExpedition } from '../../../domains/expeditions/model.js';
+import { jobMarketByKey } from '../../../domains/jobs/markets.js';
 import type { AutomationState } from '../../../infrastructure/storage/automation-state-store.js';
 import type { Result } from '../../../kernel/result.js';
 import { AUTO_EXPEDITION_ALARM, AUTO_EXPEDITION_RETRY_ALARM } from './alarm-ids.js';
 import { ExpeditionCycle } from './expedition-cycle.js';
-import { MYSTERY_EGG_STATE_KEY } from './expedition-types.js';
+import { AUTO_EXPEDITION_CREDIT_WAIT_REASON, MYSTERY_EGG_STATE_KEY } from './expedition-types.js';
 import type { AutoExpeditionDeps, AutoExpeditionLast, ExpeditionDecisionState, ExpeditionPreparation, ExpeditionRunState } from './expedition-types.js';
 
 export type { AutoExpeditionLast, ExpeditionPreparation } from './expedition-types.js';
@@ -152,6 +153,41 @@ export class AutoExpeditionCoordinator {
 
     async run(): Promise<void> {
         await this.cycle.run();
+    }
+
+    /**
+     * The Overview refreshes its CR through `market.options`. Feed that exact
+     * value back into Auto Expedition so a credits wait ends as soon as the
+     * balance allows a launch, instead of sleeping until the 3-hour fallback.
+     */
+    async recheckCredits(marketId: string, credits: number): Promise<void> {
+        const home = jobMarketByKey('home');
+        if (!home || marketId !== home.marketId) return;
+        const current = await this.deps.settings.get();
+        if (!current.autoExpeditionEnabled || current.helperMode) return;
+        const stored = await this.deps.state.get('auto-expedition');
+        if (stored.phase !== 'waiting' || stored.payload.waitReason !== AUTO_EXPEDITION_CREDIT_WAIT_REASON) return;
+        if (current.mercMinCreditsEnabled && credits < current.mercMinCredits) {
+            this.deps.logger.debug('auto-expedition', 'Overview credits refreshed but still below threshold', {
+                credits,
+                threshold: current.mercMinCredits,
+            });
+            return;
+        }
+        this.deps.logger.info('auto-expedition', 'Overview credits refreshed; rechecking Auto Expedition', {
+            credits,
+            threshold: current.mercMinCredits,
+            enabled: current.mercMinCreditsEnabled,
+        });
+        await this.deps.scheduler.clear(AUTO_EXPEDITION_RETRY_ALARM);
+        await this.deps.state.set('auto-expedition', {
+            phase: 'idle',
+            runId: null,
+            nextActionAt: null,
+            lastError: null,
+            payload: { ...stored.payload, waitReason: null },
+        });
+        await this.cycle.run(credits);
     }
 
     async respondDecision(expeditionId: string, messageId: string, optionId: string): Promise<Result<void, { readonly code: string; readonly message: string }>> {

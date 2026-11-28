@@ -37,7 +37,7 @@ export class ExpeditionCycle {
         private readonly state: ExpeditionRunState,
     ) {}
 
-    async run(): Promise<void> {
+    async run(creditOverride?: number | null): Promise<void> {
         if (this.state.running) return;
         this.state.running = true;
         const owner = `auto-expedition:${crypto.randomUUID()}`;
@@ -50,7 +50,7 @@ export class ExpeditionCycle {
         try {
             const current = await this.deps.settings.get();
             if (!current.autoExpeditionEnabled || current.helperMode) return;
-            let cycleCredits: number | null = null;
+            let cycleCredits: number | null = creditOverride ?? null;
             const storedExpedition = await this.deps.state.get('auto-expedition');
             const waitReason = storedExpedition.payload.waitReason;
             const isSlowWait = waitReason === AUTO_EXPEDITION_CREDIT_WAIT_REASON || waitReason === AUTO_EXPEDITION_ACTIVE_WAIT_REASON;
@@ -118,7 +118,7 @@ export class ExpeditionCycle {
             // stuck "already collected" payout or a long-running expedition can
             // keep Auto Expedition enabled well below the configured threshold.
             if (current.mercMinCreditsEnabled) {
-                const credits = await this.readHomeCredits(home.marketId);
+                const credits = creditOverride ?? await this.readHomeCredits(home.marketId);
                 if (credits !== null) {
                     cycleCredits = credits;
                     this.deps.logger.info('auto-expedition', 'Credits checked at cycle start', {
@@ -347,7 +347,7 @@ export class ExpeditionCycle {
             }
 
             if (current.mercMinCreditsEnabled) {
-                const credits = await this.readHomeCredits(home.marketId);
+                const credits = creditOverride ?? await this.readHomeCredits(home.marketId);
                 if (credits === null) {
                     this.state.last = {
                         at: this.deps.clock.now(),

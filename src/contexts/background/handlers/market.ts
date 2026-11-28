@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import type { MarketView } from '../../../domains/markets/model.js';
 import { ok } from '../../../kernel/result.js';
 import type { CoreRuntime } from '../composition/core.js';
 import type { AutomationRuntime } from '../composition/automation.js';
@@ -15,12 +14,7 @@ export function registerMarketHandlers(server: CoreRuntime['server'], deps: Mark
     server.register('market.options', z.object({ marketId: z.string().min(1) }).strict(), async ({ marketId }) => {
         const result = await automation.markets.fetchOptionsView(marketId);
         if (!result.ok) return result;
-        const cached = await cache.get(marketId);
-        const view: MarketView = cached
-            ? { ...cached.view, ...result.value }
-            : { ...result.value, lots: [], jobs: [], recentJobs: [], nextJobsResetAt: null };
-        await cache.set(marketId, view);
-        core.events.publish('market.reputation.updated', { marketId, credits: result.value.credits, reputation: result.value.reputation });
+        await automation.markets.cacheOptionsView(marketId, result.value);
         return ok(result.value);
     });
     server.register('market.cached', z.object({ marketId: z.string().min(1) }).strict(), async ({ marketId }) => {

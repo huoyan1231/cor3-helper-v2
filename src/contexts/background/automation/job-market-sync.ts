@@ -49,6 +49,8 @@ export interface JobMarketSyncDeps {
     readonly reconciler?: JobStateReconcilerPort;
     readonly completions?: Pick<MarketCompletionStorePort, 'pruneMarketBeforeReset'>;
     readonly onCompletionsChanged?: (state: MarketCompletedJobsState) => void;
+    /** Notified after a market view (and therefore its credits) is persisted. */
+    readonly onCreditsUpdated?: (marketId: string, credits: number) => void;
     readonly now?: () => number;
     readonly humanDelay?: (minMs?: number, maxMs?: number) => Promise<void>;
 }
@@ -274,10 +276,7 @@ export class JobMarketSync {
             });
         }
         const view = mapMarketView(synced.value.market);
-        if (view) {
-            await this.deps.marketCache.set(market.marketId, view);
-            this.deps.events.publish('market.reputation.updated', { marketId: market.marketId, credits: view.credits, reputation: view.reputation });
-        }
+        if (view) await this.cacheOptionsView(market.marketId, view);
         this.deps.logger.info('auto-jobs', phase === 'retry' ? 'Market retry complete' : 'Market refresh complete', {
             market: market.key,
             label: market.label,
@@ -311,6 +310,28 @@ export class JobMarketSync {
             snapshot: synced.value.snapshot,
             ...(synced.value.finalEndpoint ? { finalEndpoint: synced.value.finalEndpoint } : {}),
         };
+    }
+
+    /**
+     * Persist a market view once and fan out both the UI event and the
+     * in-process credit listener. Every CR refresh path goes through here so
+     * the Overview value and Auto Expedition always agree on the same number.
+     */
+    async cacheOptionsView(
+        marketId: string,
+        view: Pick<MarketView, 'marketId' | 'marketName' | 'credits' | 'reputation'>,
+    ): Promise<void> {
+        const cached = await this.deps.marketCache.get(marketId);
+        const full: MarketView = cached
+            ? { ...cached.view, ...view }
+            : { ...view, lots: [], jobs: [], recentJobs: [], nextJobsResetAt: null };
+        await this.deps.marketCache.set(marketId, full);
+        this.deps.events.publish('market.reputation.updated', {
+            marketId,
+            credits: view.credits,
+            reputation: view.reputation,
+        });
+        this.deps.onCreditsUpdated?.(marketId, view.credits);
     }
 
     async fetchOptionsView(marketId: string): Promise<{ ok: true; value: Omit<MarketView, 'lots' | 'jobs' | 'recentJobs' | 'nextJobsResetAt'> } | { ok: false; error: { code: string; message: string } }> {
@@ -352,12 +373,7 @@ export class JobMarketSync {
     async cacheSnapshotView(marketId: string, snapshot: RawMarketSnapshot): Promise<void> {
         const view = mapMarketView(snapshot);
         if (!view) return;
-        await this.deps.marketCache.set(marketId, view);
-        this.deps.events.publish('market.reputation.updated', {
-            marketId,
-            credits: view.credits,
-            reputation: view.reputation,
-        });
+        await this.cacheOptionsView(marketId, view);
     }
 
     async refreshCachedOptions(marketId: string): Promise<void> {
@@ -370,21 +386,6 @@ export class JobMarketSync {
             });
             return;
         }
-        const cached = await this.deps.marketCache.get(marketId);
-        const view: MarketView = cached
-            ? { ...cached.view, ...result.value }
-            : {
-                ...result.value,
-                lots: [],
-                jobs: [],
-                recentJobs: [],
-                nextJobsResetAt: null,
-            };
-        await this.deps.marketCache.set(marketId, view);
-        this.deps.events.publish('market.reputation.updated', {
-            marketId,
-            credits: result.value.credits,
-            reputation: result.value.reputation,
-        });
+        await this.cacheOptionsView(marketId, result.value);
     }
 }

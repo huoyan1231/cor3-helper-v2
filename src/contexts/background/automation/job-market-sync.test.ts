@@ -570,3 +570,68 @@ describe('JobMarketSync reconciliation health propagation', () => {
         expect(warn).not.toHaveBeenCalled();
     });
 });
+
+describe('JobMarketSync credit refresh listener', () => {
+    function creditHarness(onCreditsUpdated: (marketId: string, credits: number) => void) {
+        const market = JOB_MARKETS[0]!;
+        const marketPayload = {
+            options: { market: { id: market.marketId, marketName: 'CORE' }, userCredits: 42_000 },
+            lots: [],
+            jobs: [],
+        };
+        const cache = new MarketCacheStore(new MemoryStorageArea());
+        const sync = new JobMarketSync({
+            snapshots: { get: async () => ok(snapshot()) },
+            marketSync: {
+                sync: async () => ok({
+                    snapshot: snapshot(),
+                    route: [],
+                    direct: true,
+                    market: marketPayload,
+                }),
+            } as unknown as MarketSyncService,
+            marketCache: cache,
+            routing: { setEndpointIfNeeded: async () => ok(undefined) },
+            tabs: { findCor3Tab: async () => null, send: async () => null },
+            events: { publish: () => undefined },
+            logger: { debug: () => undefined, info: () => undefined, warn: () => undefined, error: () => undefined },
+            onCreditsUpdated,
+            now: () => 1,
+            humanDelay: async () => undefined,
+        });
+        return { sync, cache, market, marketPayload };
+    }
+
+    it('notifies after a market sync persists a new CR value', async () => {
+        const onCreditsUpdated = vi.fn();
+        const { sync, market } = creditHarness(onCreditsUpdated);
+
+        await sync.syncAll('owner', 'auto-jobs', [market]);
+
+        expect(onCreditsUpdated).toHaveBeenCalledWith(market.marketId, 42_000);
+    });
+
+    it('notifies when market.options caches a refreshed view', async () => {
+        const onCreditsUpdated = vi.fn();
+        const { sync, cache, market } = creditHarness(onCreditsUpdated);
+
+        await sync.cacheOptionsView(market.marketId, {
+            marketId: market.marketId,
+            marketName: 'CORE',
+            credits: 55_000,
+            reputation: null,
+        });
+
+        expect(onCreditsUpdated).toHaveBeenCalledWith(market.marketId, 55_000);
+        expect((await cache.get(market.marketId))?.view.credits).toBe(55_000);
+    });
+
+    it('notifies for game-pushed market snapshots', async () => {
+        const onCreditsUpdated = vi.fn();
+        const { sync, market, marketPayload } = creditHarness(onCreditsUpdated);
+
+        await sync.cacheSnapshotView(market.marketId, marketPayload as never);
+
+        expect(onCreditsUpdated).toHaveBeenCalledWith(market.marketId, 42_000);
+    });
+});

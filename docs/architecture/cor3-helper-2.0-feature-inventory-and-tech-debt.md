@@ -5,15 +5,15 @@
 - **Method:** static source review of popup, content scripts, MAIN-world hooks, background scheduler, bridge contracts, tests, build/release config, and architecture docs
 - **Status legend for v1 → v2:** `Implemented` = equivalent user capability exists; `Partial` = core exists but visible scope/behavior differs; `Missing` = no counterpart found; `Unknown` = cannot confirm without runtime QA
 - **Caveat:** this is not a runtime parity sign-off. The 2.0 release line is complete; the displayed version is now the plain `<version>` (no `-salta` suffix, no local build counter), while release tags and artifact names still use `<version>-salta`. Historical sections retain their original development labels.
-- **Last verified:** 2026-11-28 against `2.5.10` after merging upstream/v2 through v2.0.13 (Part 96 records the unified maintenance panel; Parts 97-98 record the 3-hour credit wait and the auto-expedition unblock fixes) (Part 95 records the second fork merge) (Part 47 records the v2.3.x drone-tab work; Part 49 records the v2.4.0 inventory bulk-sell addition; Part 50 records the tracker tab-switch fix; Part 51 records the per-item quantity modal; Part 52 records the mission-surplus sale; Part 53 records the full-test bug-fix pass; Part 54 records the versionCode-based update detection restore; Parts 55-62 record the fork's maintenance, config, cache-loading and UI fixes; Parts 74-77 cover the ordered force-maintenance catalog, run-state liveness, event-driven speedup and the retired veterans dropdown option; Parts 78-79 record the merged upstream v2.0.9/v2.0.10 loadout, preflight and requirement-mode work, renumbered to avoid the original Part 71/72 collision with fork history; Parts 80-94 append the merged upstream v2.0.10-v2.0.13 history (valuable maintenance, draggable panels, expedition easter egg, toolbar window menu, Founders Portal link, unreachable job target, retained debug logs, stuck minigame recovery and credit alignment), renumbered from the original upstream Parts 73-87 to avoid colliding with fork history; older Parts keep their original version labels)
-- **Current verification:** `npm run typecheck`, `npm run lint`, `npm test` (154 files / 1259 tests) and `npm run build` all pass.
+- **Last verified:** 2026-11-28 against `2.5.10` after merging upstream/v2 through v2.0.13 (Part 96 records the unified maintenance panel; Parts 97-98 record the 3-hour credit wait and the auto-expedition unblock fixes; Part 99 records the Overview-driven credit recheck) (Part 95 records the second fork merge) (Part 47 records the v2.3.x drone-tab work; Part 49 records the v2.4.0 inventory bulk-sell addition; Part 50 records the tracker tab-switch fix; Part 51 records the per-item quantity modal; Part 52 records the mission-surplus sale; Part 53 records the full-test bug-fix pass; Part 54 records the versionCode-based update detection restore; Parts 55-62 record the fork's maintenance, config, cache-loading and UI fixes; Parts 74-77 cover the ordered force-maintenance catalog, run-state liveness, event-driven speedup and the retired veterans dropdown option; Parts 78-79 record the merged upstream v2.0.9/v2.0.10 loadout, preflight and requirement-mode work, renumbered to avoid the original Part 71/72 collision with fork history; Parts 80-94 append the merged upstream v2.0.10-v2.0.13 history (valuable maintenance, draggable panels, expedition easter egg, toolbar window menu, Founders Portal link, unreachable job target, retained debug logs, stuck minigame recovery and credit alignment), renumbered from the original upstream Parts 73-87 to avoid colliding with fork history; older Parts keep their original version labels)
+- **Current verification:** `npm run typecheck`, `npm run lint`, `npm test` (155 files / 1268 tests) and `npm run build` all pass.
 
 ## Current completion snapshot (`2.5.10`)
 
 | Metric | Value |
 |---|---|
-| TypeScript/TSX source files | 481 (including 130 test files) |
-| Files under `src/` | 490 (vendored JavaScript is limited to `src/libs/`) |
+| TypeScript/TSX source files | 482 (including 131 test files) |
+| Files under `src/` | 491 (vendored JavaScript is limited to `src/libs/`) |
 | v1 parity rows with a status | 147 |
 | Implemented / improved | 89 |
 | Partial | 37 |
@@ -1705,3 +1705,12 @@ Root causes and fixes recorded from real user logs (`B.log`, `C.log`, `A.log`) a
 - `launchExpedition()` treats `Maximum 1 active expedition allowed` / `already active` as a 60-second `waitReason: 'active'` retry instead of disabling Auto Expedition. Main-cycle ticks skip while that wait is pending, the same way they skip for 3-hour credit waits.
 - `selectMercenary()` accepts `maxAffordableCost = credits - mercMinCredits` and prefers cheaper candidates that keep the configured post-payment credit floor intact. If no candidate fits, Auto Expedition waits three hours instead of disabling. This avoids the case where an expensive candidate with a better score triggers a long wait even though an affordable one is available.
 - Verification: typecheck, oxlint, Vitest (154 files / 1259 tests) and production build pass.
+
+---
+
+# Part 99 — Overview credits drive Auto Expedition rechecks (2.5.10)
+
+- The Overview CR refresh (`market.options`), Auto Jobs market sync and game-pushed snapshots now all persist through `JobMarketSync.cacheOptionsView()`. After the cache write it publishes `market.reputation.updated` and calls `onCreditsUpdated(marketId, credits)`; background composition wires that callback to `AutoExpeditionCoordinator.recheckCredits()` via a forward reference, with no global event bus.
+- `recheckCredits()` acts only on the home market, only while Auto Expedition is enabled and the persisted `waitReason` is `credits`. If the refreshed balance satisfies `mercMinCredits`, it clears `AUTO_EXPEDITION_RETRY_ALARM`, resets the waiting record to `idle` and reruns the cycle immediately with that exact value. A still-low balance leaves the 3-hour wait intact; `active` waits, preparation and running cycles are never interrupted.
+- `ExpeditionCycle.run(creditOverride?)` uses the passed CR for both threshold checks and `maxAffordableCost`, so the launch decision uses the same balance shown in the Overview instead of a potentially stale cache read.
+- Verification: typecheck, oxlint, Vitest (155 files / 1268 tests) and production build pass.
