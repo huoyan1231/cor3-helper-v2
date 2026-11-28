@@ -4,7 +4,6 @@ import type {
     MaintenanceForceProgress,
     MaintenanceTarget,
     PopupPortal,
-    ValuableMaintenanceServer,
     ValuableProgress,
     ValuableReport,
     ValuableRunState,
@@ -33,21 +32,15 @@ export interface ValuableState {
     readonly valuableCanceling: boolean;
     readonly valuableProgress: ValuableProgress | MaintenanceForceProgress | null;
     readonly maintenanceTargets: readonly MaintenanceTarget[];
-    readonly maintenanceServers: readonly ValuableMaintenanceServer[];
     readonly maintenanceLoading: boolean;
-    readonly selectedMaintenanceIds: ReadonlySet<string>;
     readonly loadValuableReport: () => Promise<void>;
     readonly loadMaintenanceTargets: () => Promise<void>;
-    readonly loadValuableMaintenance: (force?: boolean) => Promise<void>;
     readonly startValuableOperation: (
         operation: ValuableRunState['operation'],
         optionsOrServerIds?: ValuableSellOptions | readonly string[],
     ) => Promise<void>;
-    readonly startForceMaintenance: (serverIds: readonly string[]) => Promise<void>;
     readonly cancelValuableOperation: () => Promise<void>;
     readonly toggleForceMaintenance: (enabled: boolean) => Promise<void>;
-    readonly toggleMaintenanceServer: (serverId: string) => void;
-    readonly selectAllUpcoming: () => void;
 }
 
 export function useValuable(portal: PopupPortal, deps: ValuableDeps): ValuableState {
@@ -59,11 +52,8 @@ export function useValuable(portal: PopupPortal, deps: ValuableDeps): ValuableSt
     const [valuableCanceling, setValuableCanceling] = useState(false);
     const [valuableProgress, setValuableProgress] = useState<ValuableProgress | MaintenanceForceProgress | null>(null);
     const [maintenanceTargets, setMaintenanceTargets] = useState<readonly MaintenanceTarget[]>([]);
-    const [maintenanceServers, setMaintenanceServers] = useState<readonly ValuableMaintenanceServer[]>([]);
     const [maintenanceLoading, setMaintenanceLoading] = useState(false);
-    const [selectedMaintenanceIds, setSelectedMaintenanceIds] = useState<ReadonlySet<string>>(new Set());
     const valuableStartLock = useRef(false);
-    const maintenanceRequestSeq = useRef(0);
 
     const loadValuableReport = useCallback(async () => {
         const response = await portal.valuableReport();
@@ -94,30 +84,13 @@ export function useValuable(portal: PopupPortal, deps: ValuableDeps): ValuableSt
     }, [portal, reportDetail, tt]);
 
     const loadMaintenanceTargets = useCallback(async () => {
-        const response = await portal.maintenanceTargets();
-        if (response.ok) setMaintenanceTargets(response.value);
-    }, [portal]);
-
-    const loadValuableMaintenance = useCallback(async (force = false) => {
-        const sequence = ++maintenanceRequestSeq.current;
         setMaintenanceLoading(true);
         try {
-            const response = await portal.valuableMaintenance(force);
-            if (sequence !== maintenanceRequestSeq.current) return;
-            if (!response.ok) {
-                reportDetail(response.error.message);
-                return;
-            }
-            setMaintenanceServers(response.value);
-            const selectable = new Set(response.value
-                .filter((server) => !server.active && Boolean(server.timeUntil))
-                .map((server) => server.id));
-            setSelectedMaintenanceIds((current) => {
-                const next = new Set([...current].filter((id) => selectable.has(id)));
-                return next.size === current.size && [...next].every((id) => current.has(id)) ? current : next;
-            });
+            const response = await portal.maintenanceTargets();
+            if (response.ok) setMaintenanceTargets(response.value);
+            else reportDetail(response.error.message);
         } finally {
-            if (sequence === maintenanceRequestSeq.current) setMaintenanceLoading(false);
+            setMaintenanceLoading(false);
         }
     }, [portal, reportDetail]);
 
@@ -127,8 +100,7 @@ export function useValuable(portal: PopupPortal, deps: ValuableDeps): ValuableSt
 
     useEffect(() => {
         void loadMaintenanceTargets();
-        if (activePage === 'automation') void loadValuableMaintenance();
-    }, [activePage, loadMaintenanceTargets, loadValuableMaintenance]);
+    }, [loadMaintenanceTargets]);
 
     const startValuableOperation = useCallback(async (
         operation: ValuableRunState['operation'],
@@ -198,20 +170,9 @@ export function useValuable(portal: PopupPortal, deps: ValuableDeps): ValuableSt
             await Promise.all([
                 loadValuableReport(),
                 loadMaintenanceTargets(),
-                loadValuableMaintenance(),
             ]);
         }
-    }, [portal, valuableRunId, loadValuableReport, loadMaintenanceTargets, loadValuableMaintenance, tt]);
-
-    const startForceMaintenance = useCallback(async (serverIds: readonly string[]) => {
-        if (serverIds.length === 0) return;
-        // Upstream's `startForceValuableMaintenance()` shares the
-        // `valuable.forceMaintenance` bridge command, whose handler is the
-        // fork's runMaintenance returning `MaintenanceForceSummary`. The strict
-        // `{ runId }` quick-start schema would reject that response, so route
-        // through the fork-compatible operation which awaits the same run.
-        await startValuableOperation('force-maintenance', serverIds);
-    }, [startValuableOperation]);
+    }, [portal, valuableRunId, loadValuableReport, loadMaintenanceTargets, tt]);
 
     const cancelValuableOperation = useCallback(async () => {
         if (valuableRunId === null || valuableCanceling) return;
@@ -238,7 +199,6 @@ export function useValuable(portal: PopupPortal, deps: ValuableDeps): ValuableSt
             await Promise.all([
                 loadValuableReport(),
                 loadMaintenanceTargets(),
-                loadValuableMaintenance(),
             ]);
             return;
         }
@@ -253,7 +213,6 @@ export function useValuable(portal: PopupPortal, deps: ValuableDeps): ValuableSt
             await Promise.all([
                 loadValuableReport(),
                 loadMaintenanceTargets(),
-                loadValuableMaintenance(finishedOperation === 'force-maintenance'),
             ]);
             if (finishedOperation === 'force-maintenance') {
                 if (response.value.status === 'error') {
@@ -265,7 +224,7 @@ export function useValuable(portal: PopupPortal, deps: ValuableDeps): ValuableSt
                 }
             }
         }
-    }, [portal, valuableRunId, valuableOperation, loadValuableReport, loadMaintenanceTargets, loadValuableMaintenance, tt]);
+    }, [portal, valuableRunId, valuableOperation, loadValuableReport, loadMaintenanceTargets, tt]);
 
     const toggleForceMaintenance = useCallback(async (enabled: boolean) => {
         const response = await portal.updateSettings({ valuableForceMaintenanceEnabled: enabled });
@@ -273,24 +232,8 @@ export function useValuable(portal: PopupPortal, deps: ValuableDeps): ValuableSt
             reportDetail(response.error.message);
             return;
         }
-        if (enabled) await loadValuableMaintenance(true);
-        else setSelectedMaintenanceIds(new Set());
-    }, [portal, reportDetail, loadValuableMaintenance]);
-
-    const toggleMaintenanceServer = useCallback((serverId: string) => {
-        setSelectedMaintenanceIds((current) => {
-            const next = new Set(current);
-            if (next.has(serverId)) next.delete(serverId);
-            else next.add(serverId);
-            return next;
-        });
-    }, []);
-
-    const selectAllUpcoming = useCallback(() => {
-        setSelectedMaintenanceIds(new Set(maintenanceServers
-            .filter((server) => !server.active && Boolean(server.timeUntil))
-            .map((server) => server.id)));
-    }, [maintenanceServers]);
+        if (enabled) await loadMaintenanceTargets();
+    }, [portal, reportDetail, loadMaintenanceTargets]);
 
     usePolling(pollValuableProgress, 1000, { enabled: valuableRunId !== null });
     usePolling(loadValuableReport, 5000, { enabled: activePage === 'automation' });
@@ -304,17 +247,11 @@ export function useValuable(portal: PopupPortal, deps: ValuableDeps): ValuableSt
         valuableCanceling,
         valuableProgress,
         maintenanceTargets,
-        maintenanceServers,
         maintenanceLoading,
-        selectedMaintenanceIds,
         loadValuableReport,
         loadMaintenanceTargets,
-        loadValuableMaintenance,
         startValuableOperation,
-        startForceMaintenance,
         cancelValuableOperation,
         toggleForceMaintenance,
-        toggleMaintenanceServer,
-        selectAllUpcoming,
     };
 }

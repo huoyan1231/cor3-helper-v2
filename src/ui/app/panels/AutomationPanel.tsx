@@ -169,19 +169,13 @@ export function AutomationPanel({
                     maintenanceTargets={valuable.maintenanceTargets}
                     now={now}
                     forceMaintenanceEnabled={settings.settings?.valuableForceMaintenanceEnabled ?? false}
-                    maintenanceServers={valuable.maintenanceServers}
                     maintenanceLoading={valuable.maintenanceLoading}
-                    selectedMaintenanceIds={valuable.selectedMaintenanceIds}
                     onSearch={() => valuable.startValuableOperation('search')}
                     onSell={(options) => valuable.startValuableOperation('sell', options)}
                     onCancel={valuable.cancelValuableOperation}
                     onToggleForceMaintenance={valuable.toggleForceMaintenance}
-                    onRefreshMaintenance={() => valuable.loadValuableMaintenance(true)}
-                    onToggleMaintenanceServer={valuable.toggleMaintenanceServer}
-                    onSelectAllUpcoming={valuable.selectAllUpcoming}
-                    onForceSelected={(ids) => ids && ids.length > 0
-                        ? valuable.startValuableOperation('maintenance', ids)
-                        : valuable.startForceMaintenance([...valuable.selectedMaintenanceIds])}
+                    onRefreshMaintenance={() => void valuable.loadMaintenanceTargets()}
+                    onForceSelected={(ids) => valuable.startValuableOperation('maintenance', ids)}
                     expanded={panelOpen['valuable-seller'] ?? false}
                     onOpenChange={(open) => settings.updatePanelOpen('valuable-seller', open)}
                     panelOpen={panelOpen}

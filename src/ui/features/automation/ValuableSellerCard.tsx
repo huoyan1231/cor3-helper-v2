@@ -2,13 +2,11 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type {
     MaintenanceForceProgress,
     MaintenanceTarget,
-    ValuableMaintenanceServer,
     ValuableProgress,
     ValuableReport,
     ValuableRunState,
     ValuableSellOptions,
 } from '../../../application/popup/portal.js';
-import { formatRemaining } from '../../format.js';
 import { InfoTip } from '../../components/InfoTip.js';
 import { AutomationCard } from '../../components/AutomationCard.js';
 import { Modal } from '../../components/Modal.js';
@@ -24,17 +22,13 @@ export interface ValuableSellerCardProps {
     readonly maintenanceTargets: readonly MaintenanceTarget[];
     readonly now: number;
     readonly forceMaintenanceEnabled: boolean;
-    readonly maintenanceServers: readonly ValuableMaintenanceServer[];
     readonly maintenanceLoading: boolean;
-    readonly selectedMaintenanceIds: ReadonlySet<string>;
     readonly onSearch: () => void | Promise<void>;
     readonly onSell: (options?: ValuableSellOptions) => void | Promise<void>;
     readonly onCancel: () => void | Promise<void>;
     readonly onToggleForceMaintenance: (enabled: boolean) => void | Promise<void>;
     readonly onRefreshMaintenance: () => void | Promise<void>;
-    readonly onToggleMaintenanceServer: (serverId: string) => void;
-    readonly onSelectAllUpcoming: () => void;
-    readonly onForceSelected: (serverIds?: readonly string[]) => void | Promise<void>;
+    readonly onForceSelected: (serverIds: readonly string[]) => void | Promise<void>;
     readonly expanded: boolean;
     readonly onOpenChange: (open: boolean) => void;
     readonly panelOpen: Readonly<Record<string, boolean>>;
@@ -99,13 +93,6 @@ function defaultStatus(report: ValuableReport | null, operation: ValuableRunStat
     return tr('No search yet. Start with Search all servers, then sell the downloaded valuables.');
 }
 
-function maintenanceStatus(server: ValuableMaintenanceServer, now: number, tr: TranslateSource): string {
-    if (server.active) {
-        return server.endsAt ? `${tr('In maintenance')} · ${formatRemaining(server.endsAt, now)}` : tr('In maintenance');
-    }
-    return server.timeUntil ? `${tr('Upcoming')} · ${formatRemaining(server.timeUntil, now)}` : tr('Upcoming');
-}
-
 export function ValuableSellerCard({
     runId,
     operation,
@@ -115,17 +102,13 @@ export function ValuableSellerCard({
     canceling,
     maintenanceTargets,
     forceMaintenanceEnabled,
-    maintenanceServers,
     maintenanceLoading,
-    selectedMaintenanceIds,
     onSearch,
     onSell,
     onForceSelected,
     onCancel,
     onToggleForceMaintenance,
     onRefreshMaintenance,
-    onToggleMaintenanceServer,
-    onSelectAllUpcoming,
     expanded,
     onOpenChange,
     panelOpen,
@@ -147,19 +130,14 @@ export function ValuableSellerCard({
         return () => clearInterval(timer);
     }, []);
 
-    const [maintenanceOpen, setMaintenanceOpen] = useState(false);
-
     const selectableIds = maintenanceTargets
         .filter((target) => !target.active && !target.endsAt)
         .map((target) => target.id);
     const selectedTargets = maintenanceTargets.filter((target) => selectedIds.includes(target.id));
     const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selectedIds.includes(id));
     const someSelected = selectedIds.length > 0 && !allSelected;
-
-    const upcoming = maintenanceServers.filter((server) => !server.active && Boolean(server.timeUntil));
-    const selectedUpcoming = upcoming.filter((server) => selectedMaintenanceIds.has(server.id));
-    const sellOptions: ValuableSellOptions | undefined = forceMaintenanceEnabled && selectedUpcoming.length > 0
-        ? { forceMaintenance: { serverIds: selectedUpcoming.map((server) => server.id) } }
+    const sellOptions: ValuableSellOptions | undefined = forceMaintenanceEnabled && selectedIds.length > 0
+        ? { forceMaintenance: { serverIds: [...selectedIds] } }
         : undefined;
 
     useEffect(() => {
@@ -174,10 +152,6 @@ export function ValuableSellerCard({
     useEffect(() => {
         if (running) setConfirmForceOpen(false);
     }, [running]);
-
-    useEffect(() => {
-        if (!forceMaintenanceEnabled) setMaintenanceOpen(false);
-    }, [forceMaintenanceEnabled]);
 
     const toggleTarget = (id: string): void => {
         setSelectedIds((current) => current.includes(id) ? current.filter((entry) => entry !== id) : [...current, id]);
@@ -195,7 +169,7 @@ export function ValuableSellerCard({
     const toggleForce = async () => {
         const next = !forceMaintenanceEnabled;
         await onToggleForceMaintenance(next);
-        if (next) setMaintenanceOpen(true);
+        if (next) updatePanelOpen('valuable-seller.maintenance', true);
     };
 
     return (
@@ -259,23 +233,51 @@ export function ValuableSellerCard({
                 onToggle={(event) => updatePanelOpen('valuable-seller.maintenance', (event.currentTarget as HTMLDetailsElement).open)}
             >
                 <summary class="v2-status-toggle">
-                    <span class="v2-status-title">{tr('Maintenance candidates')}</span>
+                    <span class="v2-status-title v2-status-title-with-tip">
+                        {tr('Server status & maintenance')}
+                        <span onClick={(event) => event.stopPropagation()}>
+                            <InfoTip text={tr('Select upcoming servers and force them into maintenance. Forcing makes them unavailable for jobs and markets.')} />
+                        </span>
+                    </span>
+                    <button
+                        type="button"
+                        class="v2-switch"
+                        role="switch"
+                        aria-checked={forceMaintenanceEnabled}
+                        aria-label={tr('Enable force maintenance')}
+                        title={forceMaintenanceEnabled ? tr('Disable force maintenance') : tr('Enable force maintenance')}
+                        disabled={running}
+                        onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            void toggleForce();
+                        }}
+                    >
+                        <span />
+                    </button>
                 </summary>
                 <div class="v2-status-body">
+                    <div class="v2-maint-actions">
+                        <button type="button" disabled={maintenanceLoading || running} onClick={() => void onRefreshMaintenance()}>
+                            {maintenanceLoading ? tr('Refreshing...') : tr('Refresh maintenance')}
+                        </button>
+                        <label class="v2-maint-select-all">
+                            <input
+                                ref={selectAllRef}
+                                type="checkbox"
+                                checked={allSelected}
+                                disabled={running || selectableIds.length === 0}
+                                onChange={toggleAll}
+                            />
+                            <span>{tr('Select all upcoming')} ({selectedIds.length}/{selectableIds.length})</span>
+                        </label>
+                    </div>
                     {maintenanceTargets.length === 0 ? (
-                        <p class="v2-muted">{tr('No listed upcoming maintenance found. Run server search first.')}</p>
+                        <p class="v2-muted">
+                            {maintenanceLoading ? tr('Loading maintenance...') : tr('No listed upcoming maintenance found. Run server search first.')}
+                        </p>
                     ) : (
                         <>
-                            <label class="v2-maint-select-all">
-                                <input
-                                    ref={selectAllRef}
-                                    type="checkbox"
-                                    checked={allSelected}
-                                    disabled={running || selectableIds.length === 0}
-                                    onChange={toggleAll}
-                                />
-                                <span>{tr('Select all upcoming')} ({selectedIds.length}/{selectableIds.length})</span>
-                            </label>
                             <div class="v2-maint-list">
                                 {maintenanceTargets.map((target) => {
                                     const inMaintenance = target.active || Boolean(target.endsAt);
@@ -309,99 +311,15 @@ export function ValuableSellerCard({
                                 >
                                     {tr('Force maintenance on selected servers')} ({selectedIds.length})
                                 </button>
+                                {forceRunning ? (
+                                    <button type="button" class="v2-danger" disabled={canceling} onClick={() => void onCancel()}>
+                                        {canceling ? tr('Cancelling…') : tr('Cancel force maintenance')}
+                                    </button>
+                                ) : null}
                             </div>
                         </>
                     )}
                 </div>
-            </details>
-
-            <details
-                class={`v2-debug-console v2-status-console v2-valuable-maintenance${forceMaintenanceEnabled ? '' : ' v2-valuable-maintenance-disabled'}`}
-                open={forceMaintenanceEnabled && maintenanceOpen}
-                onToggle={(event) => {
-                    if (forceMaintenanceEnabled) setMaintenanceOpen(event.currentTarget.open);
-                }}
-            >
-                <summary
-                    class="v2-status-toggle"
-                    onClick={(event) => {
-                        if (!forceMaintenanceEnabled) event.preventDefault();
-                    }}
-                >
-                    <span class="v2-status-title v2-status-title-with-tip">
-                        {tr('Server status & maintenance')}
-                        <span onClick={(event) => event.stopPropagation()}>
-                            <InfoTip text={tr('Select upcoming servers and force them into maintenance. Forcing makes them unavailable for jobs and markets.')} />
-                        </span>
-                    </span>
-                    <button
-                        type="button"
-                        class="v2-switch"
-                        role="switch"
-                        aria-checked={forceMaintenanceEnabled}
-                        aria-label={tr('Enable force maintenance')}
-                        title={forceMaintenanceEnabled ? tr('Disable force maintenance') : tr('Enable force maintenance')}
-                        disabled={running}
-                        onClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            void toggleForce();
-                        }}
-                    >
-                        <span />
-                    </button>
-                </summary>
-                {forceMaintenanceEnabled ? (
-                    <div class="v2-status-body">
-                        <div class="v2-actions">
-                            <button type="button" disabled={maintenanceLoading || running} onClick={() => void onRefreshMaintenance()}>
-                                {maintenanceLoading ? tr('Refreshing...') : tr('Refresh maintenance')}
-                            </button>
-                            <button type="button" disabled={upcoming.length === 0 || running} onClick={onSelectAllUpcoming}>
-                                {tr('Select all upcoming')}
-                            </button>
-                        </div>
-                        {maintenanceLoading && maintenanceServers.length === 0 ? (
-                            <p class="v2-muted">{tr('Loading maintenance...')}</p>
-                        ) : maintenanceServers.length === 0 ? (
-                            <p class="v2-muted">{tr('No upcoming maintenance detected.')}</p>
-                        ) : (
-                            <div class="v2-maintenance-list">
-                                {maintenanceServers.map((server) => (
-                                    <div key={server.id} class="v2-maintenance-row">
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedMaintenanceIds.has(server.id)}
-                                            disabled={server.active || running}
-                                            onChange={() => onToggleMaintenanceServer(server.id)}
-                                            aria-label={server.name}
-                                        />
-                                        <span class="v2-maintenance-name">{server.name}</span>
-                                        <span class={`v2-tag ${server.active ? 'v2-tag-error' : 'v2-tag-warn'}`}>
-                                            {maintenanceStatus(server, now, tr)}
-                                        </span>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                        <div class="v2-actions">
-                            <button
-                                type="button"
-                                disabled={selectedUpcoming.length === 0 || running}
-                                onClick={() => void onForceSelected()}
-                            >
-                                {forceRunning
-                                    ? tr('Forcing maintenance...')
-                                    : tr('Force selected ({count})', { count: selectedUpcoming.length })}
-                            </button>
-                            {forceRunning ? (
-                                <button type="button" class="v2-danger" disabled={canceling} onClick={() => void onCancel()}>
-                                    {canceling ? tr('Cancelling…') : tr('Cancel force maintenance')}
-                                </button>
-                            ) : null}
-                        </div>
-                    </div>
-                ) : null}
             </details>
 
             <div class="v2-valuable-actions">
