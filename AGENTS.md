@@ -110,14 +110,14 @@ Upstream `v2` merge (2026-11-22):
 
 Upstream `v2` merge (2026-11-26, v2.0.9/v2.0.10):
 
-- Fork identity stays authoritative: `version: 2.5.9`, `releaseLabel: huoyan1231`, `cor3Fork.versionCode` and `bump.mjs`. Upstream `build` / `bump:build` are not adopted because `src/tools/release/bump.ts` was removed from this fork.
+- Fork identity stays authoritative: `version: 2.5.10`, `releaseLabel: huoyan1231`, `cor3Fork.versionCode` and `bump.mjs`. Upstream `build` / `bump:build` are not adopted because `src/tools/release/bump.ts` was removed from this fork.
 - The 10 conflicts were resolved as a union. Fork keeps direct `update.json` + `versionCode` checking, maintenance force, warm workspace cache, minigame lock, v1 already-claimable ordering, inventory filter options, drone-build view, auto page refresh and `enableAutoExpedition()`'s optional interval. Upstream adds `dumpLoadout`, market-selection/skip-reason status, target-access preflight, route access recovery, HACK error recovery, requirement modes (`none`/`known`/`unknown`), monotonic `useJobs` snapshot guards, and every-run claimable barrier release restricted to `unconfirmed` records.
 - The bounded `+1` decrypt loadout retry remains only as a fallback after an insufficient post-loadout analysis; the primary plan passes the observed power with requirement mode `unknown`. `useJobs` keeps warm bootstrap initialization and adds the upstream sequence/timestamp guards.
 - The upstream v2.0.9/v2.0.10 feature-inventory Parts 71/72 are recorded as Parts 78/79 in the fork to avoid the original numbering collision with the fork's Parts 71/72.
 
 Upstream `v2` merge (2026-11-28, through v2.0.13):
 
-- Fork identity remains authoritative: `version: 2.5.9`, `releaseLabel: huoyan1231`, `cor3Fork.versionCode` and `bump.mjs`; upstream's `build` / `bump:build` identity is not adopted. This merge commit increments `versionCode` by one.
+- Fork identity remains authoritative: `version: 2.5.10`, `releaseLabel: huoyan1231`, `cor3Fork.versionCode` and `bump.mjs`; upstream's `build` / `bump:build` identity is not adopted. This merge commit increments `versionCode` by one.
 - All 38 conflicts were resolved as a union. The fork keeps its catalog-based maintenance (44 servers, name+IP exact match, event-driven loop, two-step confirm), versionCode update detection, warm cache, minigame lock, v1 already-claimable ordering, settled-expedition handling, veteran switch and auto page refresh. Upstream adds v1-parity maintenance pacing/diagnostics, unreachable-target preflight, retained debug logs, stuck-minigame room recovery, draggable panels, toolbar window menu, Founders Portal link, expedition easter egg, credit floor fixes and UI alignment.
 - Where both sides solved the same problem, the fork's product behavior is kept as primary and upstream's safety layer is added: bounded `+1` decrypt retry is only a fallback after requirement-mode planning; completion barriers use upstream's `unconfirmed`-only release while keeping the fork's minigame guard and v1 ordering; `useJobs` keeps warm bootstrap plus upstream's monotonic snapshot guards.
 - Upstream v2.0.10-v2.0.13 feature-inventory Parts 73-87 are recorded as fork Parts 80-94; Part 95 documents this merge.
