@@ -7,11 +7,16 @@ import { expeditionCreditBudget } from '../../../application/expeditions/credits
 import { isExpeditionReady, isExpeditionSettled } from '../../../domains/expeditions/model.js';
 import { AUTO_EXPEDITION_RETRY_ALARM } from './alarm-ids.js';
 import { humanDelay, readWithRetry } from './delay.js';
-import { AUTO_EXPEDITION_CREDIT_RETRY_MS, AUTO_EXPEDITION_CREDIT_WAIT_REASON, MYSTERY_EGG_STATE_KEY } from './expedition-types.js';
+import {
+    AUTO_EXPEDITION_ACTIVE_RETRY_MS,
+    AUTO_EXPEDITION_ACTIVE_WAIT_REASON,
+    AUTO_EXPEDITION_CREDIT_RETRY_MS,
+    AUTO_EXPEDITION_CREDIT_WAIT_REASON,
+    MYSTERY_EGG_STATE_KEY,
+} from './expedition-types.js';
 import type { AutoExpeditionDeps, AutoExpeditionLast, ExpeditionPreparation, ExpeditionRunState } from './expedition-types.js';
 
 const AUTO_EXPEDITION_CONNECTION_RETRY_MS = 30_000;
-const AUTO_EXPEDITION_ACTIVE_RETRY_MS = 60_000;
 
 type SelectedMercenary = NonNullable<ReturnType<typeof selectMercenary>>;
 
@@ -313,7 +318,9 @@ export async function launchExpedition(ctx: ExpeditionLaunchContext): Promise<vo
         };
         deps.logger.warn('auto-expedition', 'Expedition launch failed', { mercenary: selected.mercenary.name, message: launched.error.message });
         if (creditFailure) await ctx.scheduleRetry(AUTO_EXPEDITION_CREDIT_RETRY_MS, AUTO_EXPEDITION_CREDIT_WAIT_REASON);
-        else if (/maintenance|unreachable|no route|ROUTE_FAILED/i.test(launched.error.message)) {
+        else if (/maximum\s+1\s+active|already active|active expedition/i.test(launched.error.message)) {
+            await ctx.scheduleRetry(AUTO_EXPEDITION_ACTIVE_RETRY_MS, AUTO_EXPEDITION_ACTIVE_WAIT_REASON);
+        } else if (/maintenance|unreachable|no route|ROUTE_FAILED/i.test(launched.error.message)) {
             await ctx.scheduleMaintenanceRetry(AUTO_EXPEDITION_RETRY_ALARM);
         } else {
             await ctx.disable('expedition launch failed');

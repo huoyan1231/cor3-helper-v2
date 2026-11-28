@@ -14,11 +14,17 @@ import { isMysteryEggPayout } from '../../../application/expeditions/mystery-egg
 import { AUTO_EXPEDITION_ALARM, AUTO_EXPEDITION_RETRY_ALARM } from './alarm-ids.js';
 import { readWithRetry } from './delay.js';
 import { launchExpedition } from './expedition-launch.js';
-import { AUTO_EXPEDITION_CREDIT_RETRY_MS, AUTO_EXPEDITION_CREDIT_WAIT_REASON, EXPEDITION_PAYOUT_STATE_KEY, MYSTERY_EGG_STATE_KEY } from './expedition-types.js';
+import {
+    AUTO_EXPEDITION_ACTIVE_RETRY_MS,
+    AUTO_EXPEDITION_ACTIVE_WAIT_REASON,
+    AUTO_EXPEDITION_CREDIT_RETRY_MS,
+    AUTO_EXPEDITION_CREDIT_WAIT_REASON,
+    EXPEDITION_PAYOUT_STATE_KEY,
+    MYSTERY_EGG_STATE_KEY,
+} from './expedition-types.js';
 import type { AutoExpeditionDeps, ExpeditionDecisionState, ExpeditionRunState } from './expedition-types.js';
 
 const AUTO_EXPEDITION_CONNECTION_RETRY_MS = 30_000;
-const AUTO_EXPEDITION_ACTIVE_RETRY_MS = 60_000;
 
 export function expeditionConnectionError(message: string | null | undefined): boolean {
     return !!message && /Could not establish connection|Receiving end does not exist|NO_COR3_TAB|No game WebSocket|GAME_NO_SOCKET|AUTH_REQUIRED|AUTH_EXPIRED/i.test(message);
@@ -44,12 +50,15 @@ export class ExpeditionCycle {
         try {
             const current = await this.deps.settings.get();
             if (!current.autoExpeditionEnabled || current.helperMode) return;
+            let cycleCredits: number | null = null;
             const storedExpedition = await this.deps.state.get('auto-expedition');
+            const waitReason = storedExpedition.payload.waitReason;
+            const isSlowWait = waitReason === AUTO_EXPEDITION_CREDIT_WAIT_REASON || waitReason === AUTO_EXPEDITION_ACTIVE_WAIT_REASON;
             if (storedExpedition.phase === 'waiting'
-                && storedExpedition.payload.waitReason === AUTO_EXPEDITION_CREDIT_WAIT_REASON
+                && isSlowWait
                 && storedExpedition.nextActionAt !== null
                 && storedExpedition.nextActionAt > this.deps.clock.now()) {
-                this.deps.logger.info('auto-expedition', 'Skipping main-cycle tick while waiting for credits', {
+                this.deps.logger.info('auto-expedition', `Skipping main-cycle tick while waiting (${String(waitReason)})`, {
                     until: storedExpedition.nextActionAt,
                 });
                 return;
@@ -111,6 +120,7 @@ export class ExpeditionCycle {
             if (current.mercMinCreditsEnabled) {
                 const credits = await this.readHomeCredits(home.marketId);
                 if (credits !== null) {
+                    cycleCredits = credits;
                     this.deps.logger.info('auto-expedition', 'Credits checked at cycle start', {
                         credits,
                         threshold: current.mercMinCredits,
@@ -414,10 +424,14 @@ export class ExpeditionCycle {
                 else this.deps.logger.warn('auto-expedition', `Mercenary fetch failed for ${market.label}`, { message: result.error.message });
             }
 
+            const maxAffordableCost = current.mercMinCreditsEnabled && cycleCredits !== null
+                ? cycleCredits - current.mercMinCredits
+                : null;
             const selected = selectMercenary(candidates, {
                 mode: current.mercSelectionMode,
                 marketOrder: current.mercMarketOrder,
                 maxPrice: current.mercMaxPriceEnabled ? current.mercMaxPrice : null,
+                maxAffordableCost,
             });
             if (!selected) {
                 this.state.last = {
@@ -450,7 +464,15 @@ export class ExpeditionCycle {
                     .filter((value) => Number.isFinite(value) && value > this.deps.clock.now())
                     .sort((left, right) => left - right)[0];
                 if (restReadyAt === undefined) {
-                    await this.disable('no available mercenary');
+                    if (candidates.length > 0 && maxAffordableCost !== null) {
+                        this.state.last = {
+                            ...this.state.last,
+                            message: 'Auto Expedition waiting: no mercenary fits the credit floor',
+                        };
+                        await this.pauseForCredits(this.state.last.error);
+                    } else {
+                        await this.disable('no available mercenary');
+                    }
                     this.deps.events.publish('expeditions.auto.done', this.state.last);
                     return;
                 }

@@ -20,6 +20,8 @@ export interface MercenarySelectionOptions {
     readonly mode: MercSelectionMode;
     readonly marketOrder: readonly MercMarketKey[];
     readonly maxPrice: number | null;
+    /** Maximum total cost that still leaves the configured credit floor intact. */
+    readonly maxAffordableCost?: number | null;
 }
 
 export interface MercInsurancePolicy {
@@ -53,6 +55,7 @@ export function selectMercenary(
         const status = candidate.mercenary.status.toUpperCase();
         if (status !== 'AVAILABLE' && status !== 'UNKNOWN') return false;
         if (options.maxPrice !== null && (candidate.costEstimated === true || candidate.totalCost > options.maxPrice)) return false;
+        if (options.maxAffordableCost !== null && options.maxAffordableCost !== undefined && candidate.totalCost > options.maxAffordableCost) return false;
         return true;
     });
     if (available.length === 0) return null;

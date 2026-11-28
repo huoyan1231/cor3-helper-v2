@@ -122,6 +122,19 @@ describe('selectMercenary', () => {
         expect(selectMercenary(candidates, { mode: 'global', marketOrder: ['core'], maxPrice: 15000 })?.mercenary.id).toBe('ok');
     });
 
+    it('prefers an affordable candidate when a costly one would break the credit floor', () => {
+        const candidates = [
+            candidate('costly', 'core', 16953, { riskScore: 5 }),
+            candidate('affordable', 'core', 4750, { riskScore: 40 }),
+        ];
+        expect(selectMercenary(candidates, {
+            mode: 'global',
+            marketOrder: ['core'],
+            maxPrice: 20000,
+            maxAffordableCost: 11243,
+        })?.mercenary.id).toBe('affordable');
+    });
+
     it('does not apply the price cap to an estimated initial cost', () => {
         const candidates = [
             { ...candidate('estimated-cheap', 'core', 3000), costEstimated: true },

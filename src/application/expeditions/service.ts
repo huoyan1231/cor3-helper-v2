@@ -307,7 +307,7 @@ export class ExpeditionService {
                 // The game can keep a COMPLETED expedition visible after its
                 // container was already collected. Treat that as paid instead
                 // of blocking every later cycle on the same row.
-                if (/already.*(?:fully\s+)?collected/i.test(result.error.message)) {
+                if (/already.*(?:fully\s+)?collected|loot has expired/i.test(result.error.message)) {
                     opened++;
                     payouts.push({
                         expeditionId: expedition.id,

@@ -14,6 +14,8 @@ export const EXPEDITION_PAYOUT_STATE_KEY = 'auto-expedition-payout';
 /** Insufficient-credit waits are rechecked on this slower cadence without disabling automation. */
 export const AUTO_EXPEDITION_CREDIT_RETRY_MS = 3 * 60 * 60_000;
 export const AUTO_EXPEDITION_CREDIT_WAIT_REASON = 'credits';
+export const AUTO_EXPEDITION_ACTIVE_RETRY_MS = 60_000;
+export const AUTO_EXPEDITION_ACTIVE_WAIT_REASON = 'active';
 
 export interface AutoExpeditionLast {
     readonly at: number;

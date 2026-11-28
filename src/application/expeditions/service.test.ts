@@ -304,6 +304,19 @@ describe('expedition payout state', () => {
         if (ready.ok) expect(ready.value.map((entry) => entry.id)).toEqual(['unpaid']);
     });
 
+    it('treats expired loot as settled instead of blocking later launches', async () => {
+        const service = new ExpeditionService(payoutPort(async () => ({
+            ok: false,
+            error: { code: 'EXPEDITION_FAILED', message: 'Loot has expired' },
+        })));
+        const result = await service.payout('home');
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+            expect(result.value).toMatchObject({ ready: 1, opened: 1, failed: [] });
+            expect(result.value.payouts[0]).toMatchObject({ expeditionId: 'unpaid', opened: true, error: null });
+        }
+    });
+
     it('treats "already fully collected" as a successful payment instead of blocking the cycle', async () => {
         const service = new ExpeditionService(payoutPort(async () => ({
             ok: false,

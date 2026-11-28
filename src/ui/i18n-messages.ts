@@ -725,6 +725,7 @@ export const ZH_MESSAGES: Readonly<Record<string, string>> = {
     'Fetching market information ({index}/{total})': '正在获取市场信息（{index}/{total}）',
     'Launched with {name} ({market})': '已使用 {name}（{market}）派出',
     'Auto Expedition waiting: credits below threshold': '自动远征等待中：信用点低于阈值',
+    'Auto Expedition waiting: no mercenary fits the credit floor': '自动远征等待中：没有符合信用点阈值的雇佣兵',
     'Credits {credits} after paying {cost} would fall below threshold {threshold}': '信用点 {credits} 扣除本次远征费用 {cost} 后会低于阈值 {threshold}',
     'Expedition not launched: credits after payment would fall below the threshold': '未派出远征：支付后信用点会低于阈值',
     'Auto Expedition waiting: credits after payment would fall below the threshold': '自动远征等待中：支付后信用点会低于阈值',
