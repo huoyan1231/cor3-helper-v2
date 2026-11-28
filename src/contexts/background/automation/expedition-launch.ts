@@ -7,7 +7,7 @@ import { expeditionCreditBudget } from '../../../application/expeditions/credits
 import { isExpeditionReady, isExpeditionSettled } from '../../../domains/expeditions/model.js';
 import { AUTO_EXPEDITION_RETRY_ALARM } from './alarm-ids.js';
 import { humanDelay, readWithRetry } from './delay.js';
-import { MYSTERY_EGG_STATE_KEY } from './expedition-types.js';
+import { AUTO_EXPEDITION_CREDIT_RETRY_MS, AUTO_EXPEDITION_CREDIT_WAIT_REASON, MYSTERY_EGG_STATE_KEY } from './expedition-types.js';
 import type { AutoExpeditionDeps, AutoExpeditionLast, ExpeditionPreparation, ExpeditionRunState } from './expedition-types.js';
 
 const AUTO_EXPEDITION_CONNECTION_RETRY_MS = 30_000;
@@ -26,7 +26,7 @@ export interface ExpeditionLaunchContext {
     readonly selected: SelectedMercenary;
     scheduleMaintenanceRetry(alarm: string): Promise<void>;
     /** Pause this cycle and retry later instead of permanently disabling automation. */
-    scheduleRetry(delayMs: number): Promise<void>;
+    scheduleRetry(delayMs: number, waitReason?: string): Promise<void>;
     disable(reason: string): Promise<void>;
     /** Current home-market credits, or null when they cannot be read. */
     readCredits(marketId: string): Promise<number | null>;
@@ -117,13 +117,7 @@ export async function launchExpedition(ctx: ExpeditionLaunchContext): Promise<vo
             marketKey: profileKey,
             message: 'Expedition not launched: credits after payment would fall below the threshold',
         };
-        await deps.state.set('auto-expedition', {
-            phase: 'idle',
-            runId: null,
-            nextActionAt: null,
-            lastError: null,
-        });
-        await ctx.disable('credits after payment would fall below the threshold');
+        await ctx.scheduleRetry(AUTO_EXPEDITION_CREDIT_RETRY_MS, AUTO_EXPEDITION_CREDIT_WAIT_REASON);
         deps.events.publish('expeditions.auto.done', state.last);
         return true;
     };
@@ -318,7 +312,7 @@ export async function launchExpedition(ctx: ExpeditionLaunchContext): Promise<vo
             marketKey: profileKey,
         };
         deps.logger.warn('auto-expedition', 'Expedition launch failed', { mercenary: selected.mercenary.name, message: launched.error.message });
-        if (creditFailure) await ctx.scheduleRetry(AUTO_EXPEDITION_ACTIVE_RETRY_MS);
+        if (creditFailure) await ctx.scheduleRetry(AUTO_EXPEDITION_CREDIT_RETRY_MS, AUTO_EXPEDITION_CREDIT_WAIT_REASON);
         else if (/maintenance|unreachable|no route|ROUTE_FAILED/i.test(launched.error.message)) {
             await ctx.scheduleMaintenanceRetry(AUTO_EXPEDITION_RETRY_ALARM);
         } else {

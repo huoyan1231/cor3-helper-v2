@@ -14,7 +14,7 @@ import { isMysteryEggPayout } from '../../../application/expeditions/mystery-egg
 import { AUTO_EXPEDITION_ALARM, AUTO_EXPEDITION_RETRY_ALARM } from './alarm-ids.js';
 import { readWithRetry } from './delay.js';
 import { launchExpedition } from './expedition-launch.js';
-import { EXPEDITION_PAYOUT_STATE_KEY, MYSTERY_EGG_STATE_KEY } from './expedition-types.js';
+import { AUTO_EXPEDITION_CREDIT_RETRY_MS, AUTO_EXPEDITION_CREDIT_WAIT_REASON, EXPEDITION_PAYOUT_STATE_KEY, MYSTERY_EGG_STATE_KEY } from './expedition-types.js';
 import type { AutoExpeditionDeps, ExpeditionDecisionState, ExpeditionRunState } from './expedition-types.js';
 
 const AUTO_EXPEDITION_CONNECTION_RETRY_MS = 30_000;
@@ -45,6 +45,15 @@ export class ExpeditionCycle {
             const current = await this.deps.settings.get();
             if (!current.autoExpeditionEnabled || current.helperMode) return;
             const storedExpedition = await this.deps.state.get('auto-expedition');
+            if (storedExpedition.phase === 'waiting'
+                && storedExpedition.payload.waitReason === AUTO_EXPEDITION_CREDIT_WAIT_REASON
+                && storedExpedition.nextActionAt !== null
+                && storedExpedition.nextActionAt > this.deps.clock.now()) {
+                this.deps.logger.info('auto-expedition', 'Skipping main-cycle tick while waiting for credits', {
+                    until: storedExpedition.nextActionAt,
+                });
+                return;
+            }
             if (storedExpedition.phase === 'preparing' && storedExpedition.nextActionAt !== null) {
                 if (storedExpedition.nextActionAt > this.deps.clock.now()) {
                     this.deps.logger.info('auto-expedition', 'Resuming persisted preparation countdown', {
@@ -114,9 +123,9 @@ export class ExpeditionCycle {
                             launched: false,
                             error: `Credits ${credits.toLocaleString()} below threshold ${current.mercMinCredits.toLocaleString()}`,
                             paid: 0,
-                            message: 'Auto Expedition disabled: credits below threshold',
+                            message: 'Auto Expedition waiting: credits below threshold',
                         };
-                        await this.disable('credits below threshold');
+                        await this.pauseForCredits(this.state.last.error);
                         this.deps.events.publish('expeditions.auto.done', this.state.last);
                         return;
                     }
@@ -242,9 +251,9 @@ export class ExpeditionCycle {
                         launched: false,
                         error: creditFailure.message,
                         paid,
-                        message: 'Auto Expedition paused: reward payment failed with insufficient credits',
+                        message: 'Auto Expedition waiting: reward payment failed with insufficient credits',
                     };
-                    await this.pauseAndRetry(AUTO_EXPEDITION_ACTIVE_RETRY_MS, creditFailure.message);
+                    await this.pauseForCredits(creditFailure.message);
                     return;
                 }
                 if (payout.value.ready > payout.value.opened) {
@@ -359,9 +368,9 @@ export class ExpeditionCycle {
                         launched: false,
                         error: `Credits ${credits.toLocaleString()} below threshold ${current.mercMinCredits.toLocaleString()}`,
                         paid,
-                        message: 'Auto Expedition paused: credits below threshold',
+                        message: 'Auto Expedition waiting: credits below threshold',
                     };
-                    await this.pauseAndRetry(AUTO_EXPEDITION_ACTIVE_RETRY_MS, this.state.last.error);
+                    await this.pauseForCredits(this.state.last.error);
                     this.deps.events.publish('expeditions.auto.done', this.state.last);
                     return;
                 }
@@ -466,7 +475,7 @@ export class ExpeditionCycle {
                 paid,
                 selected,
                 scheduleMaintenanceRetry: (alarm) => this.scheduleMaintenanceRetry(alarm),
-                scheduleRetry: (delayMs) => this.pauseAndRetry(delayMs, this.state.last?.error ?? null),
+                scheduleRetry: (delayMs, waitReason) => this.pauseAndRetry(delayMs, this.state.last?.error ?? null, waitReason),
                 disable: (reason) => this.disable(reason),
                 readCredits: (marketId) => this.readHomeCredits(marketId),
             });
@@ -571,15 +580,22 @@ export class ExpeditionCycle {
     }
 
     /** Pause the current cycle and retry later without touching the user's enable switch. */
-    private async pauseAndRetry(delayMs: number, error: string | null): Promise<void> {
+    private async pauseAndRetry(delayMs: number, error: string | null, waitReason?: string): Promise<void> {
         const until = this.deps.clock.now() + delayMs;
         await this.deps.state.set('auto-expedition', {
             phase: 'waiting',
             nextActionAt: until,
             lastError: error,
-            payload: { last: this.state.last },
+            payload: {
+                last: this.state.last,
+                ...(waitReason ? { waitReason } : {}),
+            },
         });
         this.deps.scheduler.create(AUTO_EXPEDITION_RETRY_ALARM, { when: until });
+    }
+
+    private async pauseForCredits(error: string | null): Promise<void> {
+        await this.pauseAndRetry(AUTO_EXPEDITION_CREDIT_RETRY_MS, error, AUTO_EXPEDITION_CREDIT_WAIT_REASON);
     }
 
     private async scheduleMaintenanceRetry(alarmName: string): Promise<void> {
