@@ -13,10 +13,11 @@ import { ExpeditionService } from '../../../application/expeditions/service.js';
 import { DroneService } from '../../../application/drone/service.js';
 import { DroneAutoService } from '../../../application/drone/auto.js';
 import { ValuableSellerService, type ValuablePreSearchHook } from '../../../application/valuable/seller.js';
+import { MaintenanceMonitor } from '../../../application/valuable/maintenance-monitor.js';
 import { DismissFailedJobsService } from '../../../application/auto-job/dismiss.js';
 import { SystemClock } from '../../../kernel/clock.js';
 import { asServerId } from '../../../kernel/ids.js';
-import { ok } from '../../../kernel/result.js';
+import { err, ok } from '../../../kernel/result.js';
 import { ChromeTabGameReadinessAdapter } from '../../../infrastructure/browser/chrome-tab-game-readiness-adapter.js';
 import { ChromeStorageDiscoveryProgressStore } from '../../../infrastructure/storage/discovery-progress-store.js';
 import { ChromeTabNetworkMapAdapter } from '../../../infrastructure/browser/chrome-tab-network-map-adapter.js';
@@ -71,6 +72,7 @@ export interface GameRuntime {
     readonly valuableAdapter: ChromeTabValuableActionAdapter;
     readonly valuableSeller: ValuableSellerService;
     readonly ensureValuableSearchLoadout: ValuablePreSearchHook;
+    readonly maintenanceMonitor: MaintenanceMonitor;
     readonly gameReadinessAdapter: ChromeTabGameReadinessAdapter;
 }
 
@@ -120,6 +122,7 @@ export function createGameRuntime(core: CoreRuntime): GameRuntime {
     const endpointCommands = new ChromeTabEndpointCommandAdapter(tabs);
     const routeExecutor = new RouteExecutor(endpointCommands, serverAccess, endpointLeases, new SystemClock(), endpointMutex);
     const valuableAdapter = new ChromeTabValuableActionAdapter(tabs);
+    const maintenanceMonitor = new MaintenanceMonitor();
     let lastSearchLoadout: { readonly key: string; readonly revision: number; readonly at: number } | null = null;
     const ensureValuableSearchLoadout: ValuablePreSearchHook = async (serverId, serverTypeName) => {
         const target = serverTypeName ?? serverId;
@@ -155,6 +158,14 @@ export function createGameRuntime(core: CoreRuntime): GameRuntime {
         {
             ensureAccess: (serverId, context) => serverAccess.ensureAccess(asServerId(serverId), context),
         },
+        async (serverId, serverTypeName) => {
+            const target = serverTypeName ?? serverId;
+            const result = await loadout.ensure({ ability: 'SEARCH', target, requiredPower: 0 });
+            return result.ok
+                ? ok(undefined)
+                : err({ code: result.error.code, message: result.error.message });
+        },
+        maintenanceMonitor,
     );
     const marketPath = new MarketPathService(snapshots, routeExecutor, new ChromeTabMarketRequestAdapter(tabs), new SystemClock());
     const marketSync = new MarketSyncService(snapshots, routeExecutor, new ChromeTabMarketDataAdapter(tabs), new SystemClock());
@@ -192,6 +203,7 @@ export function createGameRuntime(core: CoreRuntime): GameRuntime {
         valuableAdapter,
         valuableSeller,
         ensureValuableSearchLoadout,
+        maintenanceMonitor,
         gameReadinessAdapter,
     };
 }

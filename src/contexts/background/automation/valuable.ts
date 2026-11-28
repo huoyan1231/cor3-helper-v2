@@ -2,10 +2,13 @@ import { JOB_MARKETS } from '../../../domains/jobs/markets.js';
 import { ok, type Result } from '../../../kernel/result.js';
 import type { AutomationStateStore } from '../../../infrastructure/storage/automation-state-store.js';
 import type { NetworkOperationQueue } from '../../../application/network/operation-queue.js';
-import type { ValuableProgress, ValuableSaleSummary, ValuableSearchSummary, ValuableSellerService } from '../../../application/valuable/seller.js';
+import type { NetworkSnapshotService } from '../../../application/network/snapshot-service.js';
+import type { ValuableForceMaintenanceRequest, ValuableForceMaintenanceSummary, ValuableProgress, ValuableSaleSummary, ValuableSearchSummary, ValuableSellerService } from '../../../application/valuable/seller.js';
 import type { ValuableOperation, ValuableRunState as ValuableRunView } from '../../../application/popup/portal.js';
 import type { MaintenanceForceProgress, MaintenanceForceService, MaintenanceForceSummary, MaintenanceTarget } from '../../../application/valuable/maintenance.js';
-import type { EventPublisher, RunLogSink } from '../../../application/automation/ports.js';
+import type { MaintenanceSignalPort } from '../../../application/valuable/maintenance-monitor.js';
+import { listMaintenanceServers, type ValuableMaintenanceServer } from '../../../application/valuable/maintenance.js';
+import type { AutomationLogger, EventPublisher, RunLogSink } from '../../../application/automation/ports.js';
 
 export type { ValuableOperation } from '../../../application/popup/portal.js';
 export type ValuableRunStatus = 'running' | 'done' | 'cancelled' | 'error';
@@ -25,8 +28,10 @@ export interface ValuableStats {
     soldItems: number;
     credits: number;
     reputation: number;
+    forcedServers: number;
     lastSearchAt: number | null;
     lastSellAt: number | null;
+    lastForceAt: number | null;
 }
 
 export interface ValuableRunRequest {
@@ -36,13 +41,20 @@ export interface ValuableRunRequest {
     readonly serverIds?: readonly string[] | undefined;
 }
 
+export interface ValuableForceRunRequest extends ValuableForceMaintenanceRequest {
+    readonly runId: string;
+}
+
 export interface ValuableDeps {
     readonly seller: ValuableSellerService;
     readonly maintenanceForce: MaintenanceForceService;
+    readonly snapshots: Pick<NetworkSnapshotService, 'get'>;
+    readonly maintenance: MaintenanceSignalPort;
     readonly state: AutomationStateStore;
     readonly networkOps: NetworkOperationQueue;
     readonly events: EventPublisher;
     readonly runLogs: RunLogSink;
+    readonly logger: Pick<AutomationLogger, 'debug' | 'info' | 'warn'>;
 }
 
 function numberFromPayload(value: unknown, fallback = 0): number {
@@ -182,6 +194,85 @@ export class ValuableCoordinator {
         if (this.runs.get(runId)?.status === 'running') this.cancelled.add(runId);
     }
 
+    /** Maintenance rows for the valuable-seller panel. */
+    async maintenanceServers(force = false): Promise<Result<readonly ValuableMaintenanceServer[], { readonly code: string; readonly message: string }>> {
+        const snapshot = await this.deps.snapshots.get(force);
+        if (!snapshot.ok) return { ok: false, error: { code: snapshot.error.code, message: snapshot.error.message } };
+        return ok(listMaintenanceServers(snapshot.value));
+    }
+
+    /** Called by the background messaging layer when the game reports maintenance. */
+    recordMaintenance(serverId: string): void {
+        this.deps.maintenance.record(serverId);
+        this.deps.events.publish('valuable.maintenance', { serverId, at: Date.now() });
+    }
+
+    /**
+     * Start a force-maintenance run and return immediately. The force loop can
+     * take longer than a normal bridge request, so the UI follows progress via
+     * `valuable.progress`/`valuable.report`.
+     */
+    async startForceMaintenance(
+        request: ValuableForceRunRequest,
+    ): Promise<Result<{ readonly runId: string }, { readonly code: string; readonly message: string }>> {
+        const begun = this.begin(request, 'force-maintenance');
+        if ('ok' in begun) return begun;
+        const state = begun;
+        this.deps.runLogs.add(request.runId, 'info', 'valuable-seller', `Starting force maintenance on ${request.serverIds.length} selected server(s)`);
+        void this.executeForce(request, state);
+        return ok({ runId: request.runId });
+    }
+
+    private async executeForce(request: ValuableForceRunRequest, state: ValuableRunState): Promise<void> {
+        try {
+            const queued = await this.deps.networkOps.enqueue(
+                { owner: request.owner, reason: 'valuable-force-maintenance', priority: 60 },
+                async () => this.deps.seller.forceMaintenance({
+                    owner: request.owner,
+                    reason: 'valuable-force-maintenance',
+                    serverIds: request.serverIds,
+                }, this.runControl(request.runId, state)),
+            );
+            if (!queued.ok) {
+                state.status = 'error';
+                state.error = queued.error.message;
+                state.updatedAt = Date.now();
+                this.deps.runLogs.add(request.runId, 'error', 'valuable-seller', `Force maintenance failed: ${queued.error.message}`);
+                return;
+            }
+            const summary = queued.value as ValuableForceMaintenanceSummary;
+            const stats = await this.loadStats();
+            await this.saveStats({
+                ...stats,
+                downloadedFiles: stats.downloadedFiles + summary.downloadedFiles,
+                downloadedLogs: stats.downloadedLogs + summary.downloadedLogs,
+                forcedServers: stats.forcedServers + summary.forcedServers,
+                lastForceAt: Date.now(),
+            });
+            state.status = summary.stopped
+                ? 'cancelled'
+                : summary.forcedServers === 0 && summary.failedServers.length > 0 ? 'error' : 'done';
+            if (state.status === 'error') {
+                state.error = summary.failedServers[0]?.message ?? 'No selected server entered maintenance';
+            }
+            state.updatedAt = Date.now();
+            this.deps.runLogs.add(
+                request.runId,
+                summary.failedServers.length > 0 ? 'warn' : 'info',
+                'valuable-seller',
+                `Force maintenance finished: ${summary.forcedServers} server(s) forced, ${summary.failedServers.length} failed${summary.stopped ? ' (stopped)' : ''}`,
+            );
+        } catch (error) {
+            state.status = 'error';
+            state.error = error instanceof Error ? error.message : String(error);
+            state.updatedAt = Date.now();
+            this.deps.runLogs.add(request.runId, 'error', 'valuable-seller', `Force maintenance error: ${state.error}`);
+        } finally {
+            this.cancelled.delete(request.runId);
+            if (this.activeRunId === request.runId) this.activeRunId = null;
+        }
+    }
+
     progress(runId: string) {
         const state = this.runs.get(runId);
         return state ? runView(state) : null;
@@ -264,6 +355,12 @@ export class ValuableCoordinator {
                 state.updatedAt = Date.now();
                 this.deps.events.publish('valuable.progress', { runId, progress });
             },
+            // Debug traces go to the exported debug log; info/warn/error also
+            // land in the run log so a stuck force run stays diagnosable.
+            onTrace: (level: 'debug' | 'info' | 'warn' | 'error', message: string, data?: Readonly<Record<string, unknown>>) => {
+                this.deps.logger[level === 'error' ? 'warn' : level]('valuable-seller', message, data);
+                if (level !== 'debug') this.deps.runLogs.add(runId, level, 'valuable-seller', message, data);
+            },
         };
     }
 
@@ -277,8 +374,10 @@ export class ValuableCoordinator {
             soldItems: numberFromPayload(payload.soldItems),
             credits: numberFromPayload(payload.credits),
             reputation: numberFromPayload(payload.reputation),
+            forcedServers: numberFromPayload(payload.forcedServers),
             lastSearchAt: typeof payload.lastSearchAt === 'number' ? payload.lastSearchAt : null,
             lastSellAt: typeof payload.lastSellAt === 'number' ? payload.lastSellAt : null,
+            lastForceAt: typeof payload.lastForceAt === 'number' ? payload.lastForceAt : null,
         };
         return this.stats;
     }

@@ -276,6 +276,13 @@ export function jobTagView(
         };
     }
     if (!normalized) return null;
+    if (normalized === 'unknown') {
+        return {
+            primary: 'unknown',
+            tone: 'warn',
+            title: 'The previous completion result was unconfirmed. Auto Finish will retry it after it is recovered.',
+        };
+    }
     const tone = normalized === 'failed'
         ? 'error'
         : normalized === 'skipped' ? 'neutral' : 'warn';

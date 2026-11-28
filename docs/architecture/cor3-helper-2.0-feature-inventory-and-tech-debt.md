@@ -5,21 +5,21 @@
 - **Method:** static source review of popup, content scripts, MAIN-world hooks, background scheduler, bridge contracts, tests, build/release config, and architecture docs
 - **Status legend for v1 → v2:** `Implemented` = equivalent user capability exists; `Partial` = core exists but visible scope/behavior differs; `Missing` = no counterpart found; `Unknown` = cannot confirm without runtime QA
 - **Caveat:** this is not a runtime parity sign-off. The 2.0 release line is complete; the displayed version is now the plain `<version>` (no `-salta` suffix, no local build counter), while release tags and artifact names still use `<version>-salta`. Historical sections retain their original development labels.
-- **Last verified:** 2026-11-26 against `2.5.8` after merging upstream/v2 (Part 47 records the v2.3.x drone-tab work; Part 49 records the v2.4.0 inventory bulk-sell addition; Part 50 records the tracker tab-switch fix; Part 51 records the per-item quantity modal; Part 52 records the mission-surplus sale; Part 53 records the full-test bug-fix pass; Part 54 records the versionCode-based update detection restore; Parts 55-62 record the fork's maintenance, config, cache-loading and UI fixes; Parts 74-77 cover the ordered force-maintenance catalog, run-state liveness, event-driven speedup and the retired veterans dropdown option; Parts 78-79 record the merged upstream v2.0.9/v2.0.10 loadout, preflight and requirement-mode work, renumbered to avoid the original Part 71/72 collision with fork history; older Parts keep their original version labels)
-- **Current verification:** `npm run typecheck`, `npm run lint`, `npm test` (147 files / 1188 tests) and `npm run build` all pass.
+- **Last verified:** 2026-11-28 against `2.5.8` after merging upstream/v2 through v2.0.13 (Part 95 records the second fork merge) (Part 47 records the v2.3.x drone-tab work; Part 49 records the v2.4.0 inventory bulk-sell addition; Part 50 records the tracker tab-switch fix; Part 51 records the per-item quantity modal; Part 52 records the mission-surplus sale; Part 53 records the full-test bug-fix pass; Part 54 records the versionCode-based update detection restore; Parts 55-62 record the fork's maintenance, config, cache-loading and UI fixes; Parts 74-77 cover the ordered force-maintenance catalog, run-state liveness, event-driven speedup and the retired veterans dropdown option; Parts 78-79 record the merged upstream v2.0.9/v2.0.10 loadout, preflight and requirement-mode work, renumbered to avoid the original Part 71/72 collision with fork history; Parts 80-94 append the merged upstream v2.0.10-v2.0.13 history (valuable maintenance, draggable panels, expedition easter egg, toolbar window menu, Founders Portal link, unreachable job target, retained debug logs, stuck minigame recovery and credit alignment), renumbered from the original upstream Parts 73-87 to avoid colliding with fork history; older Parts keep their original version labels)
+- **Current verification:** `npm run typecheck`, `npm run lint`, `npm test` (154 files / 1257 tests) and `npm run build` all pass.
 
 ## Current completion snapshot (`2.5.8`)
 
 | Metric | Value |
 |---|---|
-| TypeScript/TSX source files | 461 (including 122 test files) |
-| Files under `src/` | 470 (vendored JavaScript is limited to `src/libs/`) |
+| TypeScript/TSX source files | 481 (including 130 test files) |
+| Files under `src/` | 490 (vendored JavaScript is limited to `src/libs/`) |
 | v1 parity rows with a status | 147 |
 | Implemented / improved | 89 |
 | Partial | 37 |
 | Missing | 20 |
 | Replaced by a different v2 surface | 1 |
-| v2-only additions | 13 |
+| v2-only additions | 14 |
 
 In percentage terms, about 61% of parity rows are implemented/improved, 25% partial and 14% missing (rounded).
 
@@ -609,8 +609,8 @@ Residual risk: these changes have unit coverage but still need a live-game smoke
 
 - `npm run typecheck` — pass
 - `npm run lint` — pass
-- `npm test` — 122 files / 1024 tests pass
-- `npm run build` — pass, `2.0.10-salta.315`
+- `npm test` — 130 files / 1093 tests pass
+- `npm run build` — pass, `2.0.13-salta.336`
 
 ---
 
@@ -1509,3 +1509,174 @@ Root causes and fixes recorded from real user logs (`B.log`, `C.log`, `A.log`) a
 - The merged fork keeps Part 69's bounded `+1` retry only as a fallback after an insufficient post-loadout analysis; the requirement mode decides the primary plan.
 - Verification: 122 files / 1024 tests in upstream, including new preflight access-block/allow/probe-failure cases, route access recovery, `sai-hack-not-available`, unknown-requirement planning and empty-defence-rate planning.
 - Merged fork verification: typecheck, oxlint, Vitest (147 files / 1188 tests) and production build pass.
+
+---
+
+# Part 80 — Automation timeout classification and ICE Wall recovery (2.0.10-salta.316)
+
+- **Completion barrier:** `lifecycleStatusForFailure()` no longer persists pre-Complete timeouts as `unknown`. Only a Complete-stage timeout or an explicit `unconfirmed` result may create the durable completion barrier. Decrypt/minigame timeouts stay `waiting-minigame`; route timeouts stay `blocked`; take timeouts stay retryable. This prevents a failed minigame from skipping the job until the next market reset.
+- **Minigame sessions:** `solveMinigame()` now waits briefly for a background auto-solver session to finish instead of returning a misleading "another minigame run is already active" immediately. Solver attempts have a hard deadline, and `solveSimpleDecrypt` / `solveConfigHack` / `solveIceWall` receive that deadline. A bridge-level solve error explicitly cancels the main-world session.
+- **ICE Wall:** the round counter is parsed more defensively; one completed layer is no longer treated as success when the total is unknown. The solver fails closed with `ICE Wall incomplete (N/?)` instead of leaving the minigame open.
+- **Auto Expedition:** `containerOpenedAt` is mapped and already-collected expeditions are excluded from ready payments; `Expedition already fully collected` is treated as paid instead of a blocking failure. The credit floor is checked at cycle start as well as before launch. User cancellation, configure failure, price-cap rejection, no available mercenary, and generic launch failure now disable Auto Expedition.
+- **Job tag:** a non-claimable `unknown` tag now explains that the previous completion result was unconfirmed.
+- **Verification:** typecheck, lint, build and Vitest (122 files / 1028 tests) pass at build `2.0.10-salta.316`.
+
+---
+
+# Part 81 — Safe game-tab reload for stuck minigames (2.0.10-salta.317)
+
+- **Stuck detection:** the ICE Wall solver detects the `EmptyStage` “Awaiting secure channel” state for 10 seconds and the missing `WallBoard` state for 20 seconds. Simple decrypt reports a missing decrypt button after 10 seconds; Terminal Hack reports missing fields after 15 seconds. Detections are posted as `V2_MINIGAME_STUCK` and forwarded by the content script.
+- **Reload coordinator:** background `PageReloadCoordinator` is enabled by default for automation runs. It only reloads when Auto Jobs or Auto Finish is running, Helper Mode is off, the tab is a cor3 tab, and the ten-minute window has fewer than two attempts. It cancels the active Auto Jobs/Finish work, persists a reload marker, and reloads via `chrome.tabs.reload`.
+- **Resume:** after the reloaded page reports readiness, the stale Auto Jobs snapshot is discarded and a full `reload-ready` refresh is requested. If only Auto Finish is enabled, it runs with `forceRefresh: true`. Other automation requests fail transiently during the reload and are retried by their readiness/alarm paths.
+- **Automatic auth recovery:** `game.readiness ready` now reloads auth/settings/network in the UI, so the header no longer stays on “needs refresh” after a page reload.
+- **Force semantics:** `AutoJobsCoordinator.ensureInfo()` gained a `forceAll` path that ignores per-market TTL and the minimum refresh interval; it is used by reload recovery. Manual runs keep their existing full-refresh semantics, while ordinary scheduled/ready runs keep the TTL.
+- **Auto Finish result contract:** `runExclusive()` now returns the network queue result directly. This removes the false `Auto Finish returned no result` warning after a successful retry/force run.
+- **Verification:** typecheck, lint, build and Vitest (123 files / 1033 tests) pass at build `2.0.10-salta.317`.
+
+---
+
+# Part 82 — Valuable seller maintenance panel and force operation (2.0.10-salta.324)
+
+- **Maintenance data:** `MaintenanceState` already had `active` / `endsAt` / `timeUntil`; the valuable panel now exposes active/upcoming rows through `valuable.maintenance`. Active rows are display-only; only upcoming rows are selectable.
+- **Maintenance events:** `GameSocketHub` now normalizes `network-map` / `sai` `maintenance` events into a `V2_MAINTENANCE_STARTED` notice. Background messaging records the server in `MaintenanceMonitor`, which the force loop uses to stop immediately. A map refresh remains the fallback.
+- **Force operation:** `ValuableSellerService.forceMaintenance` follows v1 (furthest-first, SEARCH loadout, 50 attempts, 15 s window, maintenance event/map stop, `sai-access-denied` recovery). It adds download acceleration (one valuable file per attempt; log search/download every fifth attempt) as requested.
+- **Async/coordinator:** `valuable.forceMaintenance` starts and returns immediately; progress is followed through `valuable.progress`. The run uses `networkOps`. A successful `valuable.sell` with selected upcoming servers starts the force run automatically.
+- **UI:** below Status and report, a collapsible "Server status & maintenance" subsection with a persisted feature switch, selectable upcoming servers, countdowns, refresh/select-all, force/cancel controls, and a warning that forcing makes servers unavailable.
+- **Settings/report:** added `valuableForceMaintenanceEnabled` (default false), `forcedServers`, `lastForceAt` and force-download stats.
+- **Tests:** force ordering/event stop/downloads/attempt cap/cancel, maintenance monitor, maintenance list helpers, and bridge contract entries.
+- **Verification:** typecheck, lint, build and Vitest (124 files / 1032 tests) pass at build `2.0.10-salta.324`.
+
+---
+
+# Part 83 — Shared panel shell and drag-to-reorder (2.0.10-salta.325)
+
+- **Shared shell:** new `PanelCard` / `PanelHeader` (`src/ui/components/PanelCard.tsx`) own the page-card header, body and collapse state. `GameSection` and `AutomationCard` became thin wrappers, so Game/Progress/Settings/Developer/Automation pages kept their existing props. Overview's Extension Status, Credits, Market jobs and Timers now use the same header; Credits is a real `h2` title.
+- **Reordering:** `SortablePanelGroup` wraps the top-level cards of every page and uses `sortablejs@1.15.7` with a `.v2-drag-handle` grip. Only the grip starts a drag; the title still collapses/expands. Order is persisted once per drop. `PanelDragHandle` also supports `ArrowUp`/`ArrowDown` and announces the new position through an `aria-live` status.
+- **Persistence:** `panelOrderState` (`Record<pageKey, string[]>`, default `{}`) stores per-page order. `mergePanelOrder` keeps saved positions, appends new panels, ignores removed ids and tolerates conditional cards (Market jobs, Timers). `useSettings` exposes `panelOrder`, `reorderPanels` and `resetPanelOrder`.
+- **Reset:** Settings → Basic settings → Settings backup adds a two-click "Reset panel order" action that only clears `panelOrderState`.
+- **Docs:** design and library-choice rationale in `docs/architecture/cor3-helper-2.0-panel-layout-design.md`.
+- **Verification:** typecheck, lint, build and Vitest (125 files / 1039 tests) pass at build `2.0.10-salta.325`.
+
+---
+
+# Part 84 — Mercenary expedition mystery egg (2.0.10-salta.328)
+
+- **Payout capture:** `open.container` responses are kept instead of discarded. `ExpeditionService.payout()` returns per-expedition `riskScore`, `outcome`, `completedAt` and normalized `containerData` loot. The latest payout is stored under `auto-expedition-payout` for diagnostics but never rendered.
+- **Mapping:** `mapExpedition()` now reads `outcome`, `completedAt` and flat/nested loot slots; `get.archived` `{ items }` wrappers are unwrapped.
+- **Egg condition:** `isMysteryEggPayout()` requires final risk >= 95, exactly two pool items (`Artificial milk`, `CCS "Kaloshi" Utility boots`, `Old Abibas beanie`), and no explicit non-full outcome.
+- **Trigger:** automatic payment matching the condition persists `auto-expedition-egg`, disables Auto Expedition, and publishes `expeditions.auto.done`. The state is cleared on the next launch.
+- **UI:** Auto Expedition card auto-expands once and renders a card-local animated banner with “我从地狱里回来了！”. Archived expeditions are moved out of the active list into a collapsed History section after the auto-pay option.
+- **Settings:** `mysteryEggEnabled` (default false) appears after Developer tools in Basic settings.
+- **Verification:** typecheck, lint, build and Vitest (127 files / 1056 tests) pass at build `2.0.10-salta.328`.
+
+---
+
+# Part 85 — Settings backup actions layout (2.0.10-salta.329)
+
+- Export / Import / Reset settings are compact and share one row.
+- Reset panel order moved below its own divider.
+- Removed the redundant Developer jump button from Settings → Basic settings; the Developer tab remains in the main navigation.
+- Verification: typecheck, lint, build and Vitest (127 files / 1056 tests) pass at build `2.0.10-salta.329`.
+
+---
+
+# Part 86 — Easter egg setting label (2.0.10-salta.330)
+
+- Settings → Basic settings now labels the toggle simply as “彩蛋” / “Easter egg”.
+- Removed the explanatory description under the label.
+- Verification: typecheck, lint, build and Vitest (127 files / 1056 tests) pass at build `2.0.10-salta.330`.
+
+---
+
+# Part 87 — Merge of the v2-dev feature line (2.0.10-salta.331)
+
+- **Merge:** `v2-dev` (`3854686`, valuable maintenance / sortable panels / mystery egg) is merged into `v2` (`18bf964`, automation recovery fixes). Both lines had diverged from `236d826` with one commit each, so every conflict was resolved as a union instead of choosing a side.
+- **Expedition payout:** `ExpeditionService.payout()` keeps the per-expedition payout record and the "already fully collected counts as paid" rule. An already-collected row is recorded with `opened: true`, empty loot and no error, so it does not block later cycles or feed the mystery egg.
+- **Expedition model:** `ActiveExpedition` carries both `containerOpenedAt` (payment gating) and `completedAt` / `outcome` / `loot` (history and egg detection); the portal schema, raw contract and view models agree.
+- **Readiness and maintenance events:** background messaging handles both `V2_MINIGAME_STUCK` (page reload coordinator) and `V2_MAINTENANCE_STARTED` (valuable maintenance monitor); the content script forwards both.
+- **Version:** build counter takes the higher `v2-dev` value (330) and increments for this merge batch, so the merged artifact is `2.0.10-salta.331`.
+- **Verification:** typecheck, lint, build and Vitest (128 files / 1065 tests) pass at build `2.0.10-salta.331`.
+
+---
+
+# Part 88 — Overview alignment, fold headers and the credit floor (2.0.10-salta.332)
+
+- **Overview credits:** the Credits panel body is left-aligned instead of right-aligned.
+- **Fold headers:** `Fold` headers now render the chevron, the title and the `InfoTip` in one row, so the info button sits next to the section title instead of being pushed to the far edge. The row keeps the shared background; the whole title remains the toggle target.
+- **Expedition dividers:** the dashed divider above "Auto pay and send rewards to mailbox" moved below it, so the divider separates auto-pay from "History" as intended.
+- **Credit floor:** `mercMinCredits` is now a post-payment floor. A run starts only when `credits - total cost >= mercMinCredits` (`expeditionCreditBudget` in `src/application/expeditions/credits.ts`). The estimated candidate cost is checked before the preparation window and the configured cost is checked again before launch; a blocked run disables Auto Expedition with the credits, cost, threshold and remaining balance in the diagnostic. A credit read failure postpones the launch instead of guessing. The settings description explains the subtraction rule.
+- **Verification:** typecheck, lint, build and Vitest (129 files / 1070 tests) pass at build `2.0.10-salta.332`.
+
+---
+
+# Part 89 — Toolbar menu, Founders Portal link and a full-row fold header (2.0.10-salta.333)
+
+- **Toolbar context menu:** `registerActionMenu()` (`src/contexts/background/action-menu.ts`) adds an `action`-context item under Chrome's built-in "Open in side panel". It opens or focuses the detached workspace through `openStandaloneWindow()`, which the popup's own button now shares. The item is recreated on install/startup and after any settings write (import/reset included), so its title follows `uiLanguage` (`在独立窗口中打开` / `Open in a separate window`). The manifest gained the `contextMenus` permission.
+- **Related links:** a third entry, Founders Portal (`https://community.cor3.gg/`, Chinese label `官方创始人门户`), sits after the Fragmentary Order website.
+- **Fold headers:** the empty part of an Auto Expedition fold header is a sibling click target again, so the whole row toggles. The title button, the info button and its modal stay independent elements, so clicking the info button (or the modal backdrop) cannot collapse the section.
+- **Verification:** typecheck, lint, build and Vitest (130 files / 1078 tests) pass at build `2.0.10-salta.333`.
+
+---
+
+# Part 90 — Release 2.0.11-salta
+
+- **Version:** `package.json` `2.0.11`; release artifact `2.0.11-salta`; local build identity `2.0.11-salta.333`.
+- **Automation recovery:** stuck minigame rooms (decrypt / ICE WALL / terminal hack) reload the game tab at most twice per ten minutes and resume with a full Auto Jobs refresh; pre-Complete timeouts stay retryable while only Complete-stage uncertainty keeps the completion barrier. Auto Finish's `runExclusive()` result contract is fixed.
+- **Auto Expedition:** already-collected containers count as paid, the credit floor now applies after the run cost, and cancellation/configure/price/no-mercenary/launch failures disable the automation instead of looping.
+- **v2-dev merge:** valuable-seller maintenance and force run, sortable page cards with a shared panel shell, expedition payout history and the mystery egg.
+- **UI:** left-aligned Overview credits, expedition fold headers with the info button next to the title and a full-row click target, the reordered divider, and the Founders Portal link.
+- **Toolbar:** an `action` context menu item under the built-in side panel entry opens the detached workspace and follows the UI language.
+- **Verification:** typecheck, lint, build and Vitest (130 files / 1078 tests) pass at build `2.0.11-salta.333`.
+
+---
+
+# Part 91 — Unreachable job targets and a retained debug log (2.0.11-salta.334)
+
+- **Preflight reachability:** `JobPreflight.preflight()` no longer ignores every non-maintenance target error. On a fresh map (`capturedAt` within 60 s) a job is skipped when its target is missing from the map, is reported as undiscovered, or has no route from the current endpoint or home. Maintenance still returns its retryable error. A stale map or a failed refresh keeps the old permissive behaviour so `GAME_MAP_FAILED` snapshots cannot reject valid jobs.
+- **Target resolution:** the job id stays authoritative, but when the map does not know it the server name resolves the target instead, so an outdated row is not reported as unreachable. The decision is logged with `inMap`/`discovered`/`accessible`/`reachableNow`/route results.
+- **Taken jobs:** `JobExecutionService` re-runs the preflight for jobs taken earlier (not claimable) before spending an attempt, so an impossible target becomes a skip instead of an endless retry loop. The block message avoids maintenance/lock wording, so `classifyJobFailure` reports `skipped` rather than `retry`.
+- **Map fields:** v1 parity for `isDiscovered`/`isAccessible` in the map contract, `NetworkServer` and the persisted snapshot.
+- **Log retention:** the background ring buffer grew from 500 to 6000 entries with a 4 MB byte budget and a 1.5 s persist debounce; per-run automation logs now persist to `chrome.storage.session` (`v2.runLogs`, six newest runs) so a service-worker restart no longer erases the run log; `devtools.logs` accepts up to 6000 lines and `automation.logs` up to 2000; Developer → Export writes the whole retained buffer instead of the 300 rendered lines.
+- **Verification:** typecheck, lint, build and Vitest (130 files / 1091 tests) pass at build `2.0.11-salta.334`.
+
+---
+
+# Part 92 — Release 2.0.12-salta
+
+- **Version:** `package.json` `2.0.12`; release artifact `2.0.12-salta`; local build identity `2.0.12-salta.334`.
+- **Content:** no code changes since 2.0.11-salta; this build carries Parts 88–91 (formerly upstream Parts 81–84; UI polish, toolbar window menu, credit floor, unreachable-target preflight gate and the larger retained debug log).
+- **Packaging:** draft release only; the tag is created when the release is published.
+- **Verification:** typecheck, lint, build and Vitest (130 files / 1091 tests) pass at build `2.0.12-salta.334`.
+
+---
+
+# Part 93 — Force maintenance restored to v1 parity (2.0.12-salta.336)
+
+- **Traffic:** the force loop no longer forces a `get.map` refresh every three attempts or at start; it reads the cached snapshot and only refreshes for `sai-access-denied` recovery, like v1. This was the main source of "too many requests" during a force run.
+- **No downloads:** the v2 "one valuable file per attempt, one log per five attempts" behaviour and the `includeDownloads` option were removed. The force run only pushes servers toward maintenance; the API still accepts the old field from older panels and ignores it.
+- **Pacing:** v1-style human delay of 1000-1500 ms replaces the fixed 1.2 s pause.
+- **Rate-limit special case:** `sai file.search-valuable` requests from the force loop carry `bypassRateLimitCooldown`, so the hub keeps sending them (250 ms throttle) while other commands wait out the game cooldown, and their rate-limit responses do not escalate the global cooldown. Other features are unchanged.
+- **Routing:** the last reached endpoint is reused between targets to avoid a redundant `set.endpoint`.
+- **Diagnostics:** per-attempt debug traces (duration, result, rate-limit flag), per-server start/finish/warn lines and a run summary now go to the debug log and the visible run log.
+- **Verification:** typecheck, lint, build and Vitest (130 files / 1093 tests) pass at build `2.0.12-salta.336`.
+
+---
+
+# Part 94 — Release 2.0.13-salta
+
+- **Version:** `package.json` `2.0.13`; release artifact `2.0.13-salta`; local build identity `2.0.13-salta.336`.
+- **Force maintenance:** restored to v1 parity. The loop reads the cached map and only refreshes for `sai-access-denied` recovery, no longer downloads valuables, reuses the reached endpoint between targets, and paces attempts at 1000-1500 ms.
+- **Rate-limit special case:** force searches bypass the shared game cooldown (still the 250 ms send throttle) and do not escalate the global cooldown used by other automations.
+- **Diagnostics:** per-attempt traces plus per-server and run summaries now reach both the debug log and the visible run log.
+- **Carried from 2.0.12:** unreachable-target preflight gate, larger retained logs and persisted run logs, UI alignment and toolbar window menu.
+- **Packaging:** draft release only; the tag is created when the release is published.
+- **Verification:** typecheck, lint, build and Vitest (130 files / 1093 tests) pass at build `2.0.13-salta.336`.
+
+---
+
+# Part 95 — Second upstream/v2 merge into the fork (2.5.8)
+
+- Fork identity remains authoritative: `version: 2.5.8`, `releaseLabel: huoyan1231`, `cor3Fork.versionCode` and `bump.mjs`; upstream's `salta` / `build` identity and `bump:build` are not adopted. Upstream Parts 73-87 are recorded as fork Parts 80-94 to avoid the original numbering collision.
+- All 38 conflicted files were resolved as a union. The fork keeps its 44-server maintenance catalog, exact name+IP matching, event-driven search loop, two-step force confirmation, versionCode update detection, warm cache, minigame lock, v1 already-claimable ordering, settled-expedition handling, veteran switch and auto page refresh. Upstream contributes v1-parity maintenance pacing/diagnostics, unreachable-target preflight, retained debug logs, stuck-minigame room recovery, drag-and-drop panels, toolbar window menu, Founders Portal link, expedition easter egg, credit floor fixes and historical UI alignment.
+- Where both sides solved the same problem, the fork keeps its product behavior and adds upstream's safety layer: bounded `+1` decrypt retry remains only as a fallback after requirement-mode planning; completion barriers use upstream's `unconfirmed`-only release while keeping the fork's minigame guard and v1 ordering; `useJobs` keeps warm bootstrap plus upstream's monotonic snapshot guards.
+- Verification: typecheck, oxlint, Vitest (154 files / 1257 tests) and production build pass.

@@ -4,13 +4,14 @@ import type { SettingsPatch } from '../../contracts/storage.js';
 import { authStatusSchema, settingsPatchSchema, settingsV1Schema } from '../../contracts/storage.js';
 import { DEFAULT_WORKSPACE_VIEW, WORKSPACE_VIEW_KEY, workspaceViewStateSchema, type WorkspaceViewState } from '../../contracts/workspace-view.js';
 import { workspaceBootstrapSchema, type WorkspaceBootstrap } from '../../contracts/workspace-bootstrap.js';
+import { expeditionMysteryEggSchema } from '../../contracts/expedition.js';
 import { networkMapSummarySchema } from '../../application/network/summary.js';
 import type { BridgeClient } from '../bridge/bridge-client.js';
 import { UpdateChecker } from '../update/update-checker.js';
 import { toVersionCode } from '../../kernel/version.js';
 import { updateCheckResultSchema, type UpdateCheckResult } from '../../contracts/update-check.js';
 import { autoPageRefreshStatusSchema, type AutoPageRefreshStatus } from '../../contracts/auto-page-refresh.js';
-import type { AutoDailyStatus, AutoDroneStatus, AutoExpeditionStatus, AutoFinishRunResult, AutoFinishStatus, AutoJobsSnapshot, AutoJobsStatus, AutoMailStatus, BackgroundEvent, CachedMarketView, DailyHackResult, DebugLogLine, DismissFailedSummary, DroneAutoResult, InventoryFilterOptions, InventoryFilterResult, InventoryItemSellResult, InventoryPreviewResult, InventorySortResult, InventoryView, JobAllMarketsResult, JobHistoryEntry, JobMarketSyncResult, JobQueueResult, JobQueueState, LoadoutApplyResult, LoadoutView, MailClaimResult, MarketOptionsView, ActivityState, MaintenanceForceSummary, MaintenanceTarget, NetworkDiagnostics, NetworkServerSummary, OverviewState, PopupPortal, ValuableReport, ValuableRunState, ValuableSaleResult, ValuableSearchResult } from '../../application/popup/portal.js';
+import type { AutoDailyStatus, AutoDroneStatus, AutoExpeditionStatus, AutoFinishRunResult, AutoFinishStatus, AutoJobsSnapshot, AutoJobsStatus, AutoMailStatus, BackgroundEvent, CachedMarketView, DailyHackResult, DebugLogLine, DismissFailedSummary, DroneAutoResult, InventoryFilterOptions, InventoryFilterResult, InventoryItemSellResult, InventoryPreviewResult, InventorySortResult, InventoryView, JobAllMarketsResult, JobHistoryEntry, JobMarketSyncResult, JobQueueResult, JobQueueState, LoadoutApplyResult, LoadoutView, MailClaimResult, MarketOptionsView, ActivityState, MaintenanceForceSummary, MaintenanceTarget, NetworkDiagnostics, NetworkServerSummary, OverviewState, PopupPortal, ValuableForceMaintenanceStart, ValuableMaintenanceServer, ValuableReport, ValuableRunState, ValuableSaleResult, ValuableSearchResult, ValuableSellOptions } from '../../application/popup/portal.js';
 import type { NetworkOperationQueueStatus } from '../../application/network/operation-queue.js';
 import { gameReadinessSchema } from '../../application/game/readiness.js';
 import type { JobOffer } from '../../domains/jobs/model.js';
@@ -25,6 +26,7 @@ import { loadoutDumpFileSchema, type LoadoutDumpFile } from '../../contracts/loa
 import { marketCompletedJobsSchema } from '../../contracts/market-completed-jobs.js';
 import { autoJobsScheduleStateSchema, autoJobsStatusSchema } from '../../contracts/auto-jobs.js';
 import { autoFinishLastRunSchema, autoFinishMarketSchema, autoFinishRunResultSchema, autoFinishUnknownJobSchema } from '../../contracts/auto-finish.js';
+import { openStandaloneWindow } from './standalone-window.js';
 
 const pingSchema = z.object({ version: z.string(), phase: z.string() });
 const settingsExportSchema = z.object({
@@ -67,11 +69,16 @@ const expeditionDecisionSchema = z.object({
         requiredModuleId: z.string().nullable(),
     }).strict()),
 }).strict();
+const expeditionLootItemSchema = z.object({
+    name: z.string(), quantity: z.number(), tier: z.string().nullable(), imageUrl: z.string().nullable(),
+    isCollected: z.boolean().nullable(), isDeleted: z.boolean().nullable(),
+}).strict();
 const activeExpeditionSchema = z.object({
-    id: z.string(), status: z.string(), locationName: z.string(),
+    id: z.string(), status: z.string(), outcome: z.string().nullable().optional(), locationName: z.string(),
     mercenaryName: z.string().nullable(), mercenaryRank: z.string().nullable().optional(), totalCost: z.number().nullable(), riskScore: z.number().nullable(),
     lootScore: z.number().nullable(), hasInsurance: z.boolean().nullable(), endsAt: z.string().nullable(),
-    containerOpenedAt: z.string().nullable().optional(), outcome: z.string().nullable().optional(),
+    containerOpenedAt: z.string().nullable().optional(),
+    completedAt: z.string().nullable().optional(), loot: z.array(expeditionLootItemSchema).optional(),
 }).strict();
 export const expeditionOverviewSchema = z.object({
     active: z.array(activeExpeditionSchema),
@@ -145,6 +152,7 @@ const autoExpeditionStatusSchema = z.object({
     dataStale: z.boolean(),
     preparation: expeditionPreparationSchema.nullable(),
     decision: autoExpeditionDecisionSchema.nullable().optional(),
+    egg: expeditionMysteryEggSchema.nullable(),
     last: z.object({
         at: z.number(),
         decisions: z.number(),
@@ -499,7 +507,7 @@ const valuableSaleResultSchema = z.object({
     marketFailures: z.array(valuableFailureSchema),
 }).strict();
 const valuableProgressSchema = z.object({
-    phase: z.enum(['server', 'download', 'market', 'sell']),
+    phase: z.enum(['server', 'download', 'market', 'sell', 'maintenance']),
     target: z.string(),
     index: z.number().int().nonnegative(),
     total: z.number().int().nonnegative(),
@@ -533,7 +541,7 @@ const maintenanceForceSummarySchema = z.object({
 }).strict();
 const valuableRunStateSchema = z.object({
     runId: z.string(),
-    operation: z.enum(['search', 'sell', 'maintenance']),
+    operation: z.enum(['search', 'sell', 'maintenance', 'force-maintenance']),
     status: z.enum(['running', 'done', 'cancelled', 'error']),
     progress: z.union([valuableProgressSchema, maintenanceForceProgressSchema]).nullable(),
     error: z.string().nullable(),
@@ -545,11 +553,22 @@ const valuableReportSchema = z.object({
     soldItems: z.number().int().nonnegative(),
     credits: z.number(),
     reputation: z.number(),
+    forcedServers: z.number().int().nonnegative(),
     unsoldItems: z.number().int().nonnegative(),
     lastSearchAt: z.number().nullable(),
     lastSellAt: z.number().nullable(),
+    lastForceAt: z.number().nullable(),
     active: valuableRunStateSchema.nullable(),
 }).strict();
+const valuableMaintenanceServerSchema = z.object({
+    id: z.string(),
+    name: z.string(),
+    typeName: z.string().nullable(),
+    active: z.boolean(),
+    endsAt: z.string().nullable(),
+    timeUntil: z.string().nullable(),
+}).strict();
+const valuableForceStartSchema = z.object({ runId: z.string() }).strict();
 const jobRouteNodeSchema = z.object({ id: z.string(), name: z.string() }).strict();
 const skippedJobSchema = z.object({
     id: z.string(),
@@ -747,6 +766,11 @@ export class ChromePopupPortal implements PopupPortal {
         } catch {
             return false;
         }
+    }
+
+    /** Opens the workspace in a detached standalone browser window. */
+    openStandaloneWindow(): Promise<boolean> {
+        return openStandaloneWindow();
     }
 
     openWindow(): Promise<boolean> {
@@ -1144,8 +1168,29 @@ export class ChromePopupPortal implements PopupPortal {
         return this.client.request('valuable.search', { runId }, valuableSearchResultSchema, 1_800_000) as Promise<{ ok: true; value: ValuableSearchResult } | { ok: false; error: { code: string; message: string } }>;
     }
 
-    sellValuable(runId: string): Promise<{ ok: true; value: ValuableSaleResult } | { ok: false; error: { code: string; message: string } }> {
-        return this.client.request('valuable.sell', { runId }, valuableSaleResultSchema, 1_800_000) as Promise<{ ok: true; value: ValuableSaleResult } | { ok: false; error: { code: string; message: string } }>;
+    sellValuable(runId: string, options?: ValuableSellOptions): Promise<{ ok: true; value: ValuableSaleResult } | { ok: false; error: { code: string; message: string } }> {
+        const payload = {
+            runId,
+            ...(options?.forceMaintenance
+                ? {
+                    forceMaintenance: {
+                        serverIds: [...options.forceMaintenance.serverIds],
+                    },
+                }
+                : {}),
+        };
+        return this.client.request('valuable.sell', payload, valuableSaleResultSchema, 1_800_000) as Promise<{ ok: true; value: ValuableSaleResult } | { ok: false; error: { code: string; message: string } }>;
+    }
+
+    valuableMaintenance(force = false): Promise<{ ok: true; value: readonly ValuableMaintenanceServer[] } | { ok: false; error: { code: string; message: string } }> {
+        return this.client.request('valuable.maintenance', { force }, z.array(valuableMaintenanceServerSchema), 20000) as Promise<{ ok: true; value: readonly ValuableMaintenanceServer[] } | { ok: false; error: { code: string; message: string } }>;
+    }
+
+    startForceValuableMaintenance(runId: string, serverIds: readonly string[]): Promise<{ ok: true; value: ValuableForceMaintenanceStart } | { ok: false; error: { code: string; message: string } }> {
+        return this.client.request('valuable.forceMaintenance', {
+            runId,
+            serverIds: [...serverIds],
+        }, valuableForceStartSchema, 15000) as Promise<{ ok: true; value: ValuableForceMaintenanceStart } | { ok: false; error: { code: string; message: string } }>;
     }
 
     forceMaintenance(runId: string, serverIds?: readonly string[]): Promise<{ ok: true; value: MaintenanceForceSummary } | { ok: false; error: { code: string; message: string } }> {

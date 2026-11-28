@@ -16,6 +16,7 @@ interface PendingRequest {
     readonly resolve: (response: GameResponse) => void;
     readonly reject: (error: Error) => void;
     readonly timer: number;
+    readonly bypassCooldown: boolean;
 }
 
 interface PendingStash {
@@ -233,6 +234,11 @@ interface QueuedFrame {
     readonly frame: string;
     readonly networkMap: boolean;
     readonly deadline: number;
+    /**
+     * Force maintenance is a v1-parity special case: its searches keep flowing
+     * while ordinary commands wait out the game's rate-limit cooldown.
+     */
+    readonly bypassCooldown: boolean;
 }
 
 /** v1 used a 250 ms WebSocket send throttle; keep the same baseline. */
@@ -760,7 +766,7 @@ export class GameSocketHub {
                 this.clearExpeditionFallback();
                 reject(new Error('Timed out waiting for expedition data'));
             }, timeoutMs);
-            this.pendingExpeditions = { resolve, reject, timer };
+            this.pendingExpeditions = { resolve, reject, timer, bypassCooldown: false };
             const joined = this.joinRoom('expeditions');
             if (!joined.ok) {
                 window.clearTimeout(timer);
@@ -1108,7 +1114,7 @@ export class GameSocketHub {
         }
     }
 
-    private enqueueFrame(event: string, action: string, frame: string, networkMap: boolean, deadlineMs: number): boolean {
+    private enqueueFrame(event: string, action: string, frame: string, networkMap: boolean, deadlineMs: number, bypassCooldown = false): boolean {
         const socket = this.activeGameSocket();
         if (!socket) {
             this.notifyHost('warn', 'No open game socket for command', { event, action });
@@ -1118,7 +1124,7 @@ export class GameSocketHub {
             const dropped = this.sendQueue.shift();
             if (dropped) this.notifyHost('warn', 'WebSocket send queue overflow', { dropped: `${dropped.event}:${dropped.action}` });
         }
-        this.sendQueue.push({ event, action, frame, networkMap, deadline: Date.now() + Math.max(1_000, deadlineMs) });
+        this.sendQueue.push({ event, action, frame, networkMap, bypassCooldown, deadline: Date.now() + Math.max(1_000, deadlineMs) });
         this.flushSendQueue();
         return true;
     }
@@ -1141,7 +1147,7 @@ export class GameSocketHub {
         }
         let readyAt = this.lastSendAt + MIN_SEND_INTERVAL_MS;
         if (next.networkMap) readyAt = Math.max(readyAt, this.lastNetworkMapSendAt + NETWORK_MAP_SEND_INTERVAL_MS);
-        if (this.rateLimitedUntil > readyAt) readyAt = this.rateLimitedUntil;
+        if (!next.bypassCooldown && this.rateLimitedUntil > readyAt) readyAt = this.rateLimitedUntil;
         const wait = readyAt - now;
         if (wait > 0) {
             this.scheduleFlush(wait);
@@ -1191,6 +1197,23 @@ export class GameSocketHub {
         } catch {
             // The page may be tearing down.
         }
+    }
+
+    private notifyMaintenance(data: unknown): void {
+        const entry = data && typeof data === 'object' ? data as { serverId?: unknown; reason?: unknown } : null;
+        const serverId = typeof entry?.serverId === 'string' && entry.serverId.length > 0 ? entry.serverId : null;
+        const reason = typeof entry?.reason === 'string' ? entry.reason : null;
+        try {
+            window.postMessage({
+                version: 2,
+                type: 'V2_MAINTENANCE_STARTED',
+                ...(serverId ? { serverId } : {}),
+                ...(reason ? { reason } : {}),
+            }, '*');
+        } catch {
+            // The page may be tearing down.
+        }
+        this.notifyHost('info', 'Server maintenance started', { serverId, reason });
     }
 
     private notifyExpeditionDecisions(decisions: readonly unknown[]): void {
@@ -1353,7 +1376,15 @@ export class GameSocketHub {
         const action = actions[kind];
         if (!action) return err({ code: 'GAME_UNKNOWN_ACTION', message: `Unknown valuable action: ${kind}` });
         const searchStartedAt = kind === 'searchFiles' ? Date.now() : 0;
-        const response = await this.request(action.event, action.action, payload, action.timeoutMs).catch((error) => error);
+        const timeoutOverride = payload.timeoutMs;
+        const bypassCooldown = payload.bypassRateLimitCooldown === true;
+        const requestPayload = timeoutOverride === undefined && !bypassCooldown
+            ? payload
+            : Object.fromEntries(Object.entries(payload).filter(([key]) => key !== 'timeoutMs' && key !== 'bypassRateLimitCooldown'));
+        const timeoutMs = typeof timeoutOverride === 'number' && Number.isFinite(timeoutOverride) && timeoutOverride > 0
+            ? timeoutOverride
+            : action.timeoutMs;
+        const response = await this.request(action.event, action.action, requestPayload, timeoutMs, bypassCooldown).catch((error) => error);
         if (response instanceof Error) return err({ code: 'GAME_TIMEOUT', message: response.message });
         if (response.error) return err(gameError(response.error, 'GAME_VALUABLE_ACTION_FAILED'));
         if (kind === 'searchFiles' && this.maintenanceSignalAt >= searchStartedAt) {
@@ -1497,11 +1528,11 @@ export class GameSocketHub {
         if (this.frameLog.length > 400) this.frameLog.splice(0, this.frameLog.length - 400);
     }
 
-    private request(event: string, action: string, data: unknown, timeoutMs: number): Promise<GameResponse> {
+    private request(event: string, action: string, data: unknown, timeoutMs: number, bypassCooldown = false): Promise<GameResponse> {
         const key = `${event}:${action}`;
         const previous = this.requestChains.get(key);
         const next = (previous ? previous.then(() => undefined, () => undefined) : Promise.resolve())
-            .then(() => this.performRequest(event, action, data, timeoutMs));
+            .then(() => this.performRequest(event, action, data, timeoutMs, bypassCooldown));
         let tracked: Promise<GameResponse>;
         tracked = next.finally(() => {
             if (this.requestChains.get(key) === tracked) this.requestChains.delete(key);
@@ -1510,7 +1541,7 @@ export class GameSocketHub {
         return tracked;
     }
 
-    private async performRequest(event: string, action: string, data: unknown, timeoutMs: number): Promise<GameResponse> {
+    private async performRequest(event: string, action: string, data: unknown, timeoutMs: number, bypassCooldown = false): Promise<GameResponse> {
         const key = `${event}:${action}`;
         if (this.pendingRequests.has(key)) throw new Error(`Request already pending: ${key}`);
         if (!(await this.waitForActiveSocket(4000))) throw new Error('No game WebSocket is available');
@@ -1520,8 +1551,8 @@ export class GameSocketHub {
                 this.dropQueued(event, action);
                 reject(new Error(`Timed out waiting for ${key}`));
             }, timeoutMs);
-            this.pendingRequests.set(key, { resolve, reject, timer });
-            if (!this.send(event, action, data, timeoutMs)) {
+            this.pendingRequests.set(key, { resolve, reject, timer, bypassCooldown });
+            if (!this.send(event, action, data, timeoutMs, bypassCooldown)) {
                 window.clearTimeout(timer);
                 this.pendingRequests.delete(key);
                 reject(new Error('No game WebSocket is available'));
@@ -1598,9 +1629,9 @@ export class GameSocketHub {
         });
     }
 
-    private send(name: string, action: string, data: unknown, deadlineMs = DEFAULT_FRAME_DEADLINE_MS): boolean {
+    private send(name: string, action: string, data: unknown, deadlineMs = DEFAULT_FRAME_DEADLINE_MS, bypassCooldown = false): boolean {
         const frame = `42${JSON.stringify(['event', { event: { name, action }, data }])}`;
-        return this.enqueueFrame(name, action, frame, name === 'network-map', deadlineMs);
+        return this.enqueueFrame(name, action, frame, name === 'network-map', deadlineMs, bypassCooldown);
     }
 
     private sendWithoutData(name: string, action: string, deadlineMs = DEFAULT_FRAME_DEADLINE_MS): boolean {
@@ -1622,7 +1653,12 @@ export class GameSocketHub {
                 return;
             }
         }
-        if (isRateLimitError(payload?.error) || isRateLimitError(payload?.data)) this.noteRateLimit();
+        if (isRateLimitError(payload?.error) || isRateLimitError(payload?.data)) {
+            // A bypassed force-maintenance search must not escalate the global
+            // cooldown that other features have to honour.
+            const pending = action ? this.pendingRequests.get(`${eventName}:${action}`) : undefined;
+            if (!pending?.bypassCooldown) this.noteRateLimit();
+        }
         if (eventName === 'stash' && this.pendingStash) {
             // The stash push may carry an event.action depending on the game
             // build. Resolve on any stash payload that has data, otherwise the
@@ -1766,8 +1802,11 @@ export class GameSocketHub {
         }
         if (!action) return;
 
-        if (eventName === 'network-map' && action === 'maintenance') {
+        // The game announces maintenance on both rooms. v1 only listened to
+        // network-map; accepting sai as well makes the force loop stop sooner.
+        if ((eventName === 'network-map' || eventName === 'sai') && action === 'maintenance') {
             this.maintenanceSignalAt = Date.now();
+            this.notifyMaintenance(payload.data);
         }
 
         if (eventName === 'network-map' && action === 'get.map') {

@@ -12,6 +12,7 @@ function expedition(overrides: Partial<ActiveExpedition> = {}): ActiveExpedition
         lootScore: null,
         hasInsurance: null,
         endsAt: null,
+        outcome: null,
         ...overrides,
     };
 }

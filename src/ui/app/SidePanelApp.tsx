@@ -290,7 +290,7 @@ export function SidePanelApp({
                         connection={connection}
                         network={network}
                         gameStatus={gameStatus}
-                        onOpenDeveloper={setActivePage}
+                        onOpenDeveloper={() => setActivePage('developer')}
                     />
                 ) : null}
 

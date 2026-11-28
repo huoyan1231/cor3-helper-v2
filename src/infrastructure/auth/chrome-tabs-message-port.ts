@@ -28,18 +28,6 @@ export class ChromeTabsMessagePort implements TabMessagePort {
         });
     }
 
-    reload(tabId: number): Promise<void> {
-        return new Promise((resolve, reject) => {
-            chrome.tabs.reload(tabId, () => {
-                if (chrome.runtime.lastError) {
-                    reject(new Error(chrome.runtime.lastError.message));
-                    return;
-                }
-                resolve();
-            });
-        });
-    }
-
     send(tabId: number, message: unknown): Promise<unknown> {
         return new Promise((resolve, reject) => {
             const envelope = encodeTabRequest(message) ?? message;
@@ -49,6 +37,18 @@ export class ChromeTabsMessagePort implements TabMessagePort {
                     return;
                 }
                 resolve(decodeTabResponse(response));
+            });
+        });
+    }
+
+    reload(tabId: number): Promise<void> {
+        return new Promise((resolve, reject) => {
+            chrome.tabs.reload(tabId, {}, () => {
+                if (chrome.runtime.lastError) {
+                    reject(new Error(chrome.runtime.lastError.message));
+                    return;
+                }
+                resolve();
             });
         });
     }

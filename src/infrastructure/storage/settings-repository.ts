@@ -4,6 +4,7 @@ import type { StorageArea } from './storage-area.js';
 import { VersionedRepository } from './versioned-repository.js';
 
 export const SETTINGS_KEY = 'v2.settings';
+export const SETTINGS_STORAGE_KEY = SETTINGS_KEY;
 const SETTINGS_SCHEMA_VERSION = 1;
 
 /**
@@ -46,7 +47,7 @@ export class SettingsRepository {
     constructor(area: StorageArea, clock?: { now(): number }, logger?: Logger) {
         this.repository = new VersionedRepository({
             area,
-            key: SETTINGS_KEY,
+            key: SETTINGS_STORAGE_KEY,
             schema: settingsV1Schema,
             schemaVersion: SETTINGS_SCHEMA_VERSION,
             ...(clock ? { clock } : {}),

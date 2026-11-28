@@ -274,3 +274,121 @@ describe('ExpeditionService insurance candidates', () => {
         if (result.ok) expect(result.value[0]).toMatchObject({ insurance: true, totalCost: 250 });
     });
 });
+
+describe('expedition payout state', () => {
+    function payoutPort(openContainer: ExpeditionPort['openContainer']): ExpeditionPort {
+        return {
+            getActive: async () => ({
+                ok: true as const,
+                value: {
+                    expeditions: [
+                        { id: 'paid', status: 'COMPLETED', containerOpenedAt: '2026-11-27T10:00:00.000Z' },
+                        { id: 'unpaid', status: 'COMPLETED', containerOpenedAt: null },
+                    ],
+                },
+            }),
+            getArchived: async () => ({ ok: true as const, value: {} }),
+            getMercenaries: async () => ({ ok: true as const, value: {} }),
+            getConfig: async () => ({ ok: true as const, value: {} }),
+            respond: async () => ({ ok: true as const, value: undefined }),
+            configure: async () => ({ ok: true as const, value: {} }),
+            launch: async () => ({ ok: true as const, value: undefined }),
+            openContainer,
+        };
+    }
+
+    it('does not treat an already collected expedition as ready', async () => {
+        const service = new ExpeditionService(payoutPort(async () => ({ ok: true, value: undefined })));
+        const ready = await service.readyExpeditions('home');
+        expect(ready.ok).toBe(true);
+        if (ready.ok) expect(ready.value.map((entry) => entry.id)).toEqual(['unpaid']);
+    });
+
+    it('treats "already fully collected" as a successful payment instead of blocking the cycle', async () => {
+        const service = new ExpeditionService(payoutPort(async () => ({
+            ok: false,
+            error: { code: 'EXPEDITION_FAILED', message: 'Expedition already fully collected' },
+        })));
+        const result = await service.payout('home');
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+            expect(result.value).toMatchObject({ ready: 1, opened: 1, failed: [] });
+            expect(result.value.payouts[0]).toMatchObject({ expeditionId: 'unpaid', opened: true, error: null });
+        }
+    });
+});
+
+describe('ExpeditionService payout details', () => {
+    function payoutPort(openContainer: ExpeditionPort['openContainer']): ExpeditionPort {
+        return {
+            getActive: async () => ({
+                ok: true,
+                value: {
+                    expeditions: [{
+                        id: 'exp-1',
+                        status: 'COMPLETED',
+                        outcome: 'FULL_SUCCESS',
+                        riskScore: 91,
+                    }],
+                },
+            }),
+            getArchived: async () => ({ ok: true, value: {} }),
+            getMercenaries: async () => ({ ok: true, value: {} }),
+            getConfig: async () => ({ ok: true, value: {} }),
+            respond: async () => ({ ok: true, value: undefined }),
+            configure: async () => ({ ok: true, value: {} }),
+            launch: async () => ({ ok: true, value: undefined }),
+            openContainer,
+        };
+    }
+
+    it('keeps the loot and final risk from the payment response', async () => {
+        const service = new ExpeditionService(payoutPort(async () => ({
+            ok: true,
+            value: {
+                id: 'exp-1',
+                riskScore: 94,
+                outcome: 'FULL_SUCCESS',
+                completedAt: '2026-11-27T10:00:00.000Z',
+                containerData: [
+                    { name: 'Artificial milk', quantity: 1, tier: 'RARE' },
+                    { name: 'CCS "Kaloshi" Utility boots', quantity: 1, tier: 'EPIC' },
+                ],
+            },
+        })));
+        const result = await service.payout('home');
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+            expect(result.value).toMatchObject({ ready: 1, opened: 1, failed: [] });
+            expect(result.value.payouts[0]).toMatchObject({
+                expeditionId: 'exp-1',
+                riskScore: 94,
+                outcome: 'FULL_SUCCESS',
+                opened: true,
+                error: null,
+            });
+            expect(result.value.payouts[0]?.items.map((item) => item.name)).toEqual([
+                'Artificial milk',
+                'CCS "Kaloshi" Utility boots',
+            ]);
+        }
+    });
+
+    it('records a failed payment without loot', async () => {
+        const service = new ExpeditionService(payoutPort(async () => ({
+            ok: false,
+            error: { code: 'EXPEDITION_FAILED', message: 'insufficient-credits' },
+        })));
+        const result = await service.payout('home');
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+            expect(result.value).toMatchObject({ ready: 1, opened: 0 });
+            expect(result.value.payouts[0]).toMatchObject({
+                expeditionId: 'exp-1',
+                items: [],
+                opened: false,
+                error: 'insufficient-credits',
+            });
+        }
+    });
+});

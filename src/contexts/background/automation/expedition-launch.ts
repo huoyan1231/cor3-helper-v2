@@ -3,9 +3,11 @@ import type { JobMarketDefinition } from '../../../domains/jobs/markets.js';
 import { selectMercenary } from '../../../domains/expeditions/selection.js';
 import { MERC_EXPEDITION_PROFILES, mercProfileKeyForMarket } from '../../../domains/expeditions/profiles.js';
 import { totalCostInfo } from '../../../application/expeditions/service.js';
+import { expeditionCreditBudget } from '../../../application/expeditions/credits.js';
 import { isExpeditionReady, isExpeditionSettled } from '../../../domains/expeditions/model.js';
 import { AUTO_EXPEDITION_RETRY_ALARM } from './alarm-ids.js';
 import { humanDelay, readWithRetry } from './delay.js';
+import { MYSTERY_EGG_STATE_KEY } from './expedition-types.js';
 import type { AutoExpeditionDeps, AutoExpeditionLast, ExpeditionPreparation, ExpeditionRunState } from './expedition-types.js';
 
 const AUTO_EXPEDITION_CONNECTION_RETRY_MS = 30_000;
@@ -25,6 +27,9 @@ export interface ExpeditionLaunchContext {
     scheduleMaintenanceRetry(alarm: string): Promise<void>;
     /** Pause this cycle and retry later instead of permanently disabling automation. */
     scheduleRetry(delayMs: number): Promise<void>;
+    disable(reason: string): Promise<void>;
+    /** Current home-market credits, or null when they cannot be read. */
+    readCredits(marketId: string): Promise<number | null>;
 }
 
 async function waitForPreparation(state: ExpeditionRunState, preparation: ExpeditionPreparation, timeoutMs: number): Promise<boolean> {
@@ -63,6 +68,68 @@ export async function launchExpedition(ctx: ExpeditionLaunchContext): Promise<vo
         goalId: profile.goalId,
         hasInsurance: selected.insurance,
     };
+    /**
+     * The configured threshold is a post-payment floor: the run may only start
+     * when the credits left after paying for it stay at or above it. Returns
+     * true when the caller must stop.
+     */
+    const blockedByCreditFloor = async (cost: number, stage: 'prepare' | 'launch'): Promise<boolean> => {
+        if (!current.mercMinCreditsEnabled) return false;
+        const credits = await ctx.readCredits(home.marketId);
+        if (credits === null) {
+            state.last = {
+                at: deps.clock.now(),
+                decisions,
+                launched: false,
+                error: 'Could not read current credits',
+                paid,
+                selectedMerc: selected.mercenary.name,
+                marketKey: profileKey,
+                message: 'Could not read credits; launch postponed',
+            };
+            await deps.state.set('auto-expedition', {
+                phase: 'waiting',
+                nextActionAt: deps.clock.now() + AUTO_EXPEDITION_CONNECTION_RETRY_MS,
+                lastError: state.last.error,
+                payload: { last: state.last },
+            });
+            deps.scheduler.create(AUTO_EXPEDITION_RETRY_ALARM, { when: deps.clock.now() + AUTO_EXPEDITION_CONNECTION_RETRY_MS });
+            deps.events.publish('expeditions.auto.done', state.last);
+            return true;
+        }
+        const budget = expeditionCreditBudget(credits, cost, current.mercMinCredits);
+        deps.logger.info('auto-expedition', 'Credit floor checked', {
+            stage,
+            credits,
+            totalCost: cost,
+            threshold: current.mercMinCredits,
+            remaining: budget.remaining,
+            blocked: budget.blocked,
+        });
+        if (!budget.blocked) return false;
+        state.last = {
+            at: deps.clock.now(),
+            decisions,
+            launched: false,
+            error: `Credits ${credits.toLocaleString()} after paying ${cost.toLocaleString()} would fall below threshold ${current.mercMinCredits.toLocaleString()}`,
+            paid,
+            selectedMerc: selected.mercenary.name,
+            marketKey: profileKey,
+            message: 'Expedition not launched: credits after payment would fall below the threshold',
+        };
+        await deps.state.set('auto-expedition', {
+            phase: 'idle',
+            runId: null,
+            nextActionAt: null,
+            lastError: null,
+        });
+        await ctx.disable('credits after payment would fall below the threshold');
+        deps.events.publish('expeditions.auto.done', state.last);
+        return true;
+    };
+    // Stop before the preparation window when the estimated cost already
+    // violates the floor; the configured cost is checked again before launch.
+    if (await blockedByCreditFloor(selected.totalCost, 'prepare')) return;
     const preparation: ExpeditionPreparation = {
         id: `expedition-prep-${deps.clock.now()}`,
         startedAt: deps.clock.now(),
@@ -123,6 +190,7 @@ export async function launchExpedition(ctx: ExpeditionLaunchContext): Promise<vo
             nextActionAt: null,
             lastError: null,
         });
+        await ctx.disable('preparation cancelled');
         deps.events.publish('expeditions.auto.done', state.last);
         return;
     }
@@ -203,6 +271,7 @@ export async function launchExpedition(ctx: ExpeditionLaunchContext): Promise<vo
     if (!configured.ok) {
         state.last = { at: deps.clock.now(), decisions, launched: false, error: configured.error.message, paid, selectedMerc: selected.mercenary.name, marketKey: profileKey };
         deps.logger.warn('auto-expedition', 'Expedition configure failed', { mercenary: selected.mercenary.name, message: configured.error.message });
+        await ctx.disable('expedition configure failed');
         return;
     }
     const configuredCost = totalCostInfo(configured.value);
@@ -231,8 +300,10 @@ export async function launchExpedition(ctx: ExpeditionLaunchContext): Promise<vo
             selectedTotalCost: selected.totalCost,
             maxPrice,
         });
+        await ctx.disable('configured total cost exceeds max price');
         return;
     }
+    if (await blockedByCreditFloor(finalTotalCost, 'launch')) return;
     await humanDelay(500, 900);
     const launched = await deps.service.launch(config);
     if (!launched.ok) {
@@ -250,6 +321,8 @@ export async function launchExpedition(ctx: ExpeditionLaunchContext): Promise<vo
         if (creditFailure) await ctx.scheduleRetry(AUTO_EXPEDITION_ACTIVE_RETRY_MS);
         else if (/maintenance|unreachable|no route|ROUTE_FAILED/i.test(launched.error.message)) {
             await ctx.scheduleMaintenanceRetry(AUTO_EXPEDITION_RETRY_ALARM);
+        } else {
+            await ctx.disable('expedition launch failed');
         }
         return;
     }
@@ -264,6 +337,8 @@ export async function launchExpedition(ctx: ExpeditionLaunchContext): Promise<vo
         message: `Launched with ${selected.mercenary.name} (${profile.marketLabel})`,
     };
     state.last = launchedLast;
+    // A new expedition has started; hide the previous easter egg.
+    await deps.state.clear(MYSTERY_EGG_STATE_KEY);
     deps.logger.info('auto-expedition', 'Mercenary expedition launched', {
         mercenary: selected.mercenary.name,
         market: selectedMarket.label,

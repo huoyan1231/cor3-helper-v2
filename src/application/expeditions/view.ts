@@ -4,16 +4,36 @@ import { droneChargeSecondsForMission, type DroneMission, type DroneState } from
 
 export { DRONE_EXPEDITION_PROFILE, MERC_EXPEDITION_PROFILES, mercProfileKeyForMarket };
 
-export function partitionExpeditions(overview: ExpeditionOverview | null): {
+export interface ExpeditionPartition {
     readonly active: readonly ExpeditionOverview['active'][number][];
+    /** Ready-but-unpaid expeditions shown in the active stage list. */
     readonly completed: readonly ExpeditionOverview['active'][number][];
-} {
-    const all = [...(overview?.active ?? []), ...(overview?.archived ?? [])];
-    const unique = [...new Map(all.map((entry) => [entry.id, entry])).values()];
-    const visible = unique.filter((entry) => !isExpeditionSettled(entry));
+    /** Archived expeditions, shown in the collapsible history section. */
+    readonly history: readonly ExpeditionOverview['active'][number][];
+}
+
+export function partitionExpeditions(overview: ExpeditionOverview | null): ExpeditionPartition {
+    const unique = (entries: readonly ExpeditionOverview['active'][number][]) =>
+        [...new Map(entries.map((entry) => [entry.id, entry])).values()];
+    const active = unique(overview?.active ?? []);
+    const archived = unique(overview?.archived ?? []);
+    const activeIds = new Set(active.map((entry) => entry.id));
+    const completedAt = (entry: ExpeditionOverview['active'][number]) =>
+        entry.completedAt ? Date.parse(entry.completedAt) : Number.NaN;
+    // Settled expeditions (reward container already opened) stay hidden from
+    // every stage, including the collapsible history section.
+    const visibleActive = active.filter((entry) => !isExpeditionSettled(entry));
+    const visibleArchived = archived.filter((entry) => !isExpeditionSettled(entry));
     return {
-        active: visible.filter((entry) => !isExpeditionReady(entry)),
-        completed: visible.filter(isExpeditionReady),
+        active: visibleActive.filter((entry) => !isExpeditionReady(entry)),
+        completed: visibleActive.filter((entry) => isExpeditionReady(entry) && entry.containerOpenedAt === null),
+        history: visibleArchived
+            .filter((entry) => !activeIds.has(entry.id))
+            .sort((left, right) => {
+                const leftAt = completedAt(left);
+                const rightAt = completedAt(right);
+                return (Number.isFinite(rightAt) ? rightAt : 0) - (Number.isFinite(leftAt) ? leftAt : 0);
+            }),
     };
 }
 

@@ -51,10 +51,21 @@ function publishMarketCache(value: unknown, marketId: unknown, source: unknown):
 
 window.addEventListener('message', (event) => {
     if (event.source !== window) return;
-    const data = event.data as { version?: unknown; type?: unknown; readiness?: unknown; marketId?: unknown; snapshot?: unknown; source?: unknown; level?: unknown; message?: unknown; data?: unknown; decisions?: unknown } | null;
+    const data = event.data as { version?: unknown; type?: unknown; readiness?: unknown; marketId?: unknown; snapshot?: unknown; source?: unknown; level?: unknown; message?: unknown; data?: unknown; decisions?: unknown; kind?: unknown; reason?: unknown; serverId?: unknown } | null;
     if (data?.version !== undefined && data.version !== 2) return;
     if (data?.type === 'V2_GAME_READINESS_CHANGED') publishReadiness(data.readiness);
     if (data?.type === 'V2_MARKET_CACHE_UPDATED') publishMarketCache(data.snapshot, data.marketId, data.source);
+    if (data?.type === 'V2_MINIGAME_STUCK') {
+        try {
+            sendToBackground({
+                type: 'V2_MINIGAME_STUCK',
+                ...(typeof data.kind === 'string' ? { kind: data.kind } : {}),
+                ...(typeof data.reason === 'string' ? { reason: data.reason } : {}),
+            });
+        } catch {
+            // The content script may outlive an extension reload.
+        }
+    }
     if (data?.type === 'V2_EXPEDITION_DECISIONS' && Array.isArray(data.decisions)) {
         try {
             sendToBackground({ type: 'V2_EXPEDITION_DECISIONS', decisions: data.decisions });
@@ -69,6 +80,17 @@ window.addEventListener('message', (event) => {
                 level: typeof data.level === 'string' ? data.level : 'info',
                 message: data.message,
                 ...(data.data !== undefined ? { data: data.data } : {}),
+            });
+        } catch {
+            // The content script may outlive an extension reload.
+        }
+    }
+    if (data?.type === 'V2_MAINTENANCE_STARTED') {
+        try {
+            sendToBackground({
+                type: 'V2_MAINTENANCE_STARTED',
+                ...(typeof data.serverId === 'string' && data.serverId.length > 0 ? { serverId: data.serverId } : {}),
+                ...(typeof data.reason === 'string' ? { reason: data.reason } : {}),
             });
         } catch {
             // The content script may outlive an extension reload.
@@ -379,7 +401,15 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
     }
     if (type === 'V2_SOLVE_MINIGAME') {
         const timeoutMs = (message as { timeoutMs?: unknown }).timeoutMs;
-        void game.request('game.solveMinigame', timeoutMs === undefined ? {} : { timeoutMs }, z.unknown(), 190000).then((result) => sendResponse(result));
+        void game.request('game.solveMinigame', timeoutMs === undefined ? {} : { timeoutMs }, z.unknown(), 190000).then((result) => {
+            if (!result.ok) {
+                // The main-world solver may still be running after a bridge
+                // timeout. Release its active session so the next job is not
+                // rejected with "another minigame run is already active".
+                void game.request('game.cancelMinigame', {}, z.unknown(), 10000);
+            }
+            sendResponse(result);
+        });
         return true;
     }
     if (type === 'V2_CANCEL_MINIGAME') {

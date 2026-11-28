@@ -119,6 +119,7 @@ const EXPECTED_BRIDGE_TYPES = [
     'system.workspaceBootstrap',
     'valuable.cancel',
     'valuable.forceMaintenance',
+    'valuable.maintenance',
     'valuable.maintenanceTargets',
     'valuable.progress',
     'valuable.report',

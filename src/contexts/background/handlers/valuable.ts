@@ -14,17 +14,42 @@ const valuableRunSchema = z.object({
 }).strict();
 
 const valuableMaintenanceSchema = valuableRunSchema.extend({
-    serverIds: z.array(z.string().min(1)).max(32).optional(),
+    serverIds: z.array(z.string().min(1)).max(200).optional(),
 });
 
+const forceMaintenanceOptionsSchema = z.object({
+    serverIds: z.array(z.string().min(1)).max(200),
+    // Accepted for panels built before 2.0.13, where force maintenance also
+    // downloaded valuables. The v1-parity loop no longer downloads.
+    includeDownloads: z.boolean().optional(),
+}).strict();
+
+const valuableSellSchema = valuableRunSchema.extend({
+    forceMaintenance: forceMaintenanceOptionsSchema.optional(),
+}).strict();
+
 export function registerValuableHandlers(server: CoreRuntime['server'], deps: ValuableHandlerDeps): void {
-    const { automation } = deps;
+    const { core, automation } = deps;
     server.register('valuable.search', valuableRunSchema, async (request) => {
         const result = await automation.valuable.runSearch(request);
         return result.ok ? ok(result.value) : result;
     });
-    server.register('valuable.sell', valuableRunSchema, async (request) => {
+    server.register('valuable.sell', valuableSellSchema, async (request) => {
         const result = await automation.valuable.runSell(request);
+        const force = request.forceMaintenance;
+        if (result.ok && result.value.stopped !== true && force && force.serverIds.length > 0) {
+            const started = await automation.valuable.startForceMaintenance({
+                runId: `${request.runId}:force`,
+                owner: request.owner,
+                serverIds: force.serverIds,
+            });
+            if (!started.ok) {
+                core.logger.warn('valuable', 'Automatic force maintenance did not start', {
+                    code: started.error.code,
+                    message: started.error.message,
+                });
+            }
+        }
         return result.ok ? ok(result.value) : result;
     });
     server.register('valuable.forceMaintenance', valuableMaintenanceSchema, async (request) => {
@@ -34,6 +59,9 @@ export function registerValuableHandlers(server: CoreRuntime['server'], deps: Va
     server.register('valuable.maintenanceTargets', z.object({}).strict(), async () => {
         const result = await automation.valuable.maintenanceTargets();
         return result.ok ? ok(result.value) : result;
+    });
+    server.register('valuable.maintenance', z.object({ force: z.boolean().default(false) }).strict(), async ({ force }) => {
+        return automation.valuable.maintenanceServers(force);
     });
     server.register('valuable.cancel', z.object({ runId: z.string().min(1) }).strict(), async ({ runId }) => {
         automation.valuable.cancel(runId);

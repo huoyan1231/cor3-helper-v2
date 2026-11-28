@@ -33,6 +33,9 @@ export interface SettingsState {
     readonly helperMode: boolean;
     readonly panelOpen: Readonly<Record<string, boolean>>;
     readonly updatePanelOpen: (key: string, open: boolean) => void;
+    readonly panelOrder: Readonly<Record<string, readonly string[]>>;
+    readonly reorderPanels: (pageKey: string, ids: readonly string[]) => void;
+    readonly resetPanelOrder: () => Promise<string | null>;
     readonly updateResult: UpdateCheckResult | null;
     readonly updateStatusError: string | null;
     readonly updateChecking: boolean;
@@ -41,6 +44,7 @@ export interface SettingsState {
     readonly loadAuth: () => Promise<void>;
     readonly changeHelperMode: (enabled: boolean) => Promise<void>;
     readonly changeDeveloperMode: (enabled: boolean) => Promise<void>;
+    readonly changeMysteryEgg: (enabled: boolean) => Promise<void>;
     readonly changeQol: (
         key: 'disableNetworkFog' | 'disableBackground' | 'moveNotificationsLeft' | 'antiAfkEnabled' | 'saiFileHighlightEnabled' | 'hideWingsOfMars',
         enabled: boolean,
@@ -89,6 +93,26 @@ export function useSettings(portal: PopupPortal, deps: SettingsDeps, initial?: W
         panelOpenRef.current = next;
         setPanelOpen(next);
         void portal.updateSettings({ panelOpenState: next });
+    }, [portal]);
+
+    const panelOrder = settings?.panelOrderState ?? {};
+
+    const reorderPanels = useCallback((pageKey: string, ids: readonly string[]) => {
+        const panelOrderState = { ...settings?.panelOrderState, [pageKey]: [...ids] };
+        // Update the local view immediately so the drop does not snap back
+        // while the settings round-trip is in flight.
+        setSettings((current) => current ? { ...current, panelOrderState } : current);
+        void portal.updateSettings({ panelOrderState }).then((response) => {
+            if (response.ok) setSettings(response.value);
+            else reportDetail(response.error.message);
+        });
+    }, [portal, reportDetail, settings?.panelOrderState]);
+
+    const resetPanelOrder = useCallback(async (): Promise<string | null> => {
+        const response = await portal.updateSettings({ panelOrderState: {} });
+        if (!response.ok) return response.error.message;
+        setSettings(response.value);
+        return null;
     }, [portal]);
 
     const loadSettings = useCallback(async () => {
@@ -184,6 +208,12 @@ export function useSettings(portal: PopupPortal, deps: SettingsDeps, initial?: W
 
     const changeDeveloperMode = useCallback(async (enabled: boolean) => {
         const response = await portal.updateSettings({ developerMode: enabled });
+        if (response.ok) setSettings(response.value);
+        else reportDetail(response.error.message);
+    }, [portal, reportDetail]);
+
+    const changeMysteryEgg = useCallback(async (enabled: boolean) => {
+        const response = await portal.updateSettings({ mysteryEggEnabled: enabled });
         if (response.ok) setSettings(response.value);
         else reportDetail(response.error.message);
     }, [portal, reportDetail]);
@@ -298,6 +328,9 @@ export function useSettings(portal: PopupPortal, deps: SettingsDeps, initial?: W
         helperMode,
         panelOpen,
         updatePanelOpen,
+        panelOrder,
+        reorderPanels,
+        resetPanelOrder,
         updateResult,
         updateStatusError,
         updateChecking,
@@ -306,6 +339,7 @@ export function useSettings(portal: PopupPortal, deps: SettingsDeps, initial?: W
         loadAuth,
         changeHelperMode,
         changeDeveloperMode,
+        changeMysteryEgg,
         changeQol,
         changeLanguage,
         changeAutoExpeditionInterval,

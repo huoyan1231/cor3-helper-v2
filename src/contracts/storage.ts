@@ -53,6 +53,8 @@ export const settingsV1Schema = z.object({
     helperModeConsent: z.boolean().default(false),
     helperModeSaved: helperModeAutomationSchema.nullable().default(null),
     developerMode: z.boolean().default(true),
+    /** Enables the hidden mercenary-expedition easter egg. */
+    mysteryEggEnabled: z.boolean().default(false),
     autoJobsEnabled: z.boolean().default(false),
     autoFinishEnabled: z.boolean().default(false),
     autoJobsIntervalMinutes: z.number().int().min(5).max(1440).default(60),
@@ -62,6 +64,8 @@ export const settingsV1Schema = z.object({
     autoIceWallEnabled: z.boolean().default(false),
     autoSimpleDecryptEnabled: z.boolean().default(false),
     panelOpenState: z.record(z.string(), z.boolean()).default({}),
+    /** Persisted top-level card order per page, for drag-to-reorder panels. */
+    panelOrderState: z.record(z.string(), z.array(z.string().min(1).max(64)).max(64)).default({}),
     autoDroneEnabled: z.boolean().default(false),
     autoDroneIntervalMinutes: z.number().int().min(1).max(1440).default(5),
     droneRepairEnabled: z.boolean().default(false),
@@ -123,6 +127,8 @@ export const settingsV1Schema = z.object({
         skippedGroupIds: [],
         selectedChoices: {},
     })),
+    /** Enables the valuable-seller server-maintenance panel and force operation. */
+    valuableForceMaintenanceEnabled: z.boolean().default(false),
 }).strip();
 
 /**

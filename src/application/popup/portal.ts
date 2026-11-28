@@ -16,6 +16,7 @@ import type { DailyOpsState } from '../../domains/daily-ops/model.js';
 import type { SpecialistPurchase, SpecialistState } from '../../domains/specialists/model.js';
 import type { ExpeditionOverview } from '../../domains/expeditions/model.js';
 import type { ExpeditionDecisionOption } from '../../domains/expeditions/model.js';
+import type { ExpeditionMysteryEgg } from '../../contracts/expedition.js';
 
 import type { DroneState } from '../../domains/drone/model.js';
 import type { LoadoutView } from '../loadout/view.js';
@@ -232,6 +233,8 @@ export interface AutoExpeditionStatus {
     readonly dataStale: boolean;
     readonly preparation: ExpeditionPreparation | null;
     readonly decision: ExpeditionDecisionView | null;
+    /** Hidden easter egg state; shown until the next expedition starts. */
+    readonly egg: ExpeditionMysteryEgg | null;
     readonly last: {
         readonly at: number;
         readonly decisions: number;
@@ -430,13 +433,40 @@ export interface NetworkServerSummary {
 }
 
 export interface ValuableProgress {
-    readonly phase: 'server' | 'download' | 'market' | 'sell';
+    readonly phase: 'server' | 'download' | 'market' | 'sell' | 'maintenance';
     readonly target: string;
     readonly index: number;
     readonly total: number;
     readonly downloadedFiles: number;
     readonly downloadedLogs: number;
     readonly soldItems: number;
+}
+
+export interface ValuableMaintenanceServer {
+    readonly id: string;
+    readonly name: string;
+    readonly typeName: string | null;
+    readonly active: boolean;
+    readonly endsAt: string | null;
+    readonly timeUntil: string | null;
+}
+
+export interface ValuableForceMaintenanceResult {
+    readonly stopped: boolean;
+    readonly forcedServers: number;
+    readonly failedServers: readonly { readonly target: string; readonly message: string }[];
+    readonly downloadedFiles: number;
+    readonly downloadedLogs: number;
+}
+
+export interface ValuableForceMaintenanceStart {
+    readonly runId: string;
+}
+
+export interface ValuableSellOptions {
+    readonly forceMaintenance?: {
+        readonly serverIds: readonly string[];
+    };
 }
 
 export interface ValuableSearchResult {
@@ -463,13 +493,15 @@ export interface ValuableReport {
     readonly soldItems: number;
     readonly credits: number;
     readonly reputation: number;
+    readonly forcedServers: number;
     readonly unsoldItems: number;
     readonly lastSearchAt: number | null;
     readonly lastSellAt: number | null;
+    readonly lastForceAt: number | null;
     readonly active: ValuableRunState | null;
 }
 
-export type ValuableOperation = 'search' | 'sell' | 'maintenance';
+export type ValuableOperation = 'search' | 'sell' | 'maintenance' | 'force-maintenance';
 
 export interface ValuableRunState {
     readonly runId: string;
@@ -639,9 +671,11 @@ export interface PopupPortal {
     cancelAutoFinish(): Promise<BridgeResult<void>>;
     networkServers(): Promise<BridgeResult<readonly NetworkServerSummary[]>>;
     searchValuable(runId: string): Promise<BridgeResult<ValuableSearchResult>>;
-    sellValuable(runId: string): Promise<BridgeResult<ValuableSaleResult>>;
+    sellValuable(runId: string, options?: ValuableSellOptions): Promise<BridgeResult<ValuableSaleResult>>;
     forceMaintenance(runId: string, serverIds?: readonly string[]): Promise<BridgeResult<MaintenanceForceSummary>>;
     maintenanceTargets(): Promise<BridgeResult<readonly MaintenanceTarget[]>>;
+    valuableMaintenance(force?: boolean): Promise<BridgeResult<readonly ValuableMaintenanceServer[]>>;
+    startForceValuableMaintenance(runId: string, serverIds: readonly string[]): Promise<BridgeResult<ValuableForceMaintenanceStart>>;
     cancelValuable(runId: string): Promise<BridgeResult<void>>;
     valuableProgress(runId: string): Promise<BridgeResult<ValuableRunState | null>>;
     valuableReport(): Promise<BridgeResult<ValuableReport>>;

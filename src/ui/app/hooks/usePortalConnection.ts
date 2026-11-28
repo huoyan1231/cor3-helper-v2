@@ -149,8 +149,16 @@ export function usePortalEvents(portal: PopupPortal, handlers: PortalEventHandle
             // The content script emits this on every game page load, including
             // a manual F5 and the Auto Refresh tab's scheduled reload.
             void current.reloadAuth();
+            const payload = event.payload as { readiness?: { ready?: unknown } } | undefined;
+            if (payload?.readiness?.ready === true) {
+                // A page reload drops the main-world token and re-captures it.
+                // Refresh settings too instead of leaving the header stuck on
+                // "needs refresh".
+                void current.reloadSettings();
+            }
+            void current.reloadNetwork();
         }
-        if (event.type === 'network.queue' || event.type === 'game.readiness') {
+        if (event.type === 'network.queue') {
             void current.reloadNetwork();
         }
         if (event.type === 'job.queue.progress') {

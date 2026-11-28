@@ -1,5 +1,5 @@
 import type { ComponentChildren } from 'preact';
-import { useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import type { AutoDroneStatus, AutoExpeditionStatus, ExpeditionDecisionView } from '../../../application/popup/portal.js';
 import type { SettingsPatch, SettingsV1 } from '../../../contracts/storage.js';
 import type { DroneState } from '../../../domains/drone/model.js';
@@ -8,6 +8,7 @@ import { decisionScore } from '../../../domains/expeditions/model.js';
 import { DRONE_EXPEDITION_PROFILE, MERC_EXPEDITION_PROFILES, buildDroneCardState, mercProfileKeyForMarket, partitionExpeditions } from '../../../application/expeditions/view.js';
 import { AutomationCard } from '../../components/AutomationCard.js';
 import { InfoTip } from '../../components/InfoTip.js';
+import { MysteryEggBanner } from '../../components/MysteryEggBanner.js';
 import { RefreshButton } from '../../components/RefreshButton.js';
 import { formatRemaining } from '../../format.js';
 import { useT, type TranslateSource } from '../../i18n-context.js';
@@ -84,6 +85,14 @@ function dronePhaseLabel(phase: string, tr: TranslateSource): string {
 function expeditionMessage(message: string, tr: TranslateSource): string {
     const launched = message.match(/^Launched with (.+) \((.+)\)$/);
     if (launched) return tr('Launched with {name} ({market})', { name: launched[1] ?? '', market: launched[2] ?? '' });
+    const budget = message.match(/^Credits (.+) after paying (.+) would fall below threshold (.+)$/);
+    if (budget) {
+        return tr('Credits {credits} after paying {cost} would fall below threshold {threshold}', {
+            credits: budget[1] ?? '',
+            cost: budget[2] ?? '',
+            threshold: budget[3] ?? '',
+        });
+    }
     return tr(message);
 }
 
@@ -96,6 +105,13 @@ function expeditionStatusLabel(status: string, tr: TranslateSource): string {
             return tr('Running');
         case 'COMPLETED':
             return tr('Completed');
+        case 'FULL_SUCCESS':
+        case 'SUCCESS':
+            return tr('Full success');
+        case 'PARTIAL_SUCCESS':
+            return tr('Partial success');
+        case 'DEATH':
+            return tr('Death');
         case 'FAILED':
         case 'FAILURE':
             return tr('Failed');
@@ -108,6 +124,13 @@ function expeditionStatusLabel(status: string, tr: TranslateSource): string {
         default:
             return status;
     }
+}
+
+function expeditionOutcomeTag(expedition: ExpeditionOverview['active'][number]): string {
+    const value = (expedition.outcome ?? expedition.status).toUpperCase();
+    if (value.includes('DEATH') || value.includes('FAIL')) return 'v2-tag-error';
+    if (value.includes('PARTIAL')) return 'v2-tag-warn';
+    return 'v2-tag-ok';
 }
 
 function decisionOptionScore(
@@ -173,6 +196,10 @@ function Fold({ title, titleExtra, open, onToggle, children }: {
                     <span class="v2-expedition-fold-title">{title}</span>
                 </button>
                 {titleExtra ?? null}
+                {/* Click target for the empty part of the row. Kept as a
+                    sibling so the info button and its modal never bubble into
+                    the toggle. */}
+                <div class="v2-expedition-fold-filler" aria-hidden="true" onClick={onToggle} />
             </div>
             {open ? <div class="v2-loadout-section-body">{children}</div> : null}
         </div>
@@ -210,6 +237,7 @@ export function AutoExpeditionCard({
     const mercOptionsOpen = panelOpen['auto-expedition.merc.options'] ?? true;
     const mercSelectionOpen = panelOpen['auto-expedition.merc.selection'] ?? true;
     const mercDecisionOpen = panelOpen['auto-expedition.merc.decision'] ?? true;
+    const mercHistoryOpen = panelOpen['auto-expedition.merc.history'] ?? false;
     const droneDecisionOpen = panelOpen['auto-expedition.drone.decision'] ?? true;
     const droneOptionsOpen = panelOpen['auto-expedition.drone.options'] ?? true;
 
@@ -247,6 +275,15 @@ export function AutoExpeditionCard({
 
     const mercAvailable = mercStatus?.available ?? true;
     const droneAvailable = droneStatus?.available ?? true;
+    const egg = mercStatus?.egg ?? null;
+    const shownEgg = useRef<string | null>(null);
+
+    useEffect(() => {
+        if (!egg || shownEgg.current === egg.expeditionId) return;
+        shownEgg.current = egg.expeditionId;
+        if (!expanded) onOpenChange(true);
+    }, [egg, expanded, onOpenChange]);
+
     const preparation = mercStatus?.preparation ?? null;
     const preparationSeconds = preparation ? Math.max(0, Math.ceil((preparation.until - now) / 1000)) : 0;
     const mercMarketKey = mercProfileKeyForMarket(
@@ -256,7 +293,7 @@ export function AutoExpeditionCard({
         ?? 'core',
     );
     const mercProfile = MERC_EXPEDITION_PROFILES[mercMarketKey];
-    const { active: activeExpeditions, completed: completedExpeditions } = partitionExpeditions(expeditions);
+    const { active: activeExpeditions, completed: completedExpeditions, history: expeditionHistory } = partitionExpeditions(expeditions);
     const autoDecisionEnabled = decisionMode === 'score' || (settings?.mercDecisionPolicy ?? 'off') !== 'off';
     const overviewDecision = expeditions?.decisions[0] ?? null;
     const overviewDecisionDeadline = overviewDecision?.deadline ? Date.parse(overviewDecision.deadline) : Number.NaN;
@@ -323,6 +360,7 @@ export function AutoExpeditionCard({
             expanded={expanded}
             onOpenChange={onOpenChange}
         >
+            {egg ? <MysteryEggBanner /> : null}
             <div class="v2-expedition-tabs">
                 <button type="button" class={tab === 'merc' ? 'active' : ''} onClick={() => setTab('merc')}>{tr('Mercenaries')}</button>
                 <button type="button" class={tab === 'drone' ? 'active' : ''} onClick={() => setTab('drone')}>{tr('Drone')}</button>
@@ -608,7 +646,7 @@ export function AutoExpeditionCard({
                         <div class="v2-expedition-setting-row">
                             <div>
                                 <strong>{tr('Stop below credits')}</strong>
-                                <p class="v2-muted">{tr('Disable Auto Expedition when credits fall below this value.')}</p>
+                                <p class="v2-muted">{tr('Stop when credits minus the expedition total cost would fall below this value.')}</p>
                             </div>
                             <div class="v2-expedition-inline">
                                 <input
@@ -717,7 +755,7 @@ export function AutoExpeditionCard({
                         )}
                     </Fold>
 
-                    <div class="v2-expedition-setting-row">
+                    <div class="v2-expedition-setting-row v2-expedition-row-flush">
                         <div>
                             <strong>
                                 {tr('Get rid of veterans')}
@@ -757,6 +795,46 @@ export function AutoExpeditionCard({
                             onClick={() => void updateSettings({ mercAutoPayEnabled: !(settings?.mercAutoPayEnabled ?? true) })}
                         />
                     </div>
+
+                    <div class="v2-expedition-divider" aria-hidden="true" />
+
+                    <Fold
+                        title={tr('History')}
+                        open={mercHistoryOpen}
+                        onToggle={() => updatePanelOpen('auto-expedition.merc.history', !mercHistoryOpen)}
+                    >
+                        {expeditionHistory.length === 0 ? (
+                            <p class="v2-muted">{tr('No expedition history yet.')}</p>
+                        ) : (
+                            <div class="v2-expedition-stage-list">
+                                {expeditionHistory.map((expedition) => (
+                                    <article class="v2-stage-card" key={`history-${expedition.id}`}>
+                                        <div class="v2-stage-head">
+                                            <span class="v2-stage-title">
+                                                {tr('📍 {location} — {name}', {
+                                                    location: expedition.locationName,
+                                                    name: expedition.mercenaryName ?? tr('Mercenary'),
+                                                })}
+                                            </span>
+                                            <span class={`v2-tag ${expeditionOutcomeTag(expedition)}`}>
+                                                {expeditionStatusLabel(expedition.outcome ?? expedition.status, tr)}
+                                            </span>
+                                        </div>
+                                        <div class="v2-stage-stats">
+                                            {expedition.totalCost !== null ? <span>{tr('Cost')} <strong>💰 {expedition.totalCost}</strong></span> : null}
+                                            {expedition.riskScore !== null ? <span>{tr('Risk')} <strong>⚠ {expedition.riskScore}</strong></span> : null}
+                                            {expedition.completedAt ? (
+                                                <span>
+                                                    {tr('Completed')}{' '}
+                                                    <strong>{new Date(expedition.completedAt).toLocaleString()}</strong>
+                                                </span>
+                                            ) : null}
+                                        </div>
+                                    </article>
+                                ))}
+                            </div>
+                        )}
+                    </Fold>
                 </fieldset>
             ) : (
                 <fieldset class="v2-expedition-fieldset" disabled={!droneAvailable}>

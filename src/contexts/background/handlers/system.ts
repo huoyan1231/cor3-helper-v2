@@ -65,7 +65,7 @@ function buildActivityState(deps: SystemHandlerDeps) {
     }
     const valuable = automation.valuable.activity();
     if (valuable) {
-        const maintenance = valuable.operation === 'maintenance';
+        const maintenance = valuable.operation === 'maintenance' || valuable.operation === 'force-maintenance';
         return {
             key: 'valuable-seller' as const,
             label: valuable.operation === 'search' ? 'Valuable Search' : maintenance ? 'Force Maintenance' : 'Valuable Sale',
@@ -172,7 +172,7 @@ export function registerSystemHandlers(server: CoreRuntime['server'], deps: Syst
     });
     server.register('automation.logs', z.object({
         runId: z.string().min(1),
-        limit: z.number().int().positive().max(500).default(300),
+        limit: z.number().int().positive().max(2000).default(300),
     }).strict(), async ({ runId, limit }) => {
         return ok(deps.core.runLogs.list(runId, limit));
     });

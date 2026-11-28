@@ -1,12 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { resolveReportRunState } from './valuable-run-state.js';
-import type { MaintenanceForceProgress, MaintenanceTarget, PopupPortal, ValuableOperation, ValuableProgress, ValuableReport } from '../../../application/popup/portal.js';
+import type {
+    MaintenanceForceProgress,
+    MaintenanceTarget,
+    PopupPortal,
+    ValuableMaintenanceServer,
+    ValuableProgress,
+    ValuableReport,
+    ValuableRunState,
+    ValuableSellOptions,
+} from '../../../application/popup/portal.js';
 import type { TranslateSource } from '../../i18n-context.js';
 import type { PopupPage } from '../AppShell.js';
 import { usePolling } from './usePolling.js';
 
 /**
- * Valuable search/sell runs and their progress (H8 phase 7).
+ * Valuable search/sale runs, server maintenance selection and force runs
+ * (H8 phase 7).
  */
 
 export interface ValuableDeps {
@@ -19,14 +29,25 @@ export interface ValuableState {
     readonly valuableStatus: string;
     readonly valuableReport: ValuableReport | null;
     readonly valuableRunId: string | null;
-    readonly valuableOperation: ValuableOperation | null;
+    readonly valuableOperation: ValuableRunState['operation'] | null;
     readonly valuableCanceling: boolean;
     readonly valuableProgress: ValuableProgress | MaintenanceForceProgress | null;
     readonly maintenanceTargets: readonly MaintenanceTarget[];
+    readonly maintenanceServers: readonly ValuableMaintenanceServer[];
+    readonly maintenanceLoading: boolean;
+    readonly selectedMaintenanceIds: ReadonlySet<string>;
     readonly loadValuableReport: () => Promise<void>;
     readonly loadMaintenanceTargets: () => Promise<void>;
-    readonly startValuableOperation: (operation: ValuableOperation, serverIds?: readonly string[]) => Promise<void>;
+    readonly loadValuableMaintenance: (force?: boolean) => Promise<void>;
+    readonly startValuableOperation: (
+        operation: ValuableRunState['operation'],
+        optionsOrServerIds?: ValuableSellOptions | readonly string[],
+    ) => Promise<void>;
+    readonly startForceMaintenance: (serverIds: readonly string[]) => Promise<void>;
     readonly cancelValuableOperation: () => Promise<void>;
+    readonly toggleForceMaintenance: (enabled: boolean) => Promise<void>;
+    readonly toggleMaintenanceServer: (serverId: string) => void;
+    readonly selectAllUpcoming: () => void;
 }
 
 export function useValuable(portal: PopupPortal, deps: ValuableDeps): ValuableState {
@@ -34,11 +55,15 @@ export function useValuable(portal: PopupPortal, deps: ValuableDeps): ValuableSt
     const [valuableStatus, setValuableStatus] = useState('Idle');
     const [valuableReport, setValuableReport] = useState<ValuableReport | null>(null);
     const [valuableRunId, setValuableRunId] = useState<string | null>(null);
-    const [valuableOperation, setValuableOperation] = useState<ValuableOperation | null>(null);
+    const [valuableOperation, setValuableOperation] = useState<ValuableRunState['operation'] | null>(null);
     const [valuableCanceling, setValuableCanceling] = useState(false);
     const [valuableProgress, setValuableProgress] = useState<ValuableProgress | MaintenanceForceProgress | null>(null);
     const [maintenanceTargets, setMaintenanceTargets] = useState<readonly MaintenanceTarget[]>([]);
+    const [maintenanceServers, setMaintenanceServers] = useState<readonly ValuableMaintenanceServer[]>([]);
+    const [maintenanceLoading, setMaintenanceLoading] = useState(false);
+    const [selectedMaintenanceIds, setSelectedMaintenanceIds] = useState<ReadonlySet<string>>(new Set());
     const valuableStartLock = useRef(false);
+    const maintenanceRequestSeq = useRef(0);
 
     const loadValuableReport = useCallback(async () => {
         const response = await portal.valuableReport();
@@ -55,13 +80,16 @@ export function useValuable(portal: PopupPortal, deps: ValuableDeps): ValuableSt
         setValuableProgress(runState.progress);
         if (runState.runId === null) setValuableCanceling(false);
         if (active) {
-            setValuableStatus((current) => current === tt('Idle')
-                ? active.operation === 'search'
-                    ? tt('Searching all servers...')
-                    : active.operation === 'sell'
-                        ? tt('Selling downloaded valuables...')
-                        : tt('Forcing maintenance on upcoming servers...')
-                : current);
+            // `resolveReportRunState` above already adopts the active run while
+            // respecting the local start lock; do not clobber optimistic state.
+            setValuableStatus((current) => {
+                if (active.operation === 'force-maintenance') return tt('Forcing server maintenance...');
+                if (current !== tt('Idle')) return current;
+                if (active.operation === 'search') return tt('Searching all servers...');
+                if (active.operation === 'sell') return tt('Selling downloaded valuables...');
+                if (active.operation === 'maintenance') return tt('Forcing maintenance on upcoming servers...');
+                return current;
+            });
         }
     }, [portal, reportDetail, tt]);
 
@@ -70,15 +98,44 @@ export function useValuable(portal: PopupPortal, deps: ValuableDeps): ValuableSt
         if (response.ok) setMaintenanceTargets(response.value);
     }, [portal]);
 
+    const loadValuableMaintenance = useCallback(async (force = false) => {
+        const sequence = ++maintenanceRequestSeq.current;
+        setMaintenanceLoading(true);
+        try {
+            const response = await portal.valuableMaintenance(force);
+            if (sequence !== maintenanceRequestSeq.current) return;
+            if (!response.ok) {
+                reportDetail(response.error.message);
+                return;
+            }
+            setMaintenanceServers(response.value);
+            const selectable = new Set(response.value
+                .filter((server) => !server.active && Boolean(server.timeUntil))
+                .map((server) => server.id));
+            setSelectedMaintenanceIds((current) => {
+                const next = new Set([...current].filter((id) => selectable.has(id)));
+                return next.size === current.size && [...next].every((id) => current.has(id)) ? current : next;
+            });
+        } finally {
+            if (sequence === maintenanceRequestSeq.current) setMaintenanceLoading(false);
+        }
+    }, [portal, reportDetail]);
+
     useEffect(() => {
         void loadValuableReport();
     }, [loadValuableReport]);
 
     useEffect(() => {
         void loadMaintenanceTargets();
-    }, [loadMaintenanceTargets]);
+        if (activePage === 'automation') void loadValuableMaintenance();
+    }, [activePage, loadMaintenanceTargets, loadValuableMaintenance]);
 
-    const startValuableOperation = useCallback(async (operation: ValuableOperation, serverIds?: readonly string[]) => {
+    const startValuableOperation = useCallback(async (
+        operation: ValuableRunState['operation'],
+        optionsOrServerIds?: ValuableSellOptions | readonly string[],
+    ) => {
+        const serverIds = Array.isArray(optionsOrServerIds) ? (optionsOrServerIds as readonly string[]) : undefined;
+        const options = serverIds ? undefined : (optionsOrServerIds as ValuableSellOptions | undefined);
         if (valuableRunId !== null || valuableStartLock.current) return;
         valuableStartLock.current = true;
         const runId = crypto.randomUUID();
@@ -106,7 +163,9 @@ export function useValuable(portal: PopupPortal, deps: ValuableDeps): ValuableSt
                     ? `${tt('Search cancelled: downloaded {files} file(s), {logs} log(s)', { files: value.downloadedFiles, logs: value.downloadedLogs })}${failures}`
                     : `${tt('Downloaded {files} file(s) and {logs} log(s) from {servers} server(s)', { files: value.downloadedFiles, logs: value.downloadedLogs, servers: value.serversScanned })}${failures}`);
             } else if (operation === 'sell') {
-                const response = await portal.sellValuable(runId);
+                // The background may start an automatic force-maintenance run
+                // right after the sale. `loadValuableReport` below adopts it.
+                const response = await portal.sellValuable(runId, options);
                 if (!response.ok) {
                     setValuableStatus(response.error.message);
                     return;
@@ -136,10 +195,23 @@ export function useValuable(portal: PopupPortal, deps: ValuableDeps): ValuableSt
             setValuableOperation((current) => current === operation ? null : current);
             setValuableProgress(null);
             setValuableCanceling(false);
-            await loadValuableReport();
-            await loadMaintenanceTargets();
+            await Promise.all([
+                loadValuableReport(),
+                loadMaintenanceTargets(),
+                loadValuableMaintenance(),
+            ]);
         }
-    }, [portal, valuableRunId, loadValuableReport, loadMaintenanceTargets, tt]);
+    }, [portal, valuableRunId, loadValuableReport, loadMaintenanceTargets, loadValuableMaintenance, tt]);
+
+    const startForceMaintenance = useCallback(async (serverIds: readonly string[]) => {
+        if (serverIds.length === 0) return;
+        // Upstream's `startForceValuableMaintenance()` shares the
+        // `valuable.forceMaintenance` bridge command, whose handler is the
+        // fork's runMaintenance returning `MaintenanceForceSummary`. The strict
+        // `{ runId }` quick-start schema would reject that response, so route
+        // through the fork-compatible operation which awaits the same run.
+        await startValuableOperation('force-maintenance', serverIds);
+    }, [startValuableOperation]);
 
     const cancelValuableOperation = useCallback(async () => {
         if (valuableRunId === null || valuableCanceling) return;
@@ -163,20 +235,62 @@ export function useValuable(portal: PopupPortal, deps: ValuableDeps): ValuableSt
             setValuableOperation(null);
             setValuableProgress(null);
             setValuableCanceling(false);
-            await loadValuableReport();
-            await loadMaintenanceTargets();
+            await Promise.all([
+                loadValuableReport(),
+                loadMaintenanceTargets(),
+                loadValuableMaintenance(),
+            ]);
             return;
         }
         setValuableProgress(response.value.progress);
         if (response.value.status !== 'running') {
+            const finishedOperation = valuableOperation;
+            valuableStartLock.current = false;
             setValuableRunId(null);
             setValuableOperation(null);
             setValuableProgress(null);
             setValuableCanceling(false);
-            await loadValuableReport();
-            await loadMaintenanceTargets();
+            await Promise.all([
+                loadValuableReport(),
+                loadMaintenanceTargets(),
+                loadValuableMaintenance(finishedOperation === 'force-maintenance'),
+            ]);
+            if (finishedOperation === 'force-maintenance') {
+                if (response.value.status === 'error') {
+                    setValuableStatus(response.value.error ?? tt('Force maintenance failed.'));
+                } else if (response.value.status === 'cancelled') {
+                    setValuableStatus(tt('Force maintenance cancelled.'));
+                } else {
+                    setValuableStatus(tt('Force maintenance finished.'));
+                }
+            }
         }
-    }, [portal, valuableRunId, loadValuableReport, loadMaintenanceTargets]);
+    }, [portal, valuableRunId, valuableOperation, loadValuableReport, loadMaintenanceTargets, loadValuableMaintenance, tt]);
+
+    const toggleForceMaintenance = useCallback(async (enabled: boolean) => {
+        const response = await portal.updateSettings({ valuableForceMaintenanceEnabled: enabled });
+        if (!response.ok) {
+            reportDetail(response.error.message);
+            return;
+        }
+        if (enabled) await loadValuableMaintenance(true);
+        else setSelectedMaintenanceIds(new Set());
+    }, [portal, reportDetail, loadValuableMaintenance]);
+
+    const toggleMaintenanceServer = useCallback((serverId: string) => {
+        setSelectedMaintenanceIds((current) => {
+            const next = new Set(current);
+            if (next.has(serverId)) next.delete(serverId);
+            else next.add(serverId);
+            return next;
+        });
+    }, []);
+
+    const selectAllUpcoming = useCallback(() => {
+        setSelectedMaintenanceIds(new Set(maintenanceServers
+            .filter((server) => !server.active && Boolean(server.timeUntil))
+            .map((server) => server.id)));
+    }, [maintenanceServers]);
 
     usePolling(pollValuableProgress, 1000, { enabled: valuableRunId !== null });
     usePolling(loadValuableReport, 5000, { enabled: activePage === 'automation' });
@@ -190,9 +304,17 @@ export function useValuable(portal: PopupPortal, deps: ValuableDeps): ValuableSt
         valuableCanceling,
         valuableProgress,
         maintenanceTargets,
+        maintenanceServers,
+        maintenanceLoading,
+        selectedMaintenanceIds,
         loadValuableReport,
         loadMaintenanceTargets,
+        loadValuableMaintenance,
         startValuableOperation,
+        startForceMaintenance,
         cancelValuableOperation,
+        toggleForceMaintenance,
+        toggleMaintenanceServer,
+        selectAllUpcoming,
     };
 }
